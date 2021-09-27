@@ -22,6 +22,7 @@ import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
 import org.apache.iotdb.db.engine.StorageEngine;
 import org.apache.iotdb.db.engine.storagegroup.TsFileResource;
+import org.apache.iotdb.db.exception.metadata.IllegalPathException;
 import org.apache.iotdb.db.exception.query.QueryProcessException;
 import org.apache.iotdb.db.qp.Planner;
 import org.apache.iotdb.db.qp.executor.IPlanExecutor;
@@ -205,7 +206,7 @@ public class TsFileRewriteToolTest {
     List<TsFileResource> splitResource = new ArrayList<>();
     try {
       TsFileRewriteTool.rewriteTsFile(tsFileResource, splitResource);
-    } catch (IOException | WriteProcessException e) {
+    } catch (IOException | WriteProcessException | IllegalPathException e) {
       Assert.fail(e.getMessage());
     }
     Assert.assertEquals(maxTimestamp / newPartitionInterval + 1, splitResource.size());
@@ -388,7 +389,7 @@ public class TsFileRewriteToolTest {
     List<TsFileResource> splitResource = new ArrayList<>();
     try {
       TsFileRewriteTool.rewriteTsFile(tsFileResource, splitResource);
-    } catch (IOException | WriteProcessException e) {
+    } catch (IOException | WriteProcessException | IllegalPathException e) {
       Assert.fail(e.getMessage());
     }
     Assert.assertEquals(2, splitResource.size());
