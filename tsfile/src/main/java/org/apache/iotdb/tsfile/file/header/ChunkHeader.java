@@ -33,7 +33,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
-public class ChunkHeader {
+public class ChunkHeader {  //ChunkHeader类
 
   /**
    * 1 means this chunk has more than one page, so each page has its own page statistic 5 means this
@@ -45,7 +45,7 @@ public class ChunkHeader {
   private byte chunkType;
 
   private String measurementID;
-  private int dataSize;
+  private int dataSize;   //该Chunk的数据部分的大小（字节个数），即该Chunk的所有page大小总和，不包含ChunkHeader的大小
   private TSDataType dataType;
   private CompressionType compressionType;
   private TSEncoding encodingType;

@@ -21,6 +21,7 @@ package org.apache.iotdb.db.engine.storagegroup;
 import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
 import org.apache.iotdb.db.engine.modification.ModificationFile;
+import org.apache.iotdb.db.engine.modify.ModifyTask;
 import org.apache.iotdb.db.engine.querycontext.ReadOnlyMemChunk;
 import org.apache.iotdb.db.engine.storagegroup.StorageGroupProcessor.UpgradeTsFileResourceCallBack;
 import org.apache.iotdb.db.engine.storagegroup.timeindex.DeviceTimeIndex;
@@ -28,6 +29,7 @@ import org.apache.iotdb.db.engine.storagegroup.timeindex.ITimeIndex;
 import org.apache.iotdb.db.engine.storagegroup.timeindex.TimeIndexLevel;
 import org.apache.iotdb.db.engine.upgrade.UpgradeTask;
 import org.apache.iotdb.db.exception.PartitionViolationException;
+import org.apache.iotdb.db.service.ModifyService;
 import org.apache.iotdb.db.service.UpgradeSevice;
 import org.apache.iotdb.db.utils.FilePathUtils;
 import org.apache.iotdb.db.utils.TestOnly;
@@ -72,7 +74,7 @@ import static org.apache.iotdb.db.conf.IoTDBConstant.FILE_NAME_SUFFIX_VERSION_IN
 import static org.apache.iotdb.tsfile.common.constant.TsFileConstant.TSFILE_SUFFIX;
 
 @SuppressWarnings("java:S1135") // ignore todos
-public class TsFileResource {
+public class TsFileResource { //该类可以理解为TsFile的信息类
 
   private static final Logger logger = LoggerFactory.getLogger(TsFileResource.class);
 
@@ -95,14 +97,14 @@ public class TsFileResource {
     return processor;
   }
   /** time index */
-  protected ITimeIndex timeIndex;
+  protected ITimeIndex timeIndex;   //每个TsFileResource文件对象有着时间索引类对象，它可能是设备时间索引或者存储组时间索引
 
   /** time index type, fileTimeIndex = 0, deviceTimeIndex = 1 */
-  private byte timeIndexType;
+  private byte timeIndexType; //时间索引类型
 
-  private ModificationFile modFile;
+  private ModificationFile modFile; //每个TsFileResource类里有该TsFile的mods文件类对象
 
-  private volatile boolean closed = false;
+  private volatile boolean closed = false;      //当true，说明该TsFile是封口已关闭的，否则是未封口的
   private volatile boolean deleted = false;
   private volatile boolean isMerging = false;
 
@@ -114,7 +116,7 @@ public class TsFileResource {
    * Chunk metadata list of unsealed tsfile. Only be set in a temporal TsFileResource in a query
    * process.
    */
-  private List<IChunkMetadata> chunkMetadataList;
+  private List<IChunkMetadata> chunkMetadataList; //每个TsFileResource类对象里存放了该TsFile里的每个Chunk的ChunkIndex类对象，把他们放进了列表里
 
   /** Mem chunk data. Only be set in a temporal TsFileResource in a query process. */
   private List<ReadOnlyMemChunk> readOnlyMemChunk;
@@ -125,13 +127,13 @@ public class TsFileResource {
   private FSFactory fsFactory = FSFactoryProducer.getFSFactory();
 
   /** generated upgraded TsFile ResourceList used for upgrading v0.11.x/v2 -> 0.12/v3 */
-  private List<TsFileResource> upgradedResources;
+  private List<TsFileResource> upgradedResources; //对于该TsFileResource对应的TsFile文件升级后（从v0.11.x/v2 升级到0.12/v3）产生的新的多个TsFileResource存入该列表里。
 
   /**
    * load upgraded TsFile Resources to storage group processor used for upgrading v0.11.x/v2 ->
    * 0.12/v3
    */
-  private UpgradeTsFileResourceCallBack upgradeTsFileResourceCallBack;
+  private UpgradeTsFileResourceCallBack upgradeTsFileResourceCallBack;//升级完指定的TSFile文件的TsFileResource文件后进行回调的函数对象
 
   /**
    * indicate if this tsfile resource belongs to a sequence tsfile or not used for upgrading
@@ -323,8 +325,8 @@ public class TsFileResource {
     }
   }
 
-  public synchronized void serialize() throws IOException {
-    try (OutputStream outputStream =
+  public synchronized void serialize() throws IOException { //将该TsFile文件对应的TsFileResource对象里的内容序列化写到本地的.resource文件里
+    try (OutputStream outputStream =    //创建该TsFile文件对应的本地"xxx.tsfile.resource.temp"文件的缓存输出流，先将数据写到临时的.resource.tmp文件里
         fsFactory.getBufferedOutputStream(file + RESOURCE_SUFFIX + TEMP_SUFFIX)) {
       ReadWriteIOUtils.write(VERSION_NUMBER, outputStream);
       ReadWriteIOUtils.write(timeIndexType, outputStream);
@@ -341,7 +343,7 @@ public class TsFileResource {
     File src = fsFactory.getFile(file + RESOURCE_SUFFIX + TEMP_SUFFIX);
     File dest = fsFactory.getFile(file + RESOURCE_SUFFIX);
     fsFactory.deleteIfExists(dest);
-    fsFactory.moveFile(src, dest);
+    fsFactory.moveFile(src, dest);    //将临时.resource.tmp文件移动到.resource文件里
   }
 
   /** deserialize from disk */
@@ -363,16 +365,16 @@ public class TsFileResource {
   }
 
   /** deserialize tsfile resource from old file */
-  public void deserializeFromOldFile() throws IOException {
-    try (InputStream inputStream = fsFactory.getBufferedInputStream(file + RESOURCE_SUFFIX)) {
+  public void deserializeFromOldFile() throws IOException { //反序列化
+    try (InputStream inputStream = fsFactory.getBufferedInputStream(file + RESOURCE_SUFFIX)) {//读取该TsFileResource文件内容的输入缓存流
       // deserialize old TsfileResource
-      int size = ReadWriteIOUtils.readInt(inputStream);
+      int size = ReadWriteIOUtils.readInt(inputStream);//从文件输入流中读取一个整数int变量（即读取四个字节的内容并把他们转为int型整数变量）
       Map<String, Integer> deviceMap = new HashMap<>();
       long[] startTimesArray = new long[size];
       long[] endTimesArray = new long[size];
       for (int i = 0; i < size; i++) {
-        String path = ReadWriteIOUtils.readString(inputStream);
-        long time = ReadWriteIOUtils.readLong(inputStream);
+        String path = ReadWriteIOUtils.readString(inputStream);//读取字符串
+        long time = ReadWriteIOUtils.readLong(inputStream);//读取long长整数
         deviceMap.put(path, i);
         startTimesArray[i] = time;
       }
@@ -436,8 +438,8 @@ public class TsFileResource {
     return readOnlyMemChunk;
   }
 
-  public synchronized ModificationFile getModFile() {
-    if (modFile == null) {
+  public synchronized ModificationFile getModFile() { //获取当前TsFile的mods文件类ModificationFile对象
+    if (modFile == null) {  //若当前TsFile的mods文件对象为空，则新建一个mods文件类ModificationFile对象
       modFile = new ModificationFile(file.getPath() + ModificationFile.FILE_SUFFIX);
     }
     return modFile;
@@ -455,16 +457,16 @@ public class TsFileResource {
     return file.getPath();
   }
 
-  public long getTsFileSize() {
+  public long getTsFileSize() { //获取该Resource对应TsFile的文件大小
     return file.length();
   }
 
-  public long getStartTime(String deviceId) {
+  public long getStartTime(String deviceId) { //获取该TsFile里该设备下数据的起使时间
     return timeIndex.getStartTime(deviceId);
   }
 
   /** open file's end time is Long.MIN_VALUE */
-  public long getEndTime(String deviceId) {
+  public long getEndTime(String deviceId) { //获取该TsFile里该设备的数据的最大时间戳。注意：未封口，即还开着的TSFile文件里所有设备的最晚时间都默认是最小整数
     return timeIndex.getEndTime(deviceId);
   }
 
@@ -476,22 +478,22 @@ public class TsFileResource {
     return timeIndex.endTimeEmpty();
   }
 
-  public boolean isClosed() {
+  public boolean isClosed() { //判断此TsFile是否关闭、封口
     return closed;
   }
 
-  public void close() throws IOException {
+  public void close() throws IOException {  //关闭此TsFile的相关资源，即封口seal此TsFile
     closed = true;
     if (modFile != null) {
-      modFile.close();
+      modFile.close();      //关闭mods修改文件ModificationFile类对象
       modFile = null;
     }
-    processor = null;
-    chunkMetadataList = null;
+    processor = null; //对应的TsFileProcessor清空
+    chunkMetadataList = null;//chunkIndex列表清空
     timeIndex.close();
   }
 
-  TsFileProcessor getUnsealedFileProcessor() {
+  TsFileProcessor getUnsealedFileProcessor() {  //返回该未封口TsFile文件的TsFileProcessor
     return processor;
   }
 
@@ -535,9 +537,16 @@ public class TsFileResource {
     return tsFileLock.tryWriteLock();
   }
 
-  void doUpgrade() {
-    UpgradeSevice.getINSTANCE().submitUpgradeTask(new UpgradeTask(this));
+  void doUpgrade() {//进行升级该TSFileResource，然后会执行回调函数
+    UpgradeSevice.getINSTANCE().submitUpgradeTask(new UpgradeTask(this)); //新建一个升级线程UpgradeTask，并往“升级TSFile文件”服务的线程池里提交该升级线程upgradeTask。
+    //然后会执行回调函数
   }
+
+  //Benson
+  public void doModify(){
+    ModifyService.getINSTANCE().submitModifyTask(new ModifyTask(this));
+  }
+
 
   public void removeModFile() throws IOException {
     getModFile().remove();
@@ -623,18 +632,18 @@ public class TsFileResource {
   }
 
   /** check if any of the device lives over the given time bound */
-  public boolean stillLives(long timeLowerBound) {
+  public boolean stillLives(long timeLowerBound) {  //判断该TsFile的数据是否超过TTL，只要有一个设备的数据的存活时间超过TTL，则返回false
     return timeIndex.stillLives(timeLowerBound);
   }
 
-  public boolean isDeviceIdExist(String deviceId) {
+  public boolean isDeviceIdExist(String deviceId) {//判断此TsFile文件里是否有包含此设备的数据
     return timeIndex.checkDeviceIdExist(deviceId);
   }
 
   /** @return true if the device is contained in the TsFile and it lives beyond TTL */
-  public boolean isSatisfied(
+  public boolean isSatisfied( //根据给定的时间过滤器和ttl等参数，判断该TsFile里的该设备下的所有数据是否满足要求（即该TsFile里存在此设备，且设备下的所有数据都存活，且存在满足时间过滤器的数据点）
       String deviceId, Filter timeFilter, boolean isSeq, long ttl, boolean debug) {
-    if (!timeIndex.checkDeviceIdExist(deviceId)) {
+    if (!timeIndex.checkDeviceIdExist(deviceId)) {  //若该设备不在该TsFile文件里，则返回false
       if (debug) {
         DEBUG_LOGGER.info(
             "Path: {} file {} is not satisfied because of no device!", deviceId, file);
@@ -642,18 +651,18 @@ public class TsFileResource {
       return false;
     }
 
-    long startTime = getStartTime(deviceId);
-    long endTime = closed || !isSeq ? getEndTime(deviceId) : Long.MAX_VALUE;
+    long startTime = getStartTime(deviceId);  //获取该TsFile里该设备下数据的起使时间
+    long endTime = closed || !isSeq ? getEndTime(deviceId) : Long.MAX_VALUE;//获取该TsFile里该设备下数据的结束时间
 
-    if (!isAlive(endTime, ttl)) {
+    if (!isAlive(endTime, ttl)) { //若该TsFile文件的该deviceID设备下的数据不存活了，即超过了TTL，则返回false
       if (debug) {
         DEBUG_LOGGER.info("Path: {} file {} is not satisfied because of ttl!", deviceId, file);
       }
       return false;
     }
 
-    if (timeFilter != null) {
-      boolean res = timeFilter.satisfyStartEndTime(startTime, endTime);
+    if (timeFilter != null) { //若时间过滤器不为空，则
+      boolean res = timeFilter.satisfyStartEndTime(startTime, endTime);//根据当前TsFile的该设备下数据的起使时间和结束时间，判断给定的时间范围[startTime,endTime]否存在满足给定的时间过滤器的时间点，比如：给定的时间范围是[0,10]，则它存在满足"<5",">3","=4"等等的过滤器//To examine whether the min time and max time are satisfied with the filter.
       if (debug && !res) {
         DEBUG_LOGGER.info(
             "Path: {} file {} is not satisfied because of time filter!", deviceId, fsFactory);
@@ -664,7 +673,7 @@ public class TsFileResource {
   }
 
   /** @return whether the given time falls in ttl */
-  private boolean isAlive(long time, long dataTTL) {
+  private boolean isAlive(long time, long dataTTL) {  //根据给定的时间和数据的TTL，判断该TsFile里的数据是否存活。
     return dataTTL == Long.MAX_VALUE || (System.currentTimeMillis() - time) <= dataTTL;
   }
 
@@ -685,7 +694,7 @@ public class TsFileResource {
     this.upgradedResources = upgradedResources;
   }
 
-  public List<TsFileResource> getUpgradedResources() {
+  public List<TsFileResource> getUpgradedResources() {//获取该TsFileResource对应的TSFile文件升级后产生的新的TsFileResource对象列表
     return upgradedResources;
   }
 
@@ -697,7 +706,7 @@ public class TsFileResource {
     return isSeq;
   }
 
-  public void setUpgradeTsFileResourceCallBack(
+  public void setUpgradeTsFileResourceCallBack(//设置升级完该TsFileResource文件后进行回调的函数对象
       UpgradeTsFileResourceCallBack upgradeTsFileResourceCallBack) {
     this.upgradeTsFileResourceCallBack = upgradeTsFileResourceCallBack;
   }
@@ -776,7 +785,7 @@ public class TsFileResource {
     return timeIndex.calculateRamSize();
   }
 
-  public void delete() throws IOException {
+  public void delete() throws IOException { //删除本地该TsFile文件和对应的.resource文件
     if (file.exists()) {
       Files.delete(file.toPath());
       Files.delete(

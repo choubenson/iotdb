@@ -42,15 +42,15 @@ import java.util.Random;
  * ModificationFile stores the Modifications of a TsFile or unseq file in another file in the same
  * directory. Methods in this class are highly synchronized for concurrency safety.
  */
-public class ModificationFile implements AutoCloseable {
-
+public class ModificationFile implements AutoCloseable {  //mods文件类，该类对应着一个TSFile在本地的.mods文件，存储该.mods文件的相关信息（如文件路径，修改记录等），可用于向该.mods文件进行写入和读出数据
+                                                            //每个TSFile文件都有着自己的一个.mods文件
   private static final Logger logger = LoggerFactory.getLogger(ModificationFile.class);
   public static final String FILE_SUFFIX = ".mods";
 
-  private List<Modification> modifications;
+  private List<Modification> modifications; //修改操作列表，该列表记录了此本地mods文件里所有修改操作Modification对象的相关信息，
   private ModificationWriter writer;
   private ModificationReader reader;
-  private String filePath;
+  private String filePath;      //文件路径
   private Random random = new Random();
 
   /**
@@ -67,7 +67,7 @@ public class ModificationFile implements AutoCloseable {
 
   private void init() {
     synchronized (this) {
-      modifications = (List<Modification>) reader.read();
+      modifications = (List<Modification>) reader.read(); //首先从对应的本地mods里读取所有的修改操作，存入需修改操作列表里
     }
   }
 
@@ -79,7 +79,7 @@ public class ModificationFile implements AutoCloseable {
 
   /** Release resources such as streams and caches. */
   @Override
-  public void close() throws IOException {
+  public void close() throws IOException {  //关闭此修改文件类对象，首先会把writer资源释放，并且把此mods文件类对象的修改操作列表清空
     synchronized (this) {
       writer.close();
       modifications = null;
@@ -102,11 +102,11 @@ public class ModificationFile implements AutoCloseable {
    * @param mod the modification to be written.
    * @throws IOException if IOException is thrown when writing the modification to the store.
    */
-  public void write(Modification mod) throws IOException {
+  public void write(Modification mod) throws IOException {  //往该TSFile文件对应的本地.mods文件写入此次修改记录，并往修改操作列表属性里加入此次修改操作记录
     synchronized (this) {
       checkInit();
-      writer.write(mod);
-      modifications.add(mod);
+      writer.write(mod);  //往本地mods文件中写入修改记录
+      modifications.add(mod);//往此mods修改文件的修改操作列表加入此次修改操作记录
     }
   }
 

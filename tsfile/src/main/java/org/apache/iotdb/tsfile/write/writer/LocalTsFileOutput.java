@@ -30,10 +30,10 @@ import java.nio.ByteBuffer;
  * a TsFileOutput implementation with FileOutputStream. If the file is not existed, it will be
  * created. Otherwise the file will be written from position 0.
  */
-public class LocalTsFileOutput implements TsFileOutput {
+public class LocalTsFileOutput implements TsFileOutput {  //本地TsFile写入类
 
-  private FileOutputStream outputStream;
-  private BufferedOutputStream bufferedStream;
+  private FileOutputStream outputStream;    //与本地TsFile文件关联的输出流
+  private BufferedOutputStream bufferedStream;  //与本地TsFile文件关联的输出流FileOutputStream的输出缓存流，程序向TsFile写入的内容先会存储到该buffer缓存里，然后再flush
 
   LocalTsFileOutput(File file, boolean append) throws FileNotFoundException {
     this.outputStream = new FileOutputStream(file, append);
@@ -42,7 +42,7 @@ public class LocalTsFileOutput implements TsFileOutput {
 
   public LocalTsFileOutput(FileOutputStream outputStream) {
     this.outputStream = outputStream;
-    this.bufferedStream = new BufferedOutputStream(outputStream);
+    this.bufferedStream = new BufferedOutputStream(outputStream); //使用本地TsFile文件关联的输出流对象创建一个缓存输出流
   }
 
   @Override
@@ -61,7 +61,7 @@ public class LocalTsFileOutput implements TsFileOutput {
   }
 
   @Override
-  public long getPosition() throws IOException {
+  public long getPosition() throws IOException {  //首先将缓存流的数据flush到文件里，获取文件里写指针的偏移量位置
     bufferedStream.flush();
     return outputStream.getChannel().position();
   }

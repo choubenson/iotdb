@@ -78,7 +78,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
-public class TsFileSequenceReader implements AutoCloseable {
+public class TsFileSequenceReader implements AutoCloseable {  //TsFile文件的顺序阅读器
 
   private static final Logger logger = LoggerFactory.getLogger(TsFileSequenceReader.class);
   private static final Logger resourceLogger = LoggerFactory.getLogger("FileMonitor");
@@ -92,7 +92,7 @@ public class TsFileSequenceReader implements AutoCloseable {
   private ByteBuffer markerBuffer = ByteBuffer.allocate(Byte.BYTES);
   protected TsFileMetadata tsFileMetaData;
   // device -> measurement -> TimeseriesMetadata
-  private Map<String, Map<String, TimeseriesMetadata>> cachedDeviceMetadata =
+  private Map<String, Map<String, TimeseriesMetadata>> cachedDeviceMetadata =     //存放某设备的某传感器的TimeseriesIndex
       new ConcurrentHashMap<>();
   private static final ReadWriteLock cacheLock = new ReentrantReadWriteLock();
   private boolean cacheDeviceMetadata;
@@ -891,14 +891,18 @@ public class TsFileSequenceReader implements AutoCloseable {
     tsFileInput.position(tsFileInput.position() + header.getCompressedSize());
   }
 
-  public ByteBuffer readPage(PageHeader header, CompressionType type) throws IOException {
-    ByteBuffer buffer = readData(-1, header.getCompressedSize());
-    IUnCompressor unCompressor = IUnCompressor.getUnCompressor(type);
-    ByteBuffer uncompressedBuffer = ByteBuffer.allocate(header.getUncompressedSize());
-    if (type == CompressionType.UNCOMPRESSED) {
+  public ByteBuffer readCompressedPage(PageHeader header) throws IOException {
+    return readData(-1, header.getCompressedSize());
+  }
+
+  public ByteBuffer readPage(PageHeader header, CompressionType type) throws IOException {//根据pageHeader和压缩类型，把该page的二进制流数据进行解压后的二进制流数据存入ByteBuffer缓存并返回
+    ByteBuffer buffer = readData(-1, header.getCompressedSize()); //从当前读指针位置开始，读取该page压缩后字节数量的数据到ByteBuffer缓存里
+    IUnCompressor unCompressor = IUnCompressor.getUnCompressor(type); //获取解压缩类对象
+    ByteBuffer uncompressedBuffer = ByteBuffer.allocate(header.getUncompressedSize());  //创建该page解压后字节数量大小的缓存
+    if (type == CompressionType.UNCOMPRESSED) { //若该page是未压缩的
       return buffer;
     } // FIXME if the buffer is not array-implemented.
-    unCompressor.uncompress(
+    unCompressor.uncompress(    //对该page的数据进行解压缩并存入uncompressedBuffer缓存里
         buffer.array(), buffer.position(), buffer.remaining(), uncompressedBuffer.array(), 0);
     return uncompressedBuffer;
   }
@@ -907,7 +911,7 @@ public class TsFileSequenceReader implements AutoCloseable {
    * read one byte from the input. <br>
    * this method is not thread safe
    */
-  public byte readMarker() throws IOException {
+  public byte readMarker() throws IOException { //读取一个字节
     markerBuffer.clear();
     if (ReadWriteIOUtils.readAsPossible(tsFileInput, markerBuffer) == 0) {
       throw new IOException("reach the end of the file.");
@@ -943,8 +947,8 @@ public class TsFileSequenceReader implements AutoCloseable {
    * @param size the size of data that want to read
    * @return data that been read.
    */
-  protected ByteBuffer readData(long position, int size) throws IOException {
-    ByteBuffer buffer = ByteBuffer.allocate(size);
+  protected ByteBuffer readData(long position, int size) throws IOException { //从position位置开始，读取size个字节的数据到ByteBuffer缓存里
+    ByteBuffer buffer = ByteBuffer.allocate(size);  //指定缓存大小，并创建缓存
     if (position < 0) {
       if (ReadWriteIOUtils.readAsPossible(tsFileInput, buffer) != size) {
         throw new IOException("reach the end of the data");

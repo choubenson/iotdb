@@ -45,11 +45,11 @@ public class QueryContext {
    */
   private Map<String, List<Modification>> fileModCache = new HashMap<>();
 
-  private long queryId;
+  private long queryId; //此次查询ID
 
   private long queryTimeLowerBound = Long.MIN_VALUE;
 
-  private boolean debug;
+  private boolean debug;  //是否是debug
 
   public QueryContext() {}
 
@@ -66,7 +66,7 @@ public class QueryContext {
    * Find the modifications of timeseries 'path' in 'modFile'. If they are not in the cache, read
    * them from 'modFile' and put then into the cache.
    */
-  public List<Modification> getPathModifications(ModificationFile modFile, PartialPath path) {
+  public List<Modification> getPathModifications(ModificationFile modFile, PartialPath path) {  //从给定的modFile文件类对象里获取对指定时间序列路径path的所有删除操作，存入列表里返回
     Map<String, List<Modification>> fileModifications =
         filePathModCache.computeIfAbsent(modFile.getFilePath(), k -> new ConcurrentHashMap<>());
     return fileModifications.computeIfAbsent(

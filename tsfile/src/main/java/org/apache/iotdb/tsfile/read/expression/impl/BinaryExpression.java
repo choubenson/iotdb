@@ -24,7 +24,7 @@ import org.apache.iotdb.tsfile.read.expression.IExpression;
 
 import java.io.Serializable;
 
-public abstract class BinaryExpression implements IBinaryExpression, Serializable {
+public abstract class BinaryExpression implements IBinaryExpression, Serializable { //二元表达式，其中又包括了And表达式和Or表达式
 
   private static final long serialVersionUID = -711801318534904452L;
 
@@ -39,10 +39,10 @@ public abstract class BinaryExpression implements IBinaryExpression, Serializabl
   @Override
   public abstract IExpression clone();
 
-  protected static class AndExpression extends BinaryExpression {
+  protected static class AndExpression extends BinaryExpression {//And表达式，他有左、右操作表达式
 
-    public IExpression left;
-    public IExpression right;
+    public IExpression left;    //左表达式
+    public IExpression right;   //右表达式
 
     public AndExpression(IExpression left, IExpression right) {
       this.left = left;
@@ -85,7 +85,7 @@ public abstract class BinaryExpression implements IBinaryExpression, Serializabl
     }
   }
 
-  protected static class OrExpression extends BinaryExpression {
+  protected static class OrExpression extends BinaryExpression {//Or表达式，他有左、右操作表达式
 
     public IExpression left;
     public IExpression right;

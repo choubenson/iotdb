@@ -50,7 +50,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class InsertRowPlan extends InsertPlan {
+public class InsertRowPlan extends InsertPlan {   //该插入计划里，一个时间戳对应好几个传感器
 
   private static final Logger logger = LoggerFactory.getLogger(InsertRowPlan.class);
   private static final byte TYPE_RAW_STRING = -1;
@@ -237,7 +237,7 @@ public class InsertRowPlan extends InsertPlan {
    * Double, Binary)
    */
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
-  public void transferType() throws QueryProcessException {
+  public void transferType() throws QueryProcessException { //当InferType为真时，把字符串values的值转为具体类型
     if (isNeedInferType) {
       int columnIndex = 0;
       for (int i = 0; i < measurementMNodes.length; i++) {
@@ -596,12 +596,12 @@ public class InsertRowPlan extends InsertPlan {
     return failedValues != null && !failedValues.isEmpty();
   }
 
-  public TimeValuePair composeTimeValuePair(int columnIndex) {
+  public TimeValuePair composeTimeValuePair(int columnIndex) {  //根据列索引获取此次插入时间戳上具体的（时间戳，传感器数值）数据，即TimeValuePair类对象
     if (columnIndex >= values.length) {
       return null;
     }
-    Object value = values[columnIndex];
-    return new TimeValuePair(time, TsPrimitiveType.getByType(dataTypes[columnIndex], value));
+    Object value = values[columnIndex]; //获取该插入行为里，对应传感器的插入数值
+    return new TimeValuePair(time, TsPrimitiveType.getByType(dataTypes[columnIndex], value));//返回此次插入行为插入此传感器的（时间戳，数值）数据
   }
 
   @Override

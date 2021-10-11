@@ -38,10 +38,10 @@ public interface TsFileFlushPolicy {
         StorageGroupProcessor storageGroupProcessor,
         TsFileProcessor tsFileProcessor,
         boolean isSeq) {
-      if (tsFileProcessor.shouldClose()) {
+      if (tsFileProcessor.shouldClose()) {  //根据该TsFileProcessor的TsFile大小是否大于系统指定的大小，来判断是否需要关闭该文件
         storageGroupProcessor.asyncCloseOneTsFileProcessor(isSeq, tsFileProcessor);
       } else {
-        tsFileProcessor.asyncFlush();
+        tsFileProcessor.asyncFlush(); //若不关闭该文件，则进行Flush workMemTable到此文件里
       }
     }
   }

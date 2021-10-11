@@ -20,7 +20,7 @@ package org.apache.iotdb.db.engine.storagegroup.virtualSg;
 
 import org.apache.iotdb.db.metadata.PartialPath;
 
-public interface VirtualPartitioner {
+public interface VirtualPartitioner { //虚拟存储组的分割器
 
   /**
    * use device id to determine storage group id

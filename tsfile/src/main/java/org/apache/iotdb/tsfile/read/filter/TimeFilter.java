@@ -31,7 +31,7 @@ import org.apache.iotdb.tsfile.read.filter.operator.NotFilter;
 
 import java.util.Set;
 
-public class TimeFilter {
+public class TimeFilter { //时间过滤器，有各种时间
 
   private TimeFilter() {}
 

@@ -29,7 +29,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 
-public interface IMeasurementSchema {
+public interface IMeasurementSchema { //传感器节点的配置类
 
   String getMeasurementId();
 

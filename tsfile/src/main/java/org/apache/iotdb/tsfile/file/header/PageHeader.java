@@ -30,8 +30,8 @@ import java.nio.ByteBuffer;
 
 public class PageHeader {
 
-  private int uncompressedSize;
-  private int compressedSize;
+  private int uncompressedSize;   //压缩前的page data大小
+  private int compressedSize;     //压缩后的page data大小
   private Statistics statistics;
   private boolean modified;
 

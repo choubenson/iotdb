@@ -24,7 +24,7 @@ import org.apache.iotdb.tsfile.read.filter.basic.Filter;
 
 import java.io.IOException;
 
-public interface IPageReader {
+public interface IPageReader {  //page读取接口
 
   default BatchData getAllSatisfiedPageData() throws IOException {
     return getAllSatisfiedPageData(true);

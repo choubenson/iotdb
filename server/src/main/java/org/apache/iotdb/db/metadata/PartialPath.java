@@ -128,9 +128,9 @@ public class PartialPath extends Path implements Comparable<Path> {
    * @param prefixPath the prefix path used to replace current nodes
    * @return A new PartialPath with altered prefix
    */
-  public PartialPath alterPrefixPath(PartialPath prefixPath) {
-    String[] newNodes = Arrays.copyOf(nodes, Math.max(nodes.length, prefixPath.getNodeLength()));
-    System.arraycopy(prefixPath.getNodes(), 0, newNodes, 0, prefixPath.getNodeLength());
+  public PartialPath alterPrefixPath(PartialPath prefixPath) {  //eg:prefixPath为root.In
+    String[] newNodes = Arrays.copyOf(nodes, Math.max(nodes.length, prefixPath.getNodeLength()));//复制一个当前PartialPath路径对象所包含的节点数组,eg:{"root","*","*","*","*"}
+    System.arraycopy(prefixPath.getNodes(), 0, newNodes, 0, prefixPath.getNodeLength());//将上面新的newNodes用传来的prefixPath替换掉最前面的几个节点,于是newNodes变成{"root","ln","*","*","*"}
     return new PartialPath(newNodes);
   }
 
@@ -142,7 +142,7 @@ public class PartialPath extends Path implements Comparable<Path> {
    * @param rPath a plain full path of a timeseries
    * @return true if a successful match, otherwise return false
    */
-  public boolean matchFullPath(PartialPath rPath) {
+  public boolean matchFullPath(PartialPath rPath) { //传过来的rPath是具体的路径对象，当前PartialPath对象（即this）是通配路径对象，该方法用来测试当前通配路径对象是否能匹配传过来的具体路径。如当前对象路径是root.ln.*.*.*，传过来的对象路径是root.ln.wf01.wt01.status，则说明匹配，返回真
     String[] rNodes = rPath.getNodes();
     if (rNodes.length < nodes.length) {
       return false;
@@ -156,7 +156,7 @@ public class PartialPath extends Path implements Comparable<Path> {
   }
 
   @Override
-  public String getFullPath() {
+  public String getFullPath() { //返回当前PartialPath对象的字符串全路径path
     if (fullPath != null) {
       return fullPath;
     } else {
@@ -193,7 +193,7 @@ public class PartialPath extends Path implements Comparable<Path> {
   }
 
   @Override
-  public int hashCode() {
+  public int hashCode() { //根据传过来的路径计算出其hash值
     return this.getFullPath().hashCode();
   }
 

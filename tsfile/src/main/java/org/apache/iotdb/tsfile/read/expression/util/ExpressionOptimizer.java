@@ -49,16 +49,16 @@ public class ExpressionOptimizer {
    *     SingleSeriesExpression
    */
   public IExpression optimize(IExpression expression, List<Path> selectedSeries)
-      throws QueryFilterOptimizationException {
-    if (expression instanceof IUnaryExpression) {
+      throws QueryFilterOptimizationException { //对表达式进行优化：若是一元表达式（GlobalTimeExpression和SingleSeriesExpression）则不优化，若是二元表达式（AndExpression等等），则进行相关合并等优化操作
+    if (expression instanceof IUnaryExpression) {//如果该表达式是一元表达式（GlobalTimeExpression和SingleSeriesExpression），则直接返回，不优化。
       return expression;
-    } else if (expression instanceof IBinaryExpression) {
-      ExpressionType relation = expression.getType();
-      IExpression left = ((IBinaryExpression) expression).getLeft();
-      IExpression right = ((IBinaryExpression) expression).getRight();
-      if (left.getType() == ExpressionType.GLOBAL_TIME
+    } else if (expression instanceof IBinaryExpression) { //如果是二元表达式（AndExpression等等），则
+      ExpressionType relation = expression.getType(); //获取该二元表达式的类型
+      IExpression left = ((IBinaryExpression) expression).getLeft();  //获取左表达式
+      IExpression right = ((IBinaryExpression) expression).getRight();  //获取右表达式
+      if (left.getType() == ExpressionType.GLOBAL_TIME  //若左右表达式类型都为GLOBAL_TIME，则
           && right.getType() == ExpressionType.GLOBAL_TIME) {
-        return combineTwoGlobalTimeFilter(
+        return combineTwoGlobalTimeFilter( //根据type表达式类型（And或者Or）将两个子GlobalTimeExpression表达式合并成一个大的GlobalTimeExpression表达式
             (GlobalTimeExpression) left, (GlobalTimeExpression) right, expression.getType());
       } else if (left.getType() == ExpressionType.GLOBAL_TIME
           && right.getType() != ExpressionType.GLOBAL_TIME) {
@@ -218,7 +218,7 @@ public class ExpressionOptimizer {
    * input: QueryFilterAnd/OR( GlobalTimeExpression(timeFilter1), GlobalTimeExpression(timeFilter2)
    * ) output: GlobalTimeExpression( AndExpression/OR(timeFilter1, timeFilter2) )
    */
-  private GlobalTimeExpression combineTwoGlobalTimeFilter(
+  private GlobalTimeExpression combineTwoGlobalTimeFilter(  //根据type表达式类型（And或者Or）将两个子GlobalTimeExpression表达式合并成一个大的GlobalTimeExpression表达式
       GlobalTimeExpression left, GlobalTimeExpression right, ExpressionType type) {
     if (type == ExpressionType.AND) {
       return new GlobalTimeExpression(FilterFactory.and(left.getFilter(), right.getFilter()));

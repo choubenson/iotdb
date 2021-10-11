@@ -24,7 +24,7 @@ import org.apache.iotdb.tsfile.read.TimeValuePair;
 import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
 
 /** This interface defines a MeasurementMNode's operation interfaces. */
-public interface IMeasurementMNode extends IMNode {
+public interface IMeasurementMNode extends IMNode { //传感器节点类
 
   @Override
   IEntityMNode getParent();

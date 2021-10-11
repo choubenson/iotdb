@@ -152,7 +152,7 @@ public class SchemaUtils {
     return measurementDataType;
   }
 
-  public static TSDataType getSeriesTypeByPath(PartialPath path) throws MetadataException {
+  public static TSDataType getSeriesTypeByPath(PartialPath path) throws MetadataException { //根据给定时间序列的全路径获取该序列对应的数据类型
     return IoTDB.metaManager.getSeriesType(path);
   }
 

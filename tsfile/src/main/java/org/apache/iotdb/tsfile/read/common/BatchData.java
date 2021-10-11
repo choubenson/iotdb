@@ -51,7 +51,7 @@ import java.util.List;
  * <p>while (batchData.hasCurrent()) { long time = batchData.currentTime(); Object value =
  * batchData.currentValue(); batchData.next(); }
  */
-public class BatchData {
+public class BatchData {  //该类包含了时间戳列表和各种类型的值列表
 
   protected static final int CAPACITY_THRESHOLD = TSFileConfig.ARRAY_CAPACITY_THRESHOLD;
   protected int capacity = 16;

@@ -96,7 +96,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-public class StorageEngine implements IService {
+public class StorageEngine implements IService {  //负责一个 IoTDB 实例的写入和访问，管理所有的 StorageGroupProsessor
   private static final Logger logger = LoggerFactory.getLogger(StorageEngine.class);
 
   private static final IoTDBConfig config = IoTDBDescriptor.getInstance().getConfig();
@@ -119,7 +119,7 @@ public class StorageEngine implements IService {
   private final String systemDir;
   /** storage group name -> storage group processor */
   private final ConcurrentHashMap<PartialPath, VirtualStorageGroupManager> processorMap =
-      new ConcurrentHashMap<>();
+      new ConcurrentHashMap<>();    //该属性存放了每个storageGroup路径对象 对应的 虚拟存储组管理类VirtualStorageGroupManager对象
 
   private AtomicBoolean isAllSgReady = new AtomicBoolean(false);
 
@@ -148,7 +148,7 @@ public class StorageEngine implements IService {
       throw new StorageEngineFailureException(e);
     }
     // recover upgrade process
-    UpgradeUtils.recoverUpgrade();
+    UpgradeUtils.recoverUpgrade();//读取系统原先的升级日志文件upgrade.txt，把其内容读进upgradeRecoverMap这个数据结构（TsFile文件名，对应的升级状态）中，并更新对应TsFile文件的升级状态
 
     recover();
   }
@@ -191,7 +191,7 @@ public class StorageEngine implements IService {
     StorageEngine.timePartitionInterval = timePartitionInterval;
   }
 
-  public static long getTimePartition(long time) {
+  public static long getTimePartition(long time) {  //时间除以时间间隔来获得时间分区ID
     return enablePartition ? time / timePartitionInterval : 0;
   }
 
@@ -206,15 +206,15 @@ public class StorageEngine implements IService {
 
   /** block insertion if the insertion is rejected by memory control */
   public static void blockInsertionIfReject(TsFileProcessor tsFileProcessor)
-      throws WriteProcessRejectException {
+      throws WriteProcessRejectException {    //判断系统是否是阻塞写入，若是则进行等待
     long startTime = System.currentTimeMillis();
-    while (SystemInfo.getInstance().isRejected()) {
+    while (SystemInfo.getInstance().isRejected()) {   //循环判断系统是否是阻塞写入，如果是则
       if (tsFileProcessor != null && tsFileProcessor.shouldFlush()) {
         break;
       }
       try {
-        TimeUnit.MILLISECONDS.sleep(config.getCheckPeriodWhenInsertBlocked());
-        if (System.currentTimeMillis() - startTime > config.getMaxWaitingTimeWhenInsertBlocked()) {
+        TimeUnit.MILLISECONDS.sleep(config.getCheckPeriodWhenInsertBlocked());  //将该写入线程循环sleep 50ms，等待flush线程释放内存，system置回正常可写入状态
+        if (System.currentTimeMillis() - startTime > config.getMaxWaitingTimeWhenInsertBlocked()) { //当等待时间超过max_waiting_time_when_insert_blocked，即系统仍为reject阻塞写入状态，则抛出异常。
           throw new WriteProcessRejectException(
               "System rejected over " + (System.currentTimeMillis() - startTime) + "ms");
         }
@@ -401,10 +401,10 @@ public class StorageEngine implements IService {
    * @param path device path
    * @return storage group processor
    */
-  public StorageGroupProcessor getProcessor(PartialPath path) throws StorageEngineException {
+  public StorageGroupProcessor getProcessor(PartialPath path) throws StorageEngineException { //根据传过来的设备路径对象来获取对应虚拟存储组的StorageGroupProcessor
     try {
-      IStorageGroupMNode storageGroupMNode = IoTDB.metaManager.getStorageGroupNodeByPath(path);
-      return getStorageGroupProcessorByPath(path, storageGroupMNode);
+      IStorageGroupMNode storageGroupMNode = IoTDB.metaManager.getStorageGroupNodeByPath(path); //获取设备路径对象获取存储组StorageGroup对象
+      return getStorageGroupProcessorByPath(path, storageGroupMNode);//根据设备路径对象和存储组节点对象来获取对应虚拟存储组的StorageGroupProcessor
     } catch (StorageGroupProcessorException | MetadataException e) {
       throw new StorageEngineException(e);
     }
@@ -440,21 +440,21 @@ public class StorageEngine implements IService {
    */
   @SuppressWarnings("java:S2445")
   // actually storageGroupMNode is a unique object on the mtree, synchronize it is reasonable
-  private StorageGroupProcessor getStorageGroupProcessorByPath(
+  private StorageGroupProcessor getStorageGroupProcessorByPath( //根据设备路径对象和存储组节点对象来获取对应虚拟存储组的StorageGroupProcessor
       PartialPath devicePath, IStorageGroupMNode storageGroupMNode)
       throws StorageGroupProcessorException, StorageEngineException {
     VirtualStorageGroupManager virtualStorageGroupManager =
-        processorMap.get(storageGroupMNode.getPartialPath());
-    if (virtualStorageGroupManager == null) {
+        processorMap.get(storageGroupMNode.getPartialPath());//根据存储组路径PartialPath对象获取对应的虚拟存储组管理类VirtualStorageGroupManager对象
+    if (virtualStorageGroupManager == null) { //若获取的虚拟存储组管理类VirtualStorageGroupManager对象为空
       synchronized (this) {
         virtualStorageGroupManager = processorMap.get(storageGroupMNode.getPartialPath());
         if (virtualStorageGroupManager == null) {
-          virtualStorageGroupManager = new VirtualStorageGroupManager();
-          processorMap.put(storageGroupMNode.getPartialPath(), virtualStorageGroupManager);
+          virtualStorageGroupManager = new VirtualStorageGroupManager();    //则新建一个
+          processorMap.put(storageGroupMNode.getPartialPath(), virtualStorageGroupManager);//放入processorMap
         }
       }
     }
-    return virtualStorageGroupManager.getProcessor(devicePath, storageGroupMNode);
+    return virtualStorageGroupManager.getProcessor(devicePath, storageGroupMNode);//使用指定存储组的虚拟存储组管理类对象来 根据设备ID计算其属于该真实存储组下的哪个虚拟存储组，并返回该虚拟存储组的StorageGroupProcessor
   }
 
   /**
@@ -466,14 +466,14 @@ public class StorageEngine implements IService {
   public StorageGroupProcessor buildNewStorageGroupProcessor(
       PartialPath logicalStorageGroupName,
       IStorageGroupMNode storageGroupMNode,
-      String virtualStorageGroupId)
+      String virtualStorageGroupId)   //根据存储组路径对象、节点类对象和其下的某一虚拟存储组ID来创建该虚拟存储组的StorageGroupProcessor
       throws StorageGroupProcessorException {
     StorageGroupProcessor processor;
     logger.info(
         "construct a processor instance, the storage group is {}, Thread is {}",
         logicalStorageGroupName,
         Thread.currentThread().getId());
-    processor =
+    processor =         //新建
         new StorageGroupProcessor(
             systemDir + File.separator + logicalStorageGroupName,
             virtualStorageGroupId,
@@ -498,18 +498,18 @@ public class StorageEngine implements IService {
    * @param insertRowPlan physical plan of insertion
    */
   public void insert(InsertRowPlan insertRowPlan) throws StorageEngineException {
-    if (enableMemControl) {
+    if (enableMemControl) {   //如果开启了内存控制
       try {
-        blockInsertionIfReject(null);
+        blockInsertionIfReject(null); //判断系统是否阻塞写入，若是则进行等待，等待若超过一定时间则抛出异常。
       } catch (WriteProcessException e) {
         throw new StorageEngineException(e);
       }
     }
-    StorageGroupProcessor storageGroupProcessor = getProcessor(insertRowPlan.getPrefixPath());
+    StorageGroupProcessor storageGroupProcessor = getProcessor(insertRowPlan.getPrefixPath());   //根据设备路径对象来计算出其所属该存储组下的虚拟存储组ID，并获取该虚拟存储组的StorageGroupProcessor
 
     try {
       storageGroupProcessor.insert(insertRowPlan);
-      if (config.isEnableStatMonitor()) {
+      if (config.isEnableStatMonitor()) { // true to enable statistics monitor service, false to disable statistics service
         try {
           IStorageGroupMNode storageGroupMNode =
               IoTDB.metaManager.getStorageGroupNodeByPath(insertRowPlan.getPrefixPath());
@@ -636,17 +636,17 @@ public class StorageEngine implements IService {
   }
 
   public void delete(PartialPath path, long startTime, long endTime, long planIndex)
-      throws StorageEngineException {
+      throws StorageEngineException {//注意：时间序列路径可能包含通配符*，因此可能有多个存储组、多个设备,eg:root.*.*.*.*。
     try {
-      List<PartialPath> sgPaths = IoTDB.metaManager.searchAllRelatedStorageGroups(path);
-      for (PartialPath storageGroupPath : sgPaths) {
+      List<PartialPath> sgPaths = IoTDB.metaManager.searchAllRelatedStorageGroups(path);  //获取此时间序列路径上所有存储组StorageGroup路径对象，存进列表
+      for (PartialPath storageGroupPath : sgPaths) {  //遍历所有的存储组路径对象，然后依次用每次遍历的存储组去明确时间序列路径里的存储组，最后用该存储组对应的虚拟存储组管理类VirtualStorageGroupManager对象去执行删除操作
         // storage group has no data
-        if (!processorMap.containsKey(storageGroupPath)) {
+        if (!processorMap.containsKey(storageGroupPath)) {  //如果不存在该存储组对应的虚拟存储组管理类VirtualStorageGroupManager对象
           continue;
         }
 
-        PartialPath newPath = path.alterPrefixPath(storageGroupPath);
-        processorMap.get(storageGroupPath).delete(newPath, startTime, endTime, planIndex);
+        PartialPath newPath = path.alterPrefixPath(storageGroupPath); //此处仍是完整的时间序列,当时间序列路径里的存储组不确定时，给序列路径依次明确具体的存储组。如原先序列路径是root.*.*.*.*后来依次明确成root.ln.*.*.*和root.demo.*.*.*等。如果原来时间序列的存储组就是明确给出的，则此句无作用。
+        processorMap.get(storageGroupPath).delete(newPath, startTime, endTime, planIndex);//使用该存储组对应的虚拟存储组管理类VirtualStorageGroupManager对象去执行删除操作
       }
     } catch (IOException | MetadataException e) {
       throw new StorageEngineException(e.getMessage());
@@ -674,15 +674,15 @@ public class StorageEngine implements IService {
   }
 
   /** query data. */
-  public QueryDataSource query(
-      SingleSeriesExpression seriesExpression,
-      QueryContext context,
-      QueryFileManager filePathsManager)
+  public QueryDataSource query(//获取此次查询需要用到的所有顺序or乱序TsFileResource,并把它们往添加入查询文件管理类里，即添加此次查询ID对应需要用到的顺序和乱序TsFileResource,并创建返回QueryDataSource对象，该类对象存放了一次查询里对一条时间序列涉及到的所有顺序TsFileResource和乱序TsFileResource和数据TTL
+      SingleSeriesExpression seriesExpression,  //单时间序列一元表达式，它包含了此查询的某一时间序列路径
+      QueryContext context, //此次查询的查询环境
+      QueryFileManager filePathsManager)  //查询文件管理类对象，该类存放了每个查询ID对应需要的已封口和为封口的TsFileResource
       throws StorageEngineException, QueryProcessException {
-    PartialPath fullPath = (PartialPath) seriesExpression.getSeriesPath();
-    PartialPath deviceId = fullPath.getDevicePath();
-    StorageGroupProcessor storageGroupProcessor = getProcessor(deviceId);
-    return storageGroupProcessor.query(
+    PartialPath fullPath = (PartialPath) seriesExpression.getSeriesPath();  //获取此次查询的单序列表达式里的此次时间序列路径
+    PartialPath deviceId = fullPath.getDevicePath();  //根据此次查询的此时间序列路径获取对应的设备路径
+    StorageGroupProcessor storageGroupProcessor = getProcessor(deviceId); //根据设备路径获取对应的虚拟存储组的StorageGroupProcessor
+    return storageGroupProcessor.query(//获取此次查询需要用到的所有顺序or乱序TsFileResource,并把它们往添加入查询文件管理类里，即添加此次查询ID对应需要用到的顺序和乱序TsFileResource,并创建返回QueryDataSource对象，该类对象存放了一次查询里对一条时间序列涉及到的所有顺序TsFileResource和乱序TsFileResource和数据TTL
         fullPath, context, filePathsManager, seriesExpression.getFilter());
   }
 
@@ -691,9 +691,9 @@ public class StorageEngine implements IService {
    *
    * @return total num of the tsfiles which need to be upgraded
    */
-  public int countUpgradeFiles() {
+  public int countUpgradeFiles() {//计算待升级的TSFile文件数量
     int totalUpgradeFileNum = 0;
-    for (VirtualStorageGroupManager virtualStorageGroupManager : processorMap.values()) {
+    for (VirtualStorageGroupManager virtualStorageGroupManager : processorMap.values()) {//遍历每个存储组的虚拟存储组管理类进行计算相应的待升级的TSFile文件数量
       totalUpgradeFileNum += virtualStorageGroupManager.countUpgradeFiles();
     }
     return totalUpgradeFileNum;
@@ -704,12 +704,12 @@ public class StorageEngine implements IService {
    *
    * @throws StorageEngineException StorageEngineException
    */
-  public void upgradeAll() throws StorageEngineException {
+  public void upgradeAll() throws StorageEngineException {//升级所有待升级的TSFile
     if (IoTDBDescriptor.getInstance().getConfig().isReadOnly()) {
       throw new StorageEngineException(
           "Current system mode is read only, does not support file upgrade");
     }
-    for (VirtualStorageGroupManager virtualStorageGroupManager : processorMap.values()) {
+    for (VirtualStorageGroupManager virtualStorageGroupManager : processorMap.values()) {//使用该系统里每个存储组的虚拟存储组管理器进行升级文件
       virtualStorageGroupManager.upgradeAll();
     }
   }
@@ -914,10 +914,10 @@ public class StorageEngine implements IService {
 
   /** get all merge lock of the storage group processor related to the query */
   public List<StorageGroupProcessor> mergeLock(List<PartialPath> pathList)
-      throws StorageEngineException {
-    Set<StorageGroupProcessor> set = new HashSet<>();
+      throws StorageEngineException {//对给定查询相关的时间序列路径列表对应的各自存储组下的所有虚拟存储组加读锁，并返回这些所有虚拟存储组的StorageGroupProcessor
+    Set<StorageGroupProcessor> set = new HashSet<>(); //存放pathList里所有时间序列路径对应的所有虚拟存储组的StorageGroupProcessor
     for (PartialPath path : pathList) {
-      set.add(getProcessor(path.getDevicePath()));
+      set.add(getProcessor(path.getDevicePath()));  //根据传过来的设备路径对象来获取对应虚拟存储组的StorageGroupProcessor
     }
     List<StorageGroupProcessor> list =
         set.stream()

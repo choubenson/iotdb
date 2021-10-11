@@ -55,7 +55,7 @@ public class BitmapEncoder extends Encoder {
   private static final Logger logger = LoggerFactory.getLogger(BitmapEncoder.class);
 
   /** Bitmap Encoder stores all current values in a list temporally. */
-  private List<Integer> values;
+  private List<Integer> values;   //该编码器里存放的整数型数据，是个列表
 
   /** BitmapEncoder constructor. */
   public BitmapEncoder() {
@@ -87,7 +87,7 @@ public class BitmapEncoder extends Encoder {
    * @see Encoder#flush(java.io.ByteArrayOutputStream)
    */
   @Override
-  public void flush(ByteArrayOutputStream out) throws IOException {
+  public void flush(ByteArrayOutputStream out) throws IOException { //将该编码器的values数据写进输出流out的数组缓存里
     // byteCache stores all <encoded-data> and we know its size
     ByteArrayOutputStream byteCache = new ByteArrayOutputStream();
     Set<Integer> valueType = new HashSet<>(values);

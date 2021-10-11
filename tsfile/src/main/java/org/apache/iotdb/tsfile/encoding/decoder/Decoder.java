@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 
-public abstract class Decoder {
+public abstract class Decoder { //解码器，用于对给定的二进制流进行读取解码成某个数据类型的数据
 
   private static final String ERROR_MSG = "Decoder not found: %s , DataType is : %s";
 

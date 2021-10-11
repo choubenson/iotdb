@@ -60,8 +60,8 @@ public class LocalTextModificationAccessor
   }
 
   @Override
-  public Collection<Modification> read() {
-    if (!FSFactoryProducer.getFSFactory().getFile(filePath).exists()) {
+  public Collection<Modification> read() {    //读取本地.mods文件，并把它的一条条记录解码成一个个modification类对象，若是删除操作则是解码成一个个删除对象
+    if (!FSFactoryProducer.getFSFactory().getFile(filePath).exists()) { //如果本地文件不存在，则返回一个空list
       logger.debug("No modification has been written to this file");
       return new ArrayList<>();
     }
@@ -69,7 +69,7 @@ public class LocalTextModificationAccessor
     String line;
     List<Modification> modificationList = new ArrayList<>();
     try (BufferedReader reader = FSFactoryProducer.getFSFactory().getBufferedReader(filePath)) {
-      while ((line = reader.readLine()) != null) {
+      while ((line = reader.readLine()) != null) {  //从.mods文件里按行读取内容
         if (line.equals(ABORT_MARK) && !modificationList.isEmpty()) {
           modificationList.remove(modificationList.size() - 1);
         } else {
@@ -104,11 +104,11 @@ public class LocalTextModificationAccessor
   }
 
   @Override
-  public void write(Modification mod) throws IOException {
+  public void write(Modification mod) throws IOException {    //往本地mods文件里写入编码后的修改操作类对象的信息，此时filewriter会open
     if (writer == null) {
       writer = FSFactoryProducer.getFSFactory().getBufferedWriter(filePath, true);
     }
-    writer.write(encodeModification(mod));
+    writer.write(encodeModification(mod));  //该方法的参数就是一个字符串，把此次修改的相关信息连接成一个字符串
     writer.newLine();
     writer.flush();
   }
@@ -118,9 +118,9 @@ public class LocalTextModificationAccessor
     return null;
   }
 
-  private static Modification decodeModification(String src) throws IOException {
+  private static Modification decodeModification(String src) throws IOException { //对给定的字符串进行解码（目前只针对删除操作进行解码）
     String[] fields = src.split(SEPARATOR);
-    if (Modification.Type.DELETION.name().equals(fields[0])) {
+    if (Modification.Type.DELETION.name().equals(fields[0])) {  //如果该操作是删除操作，则进行解码
       return decodeDeletion(fields);
     }
     throw new IOException("Unknown modification type: " + fields[0]);
@@ -139,12 +139,12 @@ public class LocalTextModificationAccessor
   }
 
   /**
-   * Decode a range deletion record. E.g. "DELETION,root.ln.wf01.wt01.temperature,111,100,300" the
+   * Decode a range deletion record. E.g. "DELETION,root.ln.wf01.wt01.temperature,111,100,300" the        //操作，时间序列路径名，生效位置，起使时间，结束时间
    * index of field endTimestamp is length - 1, startTimestamp is length - 2, TsFile offset is
    * length - 3. Fields in index range [1, length -3) all belong to a timeseries path in case when
    * the path contains comma.
    */
-  private static Deletion decodeDeletion(String[] fields) throws IOException {
+  private static Deletion decodeDeletion(String[] fields) throws IOException {  //对读取的内容字符串数组进行解码成删除操作对象，正常数组长度是5
     if (fields.length < 4) {
       throw new IOException("Incorrect deletion fields number: " + fields.length);
     }

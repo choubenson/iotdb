@@ -564,7 +564,7 @@ public class PlanExecutor implements IPlanExecutor {
         queryDataSet = queryRouter.fill(fillQueryPlan, context);
       } else if (queryPlan instanceof LastQueryPlan) {
         queryDataSet = queryRouter.lastQuery((LastQueryPlan) queryPlan, context);
-      } else {
+      } else {  //如果就是普通的查询计划
         queryDataSet = queryRouter.rawDataQuery((RawDataQueryPlan) queryPlan, context);
       }
     }
@@ -1046,11 +1046,11 @@ public class PlanExecutor implements IPlanExecutor {
         deletePlan.getPaths(),
         deletePlan.getDeleteStartTime(),
         deletePlan.getDeleteEndTime());
-    for (PartialPath path : deletePlan.getPaths()) {
+    for (PartialPath path : deletePlan.getPaths()) {    //遍历获取删除计划里所有的传感器时间序列的路径对象
       delete(
-          path,
-          deletePlan.getDeleteStartTime(),
-          deletePlan.getDeleteEndTime(),
+          path,                                 //时间序列路径，eg:root.*.*.*.*
+          deletePlan.getDeleteStartTime(),    //待删除的开始时间
+          deletePlan.getDeleteEndTime(),      //待删除的结束时间
           deletePlan.getIndex());
     }
   }
@@ -1402,23 +1402,23 @@ public class PlanExecutor implements IPlanExecutor {
   public void insert(InsertRowPlan insertRowPlan) throws QueryProcessException {
     try {
       insertRowPlan.setMeasurementMNodes(
-          new IMeasurementMNode[insertRowPlan.getMeasurements().length]);
+          new IMeasurementMNode[insertRowPlan.getMeasurements().length]); //给该insertRowPlan添加所有的传感器节点对象到数组里
       // When insert data with sql statement, the data types will be null here.
-      // We need to predicted the data types first
-      if (insertRowPlan.getDataTypes()[0] == null) {
+      // We need to predicted the data types first，根据values给insertRowPlan的dataTypes属性赋值
+      if (insertRowPlan.getDataTypes()[0] == null) {    //根据插入的数据值values数组推断其数据类型，给该insertRowPlan的dataType数组添加对应的数据类型
         for (int i = 0; i < insertRowPlan.getDataTypes().length; i++) {
-          insertRowPlan.getDataTypes()[i] =
+          insertRowPlan.getDataTypes()[i] =           //推断每个value的数据类型
               TypeInferenceUtils.getPredictedDataType(
                   insertRowPlan.getValues()[i], insertRowPlan.isNeedInferType());
         }
       }
       // check whether types are match
       getSeriesSchemas(insertRowPlan);
-      if (insertRowPlan.isAligned()) {
+      if (insertRowPlan.isAligned()) {  //如果是对齐的
         insertRowPlan.setPrefixPathForAlignTimeSeries(
             insertRowPlan.getPrefixPath().getDevicePath());
       }
-      insertRowPlan.transferType();
+      insertRowPlan.transferType();   //将values数据转为具体的数据类型
       StorageEngine.getInstance().insert(insertRowPlan);
       if (insertRowPlan.getFailedMeasurements() != null) {
         checkFailedMeasurments(insertRowPlan);

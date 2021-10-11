@@ -187,7 +187,7 @@ public class TSServiceImpl implements TSIService.Iface {
   private final IoTDBConfig config = IoTDBDescriptor.getInstance().getConfig();
 
   private static final List<SqlArgument> sqlArgumentList = new ArrayList<>(MAX_SIZE);
-  private static final AtomicInteger queryCount = new AtomicInteger(0);
+  private static final AtomicInteger queryCount = new AtomicInteger(0); //记录执行查询的数量
   private final QueryTimeManager queryTimeManager = QueryTimeManager.getInstance();
   private final SessionManager sessionManager = SessionManager.getInstance();
 
@@ -582,16 +582,16 @@ public class TSServiceImpl implements TSIService.Iface {
         ? RpcUtils.getStatus(TSStatusCode.SUCCESS_STATUS, "Execute batch statements successfully")
         : RpcUtils.getStatus(result);
   }
-
+//insert into root.ln.wf01.wt01(timestamp,status,height) values(200,false,100);
   @Override
   public TSExecuteStatementResp executeStatement(TSExecuteStatementReq req) {
     try {
-      if (!checkLogin(req.getSessionId())) {
+      if (!checkLogin(req.getSessionId())) {  //检查当前客户端用户是否登录
         return RpcUtils.getTSExecuteStatementResp(getNotLoggedInStatus());
       }
 
-      String statement = req.getStatement();
-      PhysicalPlan physicalPlan =
+      String statement = req.getStatement();  //这里的statement就是sql语句的字符串
+      PhysicalPlan physicalPlan =             //根据sql获得最终待执行的物理计划
           processor.parseSQLToPhysicalPlan(statement, sessionManager.getZoneId(req.getSessionId()));
 
       return physicalPlan.isQuery()
@@ -735,21 +735,21 @@ public class TSServiceImpl implements TSIService.Iface {
       throws QueryProcessException, SQLException, StorageEngineException,
           QueryFilterOptimizationException, MetadataException, IOException, InterruptedException,
           TException, AuthException {
-    queryCount.incrementAndGet();
+    queryCount.incrementAndGet(); //将查询数量+1
     AUDIT_LOGGER.debug(
         "Session {} execute Query: {}", sessionManager.getCurrSessionId(), statement);
 
-    final long startTime = System.currentTimeMillis();
-    final long queryId = sessionManager.requestQueryId(statementId, true);
+    final long startTime = System.currentTimeMillis();//当前查询的起使时间
+    final long queryId = sessionManager.requestQueryId(statementId, true);//根据statementId注册一个新的查询，并获得该查询ID
 
     try {
-      queryTimeManager.registerQuery(queryId, startTime, statement, timeout, plan);
+      queryTimeManager.registerQuery(queryId, startTime, statement, timeout, plan);//注册查询:往该查询时间管理器注册一次查询操作，让该管理类监控并管理此次查询操作服务的执行时间，若查过临界值则会被停止。最后把该次查询ID和对应的结果放入queryScheduledTaskMap里
       if (plan instanceof QueryPlan && config.isEnablePerformanceTracing()) {
         TracingManager tracingManager = TracingManager.getInstance();
         if (!(plan instanceof AlignByDevicePlan)) {
           tracingManager.writeQueryInfo(queryId, statement, startTime, plan.getPaths().size());
         } else {
-          tracingManager.writeQueryInfo(queryId, statement, startTime);
+          tracingManager.writeQueryInfo(queryId, statement, startTime); //往查询追踪日志"data/trace/tracing.txt"里写入当前查询的日志
         }
       }
 
@@ -758,10 +758,10 @@ public class TSServiceImpl implements TSIService.Iface {
 
       TSExecuteStatementResp resp = null;
       // execute it before createDataSet since it may change the content of query plan
-      if (plan instanceof QueryPlan && !(plan instanceof UDFPlan)) {
-        resp = getQueryColumnHeaders(plan, username, isJdbcQuery);
+      if (plan instanceof QueryPlan && !(plan instanceof UDFPlan)) {//若此次计划是查询计划并且不是UDF查询，则
+        resp = getQueryColumnHeaders(plan, username, isJdbcQuery);//获取此次查询结果的相关信息（如所有结果列对应的列名、数据类型、是否有别名、存储组名等），把它们设置到TSExecuteStatementResp对象里，并返回。
       }
-      if (plan instanceof QueryPlan) {
+      if (plan instanceof QueryPlan) {  //如果是查询计划，则设置是否允许重定向
         ((QueryPlan) plan).setEnableRedirect(enableRedirect);
       }
       // create and cache dataset
@@ -857,15 +857,15 @@ public class TSServiceImpl implements TSIService.Iface {
   }
 
   /** get ResultSet schema */
-  private TSExecuteStatementResp getQueryColumnHeaders(
+  private TSExecuteStatementResp getQueryColumnHeaders( //获取此次查询结果的相关信息（如所有结果列对应的列名、数据类型、是否有别名、存储组名等），把它们设置到TSExecuteStatementResp对象里，并返回。
       PhysicalPlan physicalPlan, String username, boolean isJdbcQuery)
       throws AuthException, TException, QueryProcessException, MetadataException {
 
-    List<String> respColumns = new ArrayList<>();
-    List<String> columnsTypes = new ArrayList<>();
+    List<String> respColumns = new ArrayList<>(); //存放此次查询结果所有列对应的列名
+    List<String> columnsTypes = new ArrayList<>();  //存放此次查询结果所有列对应的数据类型
 
     // check permissions
-    if (!checkAuthorization(physicalPlan.getPaths(), physicalPlan, username)) {
+    if (!checkAuthorization(physicalPlan.getPaths(), physicalPlan, username)) {//检查用户是否有权限执行此操作
       return RpcUtils.getTSExecuteStatementResp(
           RpcUtils.getStatus(
               TSStatusCode.NO_PERMISSION_ERROR,
@@ -890,9 +890,9 @@ public class TSServiceImpl implements TSIService.Iface {
         columnsTypes.add(entry.getValue().getResultDataType().toString());
       }
     } else {
-      List<String> respSgColumns = new ArrayList<>();
-      BitSet aliasMap = new BitSet();
-      getWideQueryHeaders(plan, respColumns, columnsTypes, respSgColumns, isJdbcQuery, aliasMap);
+      List<String> respSgColumns = new ArrayList<>(); //存放此次查询结果每列对应的存储组名称
+      BitSet aliasMap = new BitSet(); //存放此次查询结果第几列是存在别名的
+      getWideQueryHeaders(plan, respColumns, columnsTypes, respSgColumns, isJdbcQuery, aliasMap);//根据查询计划，获取此次查询结果每列对应的列名、数据类型、存储组名称以及是否存在别名，分别存入参数里
       resp.setColumnNameIndexMap(plan.getPathToIndex());
       resp.setSgColumns(respSgColumns);
       List<Byte> byteList = new ArrayList<>();
@@ -905,36 +905,36 @@ public class TSServiceImpl implements TSIService.Iface {
   }
 
   // wide means not align by device
-  private void getWideQueryHeaders(
+  private void getWideQueryHeaders( //根据查询计划，获取此次查询结果每列对应的列名、数据类型、存储组名称以及是否存在别名，分别存入参数里
       QueryPlan plan,
-      List<String> respColumns,
-      List<String> columnTypes,
-      List<String> respSgColumns,
+      List<String> respColumns, //存放此次查询结果所有列对应的列名
+      List<String> columnTypes, //存放此次查询每个结果列对应的数据类型
+      List<String> respSgColumns, //存放此次查询每个结果列对应的存储组名称
       Boolean isJdbcQuery,
-      BitSet aliasList)
+      BitSet aliasList) //当第i位不为空，则代表此查询结果的第i列存在别名
       throws TException, MetadataException {
-    List<ResultColumn> resultColumns = plan.getResultColumns();
-    List<PartialPath> paths = plan.getPaths();
+    List<ResultColumn> resultColumns = plan.getResultColumns(); //获取此次查询的结果列对象列表
+    List<PartialPath> paths = plan.getPaths();  //获取该次查询计划的每列结果对应的时间序列的全路径
     List<TSDataType> seriesTypes = new ArrayList<>();
     switch (plan.getOperatorType()) {
       case QUERY:
       case FILL:
-        for (int i = 0; i < resultColumns.size(); ++i) {
+        for (int i = 0; i < resultColumns.size(); ++i) {  //依次遍历结果列对象
           if (isJdbcQuery) {
             String sgName =
                 IoTDB.metaManager.getStorageGroupPath(plan.getPaths().get(i)).getFullPath();
-            respSgColumns.add(sgName);
-            if (resultColumns.get(i).getAlias() == null) {
+            respSgColumns.add(sgName);  //或许此次查询的此结果列对应的存储组
+            if (resultColumns.get(i).getAlias() == null) {  //若别名为空
               respColumns.add(
                   resultColumns.get(i).getResultColumnName().substring(sgName.length() + 1));
-            } else {
+            } else {  //若别名不为空
               aliasList.set(i);
               respColumns.add(resultColumns.get(i).getResultColumnName());
             }
-          } else {
+          } else {//若不是jdbc，则直接将当前结果列对象的名称加入respColumns列表里
             respColumns.add(resultColumns.get(i).getResultColumnName());
           }
-          seriesTypes.add(getSeriesTypeByPath(paths.get(i)));
+          seriesTypes.add(getSeriesTypeByPath(paths.get(i))); //根据给定时间序列的全路径获取该序列对应的数据类型
         }
         break;
       case AGGREGATION:
@@ -1100,7 +1100,7 @@ public class TSServiceImpl implements TSIService.Iface {
       }
 
       // register query info to queryTimeManager
-      queryTimeManager.registerQuery(
+      queryTimeManager.registerQuery( //往该查询时间管理器注册一次查询操作，让该管理类监控并管理此次查询操作服务的执行时间，若查过临界值则会被停止
           req.queryId, System.currentTimeMillis(), req.statement, req.timeout);
 
       QueryDataSet queryDataSet = sessionManager.getDataset(req.queryId);
@@ -1138,7 +1138,7 @@ public class TSServiceImpl implements TSIService.Iface {
         resp.setNonAlignQueryDataSet(nonAlignResult);
         resp.setIsAlign(false);
 
-        queryTimeManager.unRegisterQuery(req.queryId);
+        queryTimeManager.unRegisterQuery(req.queryId);  //当结束查询操作，则从queryTimeManager查询时间管理类中把该次ID的查询操作给解注册。
         return resp;
       }
     } catch (InterruptedException e) {
@@ -1197,14 +1197,14 @@ public class TSServiceImpl implements TSIService.Iface {
       throws QueryProcessException, QueryFilterOptimizationException, StorageEngineException,
           IOException, MetadataException, SQLException, TException, InterruptedException {
 
-    QueryContext context = genQueryContext(queryId, physicalPlan.isDebug());
+    QueryContext context = genQueryContext(queryId, physicalPlan.isDebug());//根据查询ID创建一个查询环境类对象
     QueryDataSet queryDataSet = executor.processQuery(physicalPlan, context);
     queryDataSet.setFetchSize(fetchSize);
     sessionManager.setDataset(queryId, queryDataSet);
     return queryDataSet;
   }
 
-  protected QueryContext genQueryContext(long queryId, boolean debug) {
+  protected QueryContext genQueryContext(long queryId, boolean debug) { //根据查询ID创建一个查询环境类对象
     return new QueryContext(queryId, debug);
   }
 
@@ -1253,7 +1253,7 @@ public class TSServiceImpl implements TSIService.Iface {
   }
 
   private TSExecuteStatementResp executeNonQueryStatement(PhysicalPlan plan, long sessionId) {
-    TSStatus status = checkAuthority(plan, sessionId);
+    TSStatus status = checkAuthority(plan, sessionId);  //检查用户是否有权限执行此操作
     return status != null
         ? new TSExecuteStatementResp(status)
         : RpcUtils.getTSExecuteStatementResp(executeNonQueryPlan(plan))
@@ -1276,7 +1276,7 @@ public class TSServiceImpl implements TSIService.Iface {
   }
 
   private boolean checkAuthorization(List<PartialPath> paths, PhysicalPlan plan, String username)
-      throws AuthException {
+      throws AuthException {  //检查用户是否有权限执行此操作
     String targetUser = null;
     if (plan instanceof AuthorPlan) {
       targetUser = ((AuthorPlan) plan).getUserName();
@@ -2060,7 +2060,7 @@ public class TSServiceImpl implements TSIService.Iface {
   protected TSStatus executeNonQueryPlan(PhysicalPlan plan) {
     boolean isSuccessful;
     try {
-      plan.checkIntegrity();
+      plan.checkIntegrity();  //检查该执行计划的完整性，防止用户输入错误的sql，如插入的数据为空等等，若不完整则抛出异常。
       isSuccessful = executeNonQuery(plan);
     } catch (Exception e) {
       return onNonQueryException(e, "executing non query plan");
@@ -2080,7 +2080,7 @@ public class TSServiceImpl implements TSIService.Iface {
     return executor.processNonQuery(plan);
   }
 
-  protected TSDataType getSeriesTypeByPath(PartialPath path) throws MetadataException {
+  protected TSDataType getSeriesTypeByPath(PartialPath path) throws MetadataException { //根据给定时间序列的全路径获取该序列对应的数据类型
     return SchemaUtils.getSeriesTypeByPath(path);
   }
 

@@ -26,11 +26,11 @@ import org.apache.iotdb.tsfile.utils.BitMap;
 import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
 
 import java.util.List;
+                  //内存里每个设备的每个传感器应该要对应有自己的WritableMemChunk类信息（它相当于memTable），每个传感器的WritableMemChunk都有一个自己数据类型的TVList，来存放数据点。
+public class WritableMemChunk implements IWritableMemChunk {//该类存储着该传感器的配置类信息和该Chunk的TVList，使用该类可以往该传感器Chunk对应数据类型的TVList写入数据
 
-public class WritableMemChunk implements IWritableMemChunk {
-
-  private IMeasurementSchema schema;
-  private TVList list;
+  private IMeasurementSchema schema;  //该传感器的配置类
+  private TVList list;      //该传感器的TVList
   private static final String UNSUPPORTED_TYPE = "Unsupported data type:";
 
   public WritableMemChunk(IMeasurementSchema schema, TVList list) {
@@ -39,10 +39,10 @@ public class WritableMemChunk implements IWritableMemChunk {
   }
 
   @Override
-  public void write(long insertTime, Object objectValue) {
+  public void write(long insertTime, Object objectValue) {    //往该Chunk的memtable对应数据类型的TVList插入时间戳和数值， 首先判断是否要对此TVList的values和timestamps列表，然后往该TVList的values和timestamps列表的某一数组里里插入对应的时间戳和数值
     switch (schema.getType()) {
       case BOOLEAN:
-        putBoolean(insertTime, (boolean) objectValue);
+        putBoolean(insertTime, (boolean) objectValue); //首先判断是否要对此TVList的values和timestamps列表，然后往该BooleanTVList的values和timestamps列表的某一数组里里插入对应的时间戳和数值
         break;
       case INT32:
         putInt(insertTime, (int) objectValue);
@@ -175,10 +175,10 @@ public class WritableMemChunk implements IWritableMemChunk {
   }
 
   @Override
-  public synchronized TVList getSortedTvListForQuery() {
-    sortTVList();
+  public synchronized TVList getSortedTvListForQuery() {//返回此Chunk的WritableMemChunk的被排过序的TVList
+    sortTVList(); //排序此TVList
     // increase reference count
-    list.increaseReferenceCount();
+    list.increaseReferenceCount();//将此TVList的引用次数+1
     return list;
   }
 
@@ -195,11 +195,11 @@ public class WritableMemChunk implements IWritableMemChunk {
 
   private void sortTVList() {
     // check reference count
-    if ((list.getReferenceCount() > 0 && !list.isSorted())) {
+    if ((list.getReferenceCount() > 0 && !list.isSorted())) { //如果该TVList先前被调用过（说明被排序过）且该TVList没有被排序
       list = list.clone();
     }
 
-    if (!list.isSorted()) {
+    if (!list.isSorted()) { //对该Chunk的WritableMemChunk的TVList进行排序
       list.sort();
     }
   }
@@ -231,7 +231,7 @@ public class WritableMemChunk implements IWritableMemChunk {
   }
 
   @Override
-  public int delete(long lowerBound, long upperBound) {
+  public int delete(long lowerBound, long upperBound) { //根据给出的时间范围，删除该TVList里对应时间范围里的数据，返回被删除的数据点个数
     return list.delete(lowerBound, upperBound);
   }
 

@@ -35,22 +35,22 @@ import java.util.List;
 import java.util.Objects;
 
 /** Metadata of one chunk. */
-public class ChunkMetadata implements Accountable, IChunkMetadata {
+public class ChunkMetadata implements Accountable, IChunkMetadata { //Chunk元数据类    //ChunkIndex类，某一时间范围内一个设备的一个传感器的数据存在对应Chunk Group的Chunk里
 
-  private String measurementUid;
+  private String measurementUid;    //该Chunk所属的传感器ID
 
   /**
    * Byte offset of the corresponding data in the file Notice: include the chunk header and marker.
    */
-  private long offsetOfChunkHeader;
+  private long offsetOfChunkHeader;   //该Chunk的ChunkHeader在TsFile文件中的偏移量
 
-  private TSDataType tsDataType;
+  private TSDataType tsDataType;  //该Chunk存储的数据类型
 
   /**
    * version is used to define the order of operations(insertion, deletion, update). version is set
    * according to its belonging ChunkGroup only when being queried, so it is not persisted.
    */
-  private long version;
+  private long version; //该属性是不持久化的，用于定义操作的顺序
 
   /** A list of deleted intervals. */
   private List<TimeRange> deleteIntervalList;
@@ -66,7 +66,7 @@ public class ChunkMetadata implements Accountable, IChunkMetadata {
 
   private long ramSize;
 
-  private static final int CHUNK_METADATA_FIXED_RAM_SIZE = 80;
+  private static final int CHUNK_METADATA_FIXED_RAM_SIZE = 80;  //ChunkIndex固定的大小，应该是Statistics类对象（统计量）大小+Long类型对象（Chunk在ChunkFile的偏移量）大小
 
   // used for SeriesReader to indicate whether it is a seq/unseq timeseries metadata
   private boolean isSeq = true;
@@ -193,7 +193,8 @@ public class ChunkMetadata implements Accountable, IChunkMetadata {
     this.deleteIntervalList = list;
   }
 
-  public void insertIntoSortedDeletions(long startTime, long endTime) {
+  //参数为该Chunk所在TsFile对应的mods文件里属于该Chunk的某一条删除记录的起使时间和结束时间（即已经检查过offset和该Chunk的起使位置，要求该Chunk的起使位置<offset），此方法用于将该删除记录有序地放入deleteIntervalList,即该列表里的每个删除时间范围是从小到大放入的，因为pageReader里的isDeleted方法在判断该数据点是否在删除范围内时必须是排好序的。
+  public void insertIntoSortedDeletions(long startTime, long endTime) { //当此Chunk里的数据存在待删除的数据点时，则...  （所谓存在就是该Chunk的起使位置小于mods里该条删除记录的offset，因为offset记录的是删除当下文件的大小，即文件最后一个已flush的Chunk末尾位置。
     List<TimeRange> resultInterval = new ArrayList<>();
     if (deleteIntervalList != null) {
       for (TimeRange interval : deleteIntervalList) {
@@ -274,10 +275,10 @@ public class ChunkMetadata implements Accountable, IChunkMetadata {
         + statistics.calculateRamSize();
   }
 
-  public static long calculateRamSize(String measurementId, TSDataType dataType) {
-    return CHUNK_METADATA_FIXED_RAM_SIZE
-        + RamUsageEstimator.sizeOf(measurementId)
-        + Statistics.getSizeByType(dataType);
+  public static long calculateRamSize(String measurementId, TSDataType dataType) {  //计算该传感器Chunk对应的ChunkIndex占用的内存大小（原始固定大小+传感器ID名称字符串大小+数据类型对象大小）
+    return CHUNK_METADATA_FIXED_RAM_SIZE      //ChunkIndex原先的固定初始大小，应该是Statistics类对象（统计量）大小+Long类型对象（Chunk在ChunkFile的偏移量）大小
+        + RamUsageEstimator.sizeOf(measurementId) //计算measureID这个String类型的字符串占用的大小
+        + Statistics.getSizeByType(dataType);      //该数据类型TSDataType对象占用的固定大小
   }
 
   @Override

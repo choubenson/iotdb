@@ -45,16 +45,16 @@ public class DeviceTimeIndex implements ITimeIndex {
       CachedStringPool.getInstance().getCachedPool();
 
   /** start times array. */
-  protected long[] startTimes;
+  protected long[] startTimes;  //存储着该TsFileResource文件里每个设备对应的startTime开始时间，即每个设备下数据的最小时间戳
 
   /**
    * end times array. The values in this array are Long.MIN_VALUE if it's an unsealed sequence
    * tsfile
    */
-  protected long[] endTimes;
+  protected long[] endTimes;//存储着该TsFileResource文件里每个设备对应的endTime结束时间，即每个设备下数据的最大时间戳
 
   /** device -> index of start times array and end times array */
-  protected Map<String, Integer> deviceToIndex;
+  protected Map<String, Integer> deviceToIndex; //存储着设备名和对应开始结束时间数组的索引下标，（设备ID，数组索引）
 
   public DeviceTimeIndex() {
     this.deviceToIndex = new ConcurrentHashMap<>();
@@ -167,7 +167,7 @@ public class DeviceTimeIndex implements ITimeIndex {
     }
     for (long endTime : endTimes) {
       // the file cannot be deleted if any device still lives
-      if (endTime >= ttlLowerBound) {
+      if (endTime >= ttlLowerBound) {   //endTime>=currentTime-ttl, endTime-currentTime>=-ttl,currentTime-endTime<=ttl
         return true;
       }
     }
@@ -303,7 +303,7 @@ public class DeviceTimeIndex implements ITimeIndex {
   }
 
   @Override
-  public boolean checkDeviceIdExist(String deviceId) {
-    return deviceToIndex.containsKey(deviceId);
+  public boolean checkDeviceIdExist(String deviceId) {    //判断此TsFile文件里是否有包含此设备的数据
+    return deviceToIndex.containsKey(deviceId);   //只要检查TsFileResource对象是否有此设备的相关索引
   }
 }

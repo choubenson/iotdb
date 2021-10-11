@@ -22,10 +22,10 @@ import org.apache.iotdb.db.conf.IoTDBDescriptor;
 import org.apache.iotdb.db.metadata.PartialPath;
 import org.apache.iotdb.db.utils.TestOnly;
 
-public class HashVirtualPartitioner implements VirtualPartitioner {
+public class HashVirtualPartitioner implements VirtualPartitioner { //虚拟存储组分割器接口的Hash分割法实现类
 
   /** total number of virtual storage groups */
-  public static int STORAGE_GROUP_NUM =
+  public static int STORAGE_GROUP_NUM =     //虚拟存储组的数量
       IoTDBDescriptor.getInstance().getConfig().getVirtualStorageGroupNum();
 
   private HashVirtualPartitioner() {}
@@ -35,7 +35,7 @@ public class HashVirtualPartitioner implements VirtualPartitioner {
   }
 
   @Override
-  public int deviceToVirtualStorageGroupId(PartialPath deviceId) {
+  public int deviceToVirtualStorageGroupId(PartialPath deviceId) {    //根据DeviceId去Hash得到哈希值当作虚拟存储组ID
     return toStorageGroupId(deviceId);
   }
 
@@ -49,8 +49,8 @@ public class HashVirtualPartitioner implements VirtualPartitioner {
     return STORAGE_GROUP_NUM;
   }
 
-  private int toStorageGroupId(PartialPath deviceId) {
-    return Math.abs(deviceId.hashCode() % STORAGE_GROUP_NUM);
+  private int toStorageGroupId(PartialPath deviceId) {//根据DeviceId去Hash得到哈希值当作虚拟存储组ID
+    return Math.abs(deviceId.hashCode() % STORAGE_GROUP_NUM);//取绝对值
   }
 
   private static class HashVirtualPartitionerHolder {

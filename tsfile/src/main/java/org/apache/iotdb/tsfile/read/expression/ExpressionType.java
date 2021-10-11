@@ -18,7 +18,7 @@
  */
 package org.apache.iotdb.tsfile.read.expression;
 
-public enum ExpressionType {
+public enum ExpressionType {  //表达式类别
 
   /** Represent the relationship between the left expression and the right expression is AND */
   AND,

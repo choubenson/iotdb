@@ -21,9 +21,9 @@ package org.apache.iotdb.db.metadata;
 import org.apache.iotdb.tsfile.read.TimeValuePair;
 import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
 
-public class MeasurementMeta {
-  private IMeasurementSchema measurementSchema;
-  private String alias = null; // TODO get schema by alias
+public class MeasurementMeta {  //传感器的元数据
+  private IMeasurementSchema measurementSchema;   //该传感器的schema配置
+  private String alias = null; // 该传感器的别名 TODO get schema by alias
   private TimeValuePair timeValuePair = null;
 
   public MeasurementMeta(

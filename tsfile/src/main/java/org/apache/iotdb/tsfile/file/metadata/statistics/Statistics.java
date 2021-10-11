@@ -43,7 +43,7 @@ import java.util.Objects;
  * For the statistics in the Unseq file TimeSeriesMetadata, only firstValue, lastValue, startTime
  * and endTime can be used.</br>
  */
-public abstract class Statistics<T> {
+public abstract class Statistics<T> { //统计量
 
   private static final Logger LOG = LoggerFactory.getLogger(Statistics.class);
   /**
@@ -52,7 +52,7 @@ public abstract class Statistics<T> {
   protected boolean isEmpty = true;
 
   /** number of time-value points */
-  private int count = 0;
+  private int count = 0;  //数据点数量
 
   private long startTime = Long.MAX_VALUE;
   private long endTime = Long.MIN_VALUE;
@@ -115,7 +115,7 @@ public abstract class Statistics<T> {
 
   public abstract int getStatsSize();
 
-  public int serialize(OutputStream outputStream) throws IOException {
+  public int serialize(OutputStream outputStream) throws IOException {  //将该statistics统计量的相关属性序列化存入该输出流outputStream的缓存数组里
     int byteLen = 0;
     byteLen += ReadWriteForEncodingUtils.writeUnsignedVarInt(count, outputStream);
     byteLen += ReadWriteIOUtils.write(startTime, outputStream);
@@ -198,8 +198,8 @@ public abstract class Statistics<T> {
   }
 
   public void update(long time, int value) {
-    update(time);
-    updateStats(value);
+    update(time); //更新时间戳相关统计量
+    updateStats(value); //更新数据值相关统计量
   }
 
   public void update(long time, long value) {
@@ -222,7 +222,7 @@ public abstract class Statistics<T> {
     updateStats(value);
   }
 
-  public void update(long time) {
+  public void update(long time) {   //根据给定的时间戳，更新相应的开始时间戳和结束时间戳
     if (time < startTime) {
       startTime = time;
     }

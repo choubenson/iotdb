@@ -197,6 +197,11 @@ public class TsFileRewriteToolTest {
     }
   }
 
+  @Test
+  public void rewriteOneTsFileTest(){
+
+  }
+
   private void splitFileAndQueryCheck(HashMap<String, List<String>> deviceSensorsMap) {
     File tsFile = new File(path);
     TsFileResource tsFileResource = new TsFileResource(tsFile);

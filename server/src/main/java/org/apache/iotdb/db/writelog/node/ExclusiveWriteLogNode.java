@@ -59,7 +59,7 @@ public class ExclusiveWriteLogNode implements WriteLogNode, Comparable<Exclusive
 
   private IoTDBConfig config = IoTDBDescriptor.getInstance().getConfig();
 
-  private ByteBuffer logBufferWorking;
+  private ByteBuffer logBufferWorking;    //wal日志的写入内存缓存
   private ByteBuffer logBufferIdle;
   private ByteBuffer logBufferFlushing;
 
@@ -101,14 +101,14 @@ public class ExclusiveWriteLogNode implements WriteLogNode, Comparable<Exclusive
   }
 
   @Override
-  public void write(PhysicalPlan plan) throws IOException {
+  public void write(PhysicalPlan plan) throws IOException {//往该WAL日志节点写入操作计划
     if (deleted) {
       throw new IOException("WAL node deleted");
     }
     lock.lock();
     try {
-      putLog(plan);
-      if (bufferedLogNum >= config.getFlushWalThreshold()) {
+      putLog(plan); //写入缓存
+      if (bufferedLogNum >= config.getFlushWalThreshold()) {  //当写入的内存缓冲区大小大于系统配置，则进行flush
         sync();
       }
     } catch (BufferOverflowException e) {
@@ -119,10 +119,10 @@ public class ExclusiveWriteLogNode implements WriteLogNode, Comparable<Exclusive
   }
 
   private void putLog(PhysicalPlan plan) {
-    logBufferWorking.mark();
+    logBufferWorking.mark();    //对该日志写入缓存logBufferWorking定位到要插入的位置
     try {
-      plan.serialize(logBufferWorking);
-    } catch (BufferOverflowException e) {
+      plan.serialize(logBufferWorking);   //将该计划序列化并存进入缓存
+    } catch (BufferOverflowException e) { //当BufferOverflow，则抛异常
       logger.info("WAL BufferOverflow !");
       logBufferWorking.reset();
       sync();

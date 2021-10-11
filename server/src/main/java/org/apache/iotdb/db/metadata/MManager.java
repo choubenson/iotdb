@@ -106,7 +106,7 @@ import static org.apache.iotdb.tsfile.common.constant.TsFileConstant.PATH_SEPARA
  * the operations will be insert into the logs temporary in case the downtime of the delta system.
  */
 @SuppressWarnings("java:S1135") // ignore todos
-public class MManager {
+public class MManager { //元数据Metadata管理类
 
   private static final Logger logger = LoggerFactory.getLogger(MManager.class);
 
@@ -202,11 +202,11 @@ public class MManager {
 
   // Because the writer will be used later and should not be closed here.
   @SuppressWarnings("squid:S2093")
-  public synchronized void init() {
-    if (initialized) {
+  public synchronized void init() { //初始化工作
+    if (initialized) {  //若已经初始化过了
       return;
     }
-    logFile = SystemFileFactory.INSTANCE.getFile(logFilePath);
+    logFile = SystemFileFactory.INSTANCE.getFile(logFilePath);//根据本地log日志文件获取logFile对象
 
     try {
       isRecovering = true;
@@ -674,7 +674,7 @@ public class MManager {
    *
    * @param storageGroup root.node.(node)*
    */
-  public void setStorageGroup(PartialPath storageGroup) throws MetadataException {
+  public void setStorageGroup(PartialPath storageGroup) throws MetadataException {  //往MTree中加入对应的存储组节点
     try {
       mtree.setStorageGroup(storageGroup);
       if (!config.isEnableMemControl()) {
@@ -743,7 +743,7 @@ public class MManager {
    *
    * @param path full path
    */
-  public TSDataType getSeriesType(PartialPath path) throws MetadataException {
+  public TSDataType getSeriesType(PartialPath path) throws MetadataException {  //根据给定时间序列的全路径获取该序列对应的数据类型
     if (path.equals(SQLConstant.TIME_PATH)) {
       return TSDataType.INT64;
     }
@@ -787,7 +787,7 @@ public class MManager {
    *     wildcard can only match one level, otherwise it can match to the tail.
    * @return A HashSet instance which stores devices paths with given prefixPath.
    */
-  public Set<PartialPath> getDevices(PartialPath prefixPath) throws MetadataException {
+  public Set<PartialPath> getDevices(PartialPath prefixPath) throws MetadataException {//根据给定的 路径返回该路径上的所有设备路径。当该prefixPath是一个前缀路径时，则它下面可能有多个设备，当prefixPath是一个完整的设备路径或时间路径时，则它只有一个设备
     return mtree.getDevices(prefixPath);
   }
 
@@ -1219,15 +1219,15 @@ public class MManager {
    *     needs to make the Meta group aware of the creation of an SG, so an exception needs to be
    *     thrown here
    */
-  public IMNode getDeviceNodeWithAutoCreate(
+  public IMNode getDeviceNodeWithAutoCreate(  //根据路径path对象获取设备节点，如果storageGroup不存在，当allowCreateSg为真时则自动创建该存储组，即元数据节点。
       PartialPath path, boolean autoCreateSchema, boolean allowCreateSg, int sgLevel)
       throws IOException, MetadataException {
     IMNode node;
     boolean shouldSetStorageGroup;
     try {
-      node = mNodeCache.get(path);
+      node = mNodeCache.get(path);  //从path对象中获得设备节点（即倒数第二层的那个节点）并返回
       return node;
-    } catch (CacheException e) {
+    } catch (CacheException e) {  //当不存在此存储组，则报错
       if (!autoCreateSchema) {
         throw new PathNotExistException(path.getFullPath());
       }
@@ -1236,9 +1236,9 @@ public class MManager {
 
     try {
       if (shouldSetStorageGroup) {
-        if (allowCreateSg) {
-          PartialPath storageGroupPath = MetaUtils.getStorageGroupPathByLevel(path, sgLevel);
-          setStorageGroup(storageGroupPath);
+        if (allowCreateSg) {  //若允许创建存储组
+          PartialPath storageGroupPath = MetaUtils.getStorageGroupPathByLevel(path, sgLevel); //获得存储组路径
+          setStorageGroup(storageGroupPath);    //
         } else {
           throw new StorageGroupNotSetException(path.getFullPath());
         }
@@ -1667,10 +1667,10 @@ public class MManager {
       Long latestFlushedTime,
       IMeasurementMNode node) {
     if (node != null) {
-      node.updateCachedLast(timeValuePair, highPriorityUpdate, latestFlushedTime);
+      node.updateCachedLast(timeValuePair, highPriorityUpdate, latestFlushedTime);  //使用该传感器节点对象调用更新上次数据点缓存的方法
     } else {
       try {
-        IMeasurementMNode node1 = (IMeasurementMNode) mtree.getNodeByPath(seriesPath);
+        IMeasurementMNode node1 = (IMeasurementMNode) mtree.getNodeByPath(seriesPath);    //获取对应的传感器
         node1.updateCachedLast(timeValuePair, highPriorityUpdate, latestFlushedTime);
       } catch (MetadataException e) {
         logger.warn("failed to update last cache for the {}, err:{}", seriesPath, e.getMessage());
@@ -1691,24 +1691,24 @@ public class MManager {
   /** get schema for device. Attention!!! Only support insertPlan */
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
   public IMNode getSeriesSchemasAndReadLockDevice(InsertPlan plan)
-      throws MetadataException, IOException {
+      throws MetadataException, IOException { //给设备获取schema配置，目前只针对insertPlan
     PartialPath prefixPath = plan.getPrefixPath();
     PartialPath deviceId = prefixPath;
     String vectorId = null;
-    if (plan.isAligned()) {
+    if (plan.isAligned()) { //该insertPlan是否是对齐的
       deviceId = prefixPath.getDevicePath();
       vectorId = prefixPath.getMeasurement();
     }
-    String[] measurementList = plan.getMeasurements();
-    IMeasurementMNode[] measurementMNodes = plan.getMeasurementMNodes();
+    String[] measurementList = plan.getMeasurements();  //获取该insertPlan的所有传感器名
+    IMeasurementMNode[] measurementMNodes = plan.getMeasurementMNodes();  //获取该insertPlan的传感器节点对象
 
     // 1. get device node
-    IMNode deviceMNode = getDeviceNodeWithAutoCreate(deviceId);
+    IMNode deviceMNode = getDeviceNodeWithAutoCreate(deviceId); //根据PartialPath路径对象获得设备节点
 
     // check insert non-aligned InsertPlan for aligned timeseries
     if (deviceMNode.isMeasurement()
         && ((IMeasurementMNode) deviceMNode).getSchema() instanceof VectorMeasurementSchema
-        && !plan.isAligned()) {
+        && !plan.isAligned()) { //如果该节点是传感器节点，且是多元序列，并且是不对齐的，则抛出异常
       throw new MetadataException(
           String.format(
               "Path [%s] is an aligned timeseries, please set InsertPlan.isAligned() = true",
@@ -1724,15 +1724,15 @@ public class MManager {
               prefixPath));
     }
 
-    // 2. get schema of each measurement
+    // 2. get schema of each measurement  获取每个传感器的schema配置
     // if do not have measurement
-    IMeasurementMNode measurementMNode;
+    IMeasurementMNode measurementMNode;      //用于暂时存放该设备的一个个孩子传感器节点
     for (int i = 0; i < measurementList.length; i++) {
       try {
         String measurement = measurementList[i];
-        IMNode child = getMNode(deviceMNode, plan.isAligned() ? vectorId : measurement);
-        if (child != null && child.isMeasurement()) {
-          measurementMNode = (IMeasurementMNode) child;
+        IMNode child = getMNode(deviceMNode, plan.isAligned() ? vectorId : measurement);  //获取该设备的孩子节点
+        if (child != null && child.isMeasurement()) { //如果孩子节点不为空且是传感器节点
+          measurementMNode = (IMeasurementMNode) child; //存放孩子节点
         } else if (child != null && child.isStorageGroup()) {
           throw new PathAlreadyExistException(deviceId + PATH_SEPARATOR + measurement);
         } else if ((measurementMNode = findTemplate(deviceMNode, measurement, vectorId)) != null) {
@@ -1764,10 +1764,10 @@ public class MManager {
           }
         }
 
-        // check type is match
+        // check type is match  检查数据类型是否匹配
         TSDataType insertDataType;
         if (plan instanceof InsertRowPlan || plan instanceof InsertTabletPlan) {
-          if (plan.isAligned()) {
+          if (plan.isAligned()) { //如果是对齐的
             TSDataType dataTypeInNode =
                 measurementMNode.getSchema().getValueTSDataTypeList().get(i);
             insertDataType = plan.getDataTypes()[i];
@@ -1796,7 +1796,7 @@ public class MManager {
               }
             }
             measurementMNodes[i] = measurementMNode;
-          } else {
+          } else {  //如果是非对齐的
             if (plan instanceof InsertRowPlan) {
               if (!((InsertRowPlan) plan).isNeedInferType()) {
                 // only when InsertRowPlan's values is object[], we should check type

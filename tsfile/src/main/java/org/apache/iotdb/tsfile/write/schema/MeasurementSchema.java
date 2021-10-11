@@ -44,10 +44,10 @@ import java.util.Objects;
  * TSDataTypeConverter up to now.
  */
 public class MeasurementSchema
-    implements IMeasurementSchema, Comparable<MeasurementSchema>, Serializable {
+    implements IMeasurementSchema, Comparable<MeasurementSchema>, Serializable {  //传感器的配置类
 
-  private String measurementId;
-  private byte type;
+  private String measurementId; //传感器路径名，ID
+  private byte type;  //该传感器存放的数据类型
   private byte encoding;
   private TSEncodingBuilder encodingConverter;
   private byte compressor;

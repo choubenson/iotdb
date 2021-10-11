@@ -109,7 +109,7 @@ public class PrimitiveArrayManager {
    *
    * @return an array
    */
-  public static Object allocate(TSDataType dataType) {
+  public static Object allocate(TSDataType dataType) {  //根据数据类型获得数组（就是普通的数组，如new Boolean[ARRAY_SIZE]）
     if (dataType.equals(TSDataType.VECTOR)) {
       throw new UnSupportedDataTypeException(TSDataType.VECTOR.name());
     }
@@ -193,11 +193,11 @@ public class PrimitiveArrayManager {
     TOTAL_ALLOCATION_REQUEST_COUNT.set(0);
   }
 
-  private static Object createPrimitiveArray(TSDataType dataType) {
+  private static Object createPrimitiveArray(TSDataType dataType) { //根据数据类型创建数组
     Object dataArray;
     switch (dataType) {
       case BOOLEAN:
-        dataArray = new boolean[ARRAY_SIZE];
+        dataArray = new boolean[ARRAY_SIZE];  //创建Boolean型数组
         break;
       case INT32:
         dataArray = new int[ARRAY_SIZE];
@@ -226,7 +226,7 @@ public class PrimitiveArrayManager {
    *
    * @param array data array to be released
    */
-  public static void release(Object array) {
+  public static void release(Object array) {  //把array数组还给系统，系统会把其整理清空后继续添加进系统的可用数组列表中
     int order;
     if (array instanceof boolean[]) {
       order = TSDataType.BOOLEAN.serialize();

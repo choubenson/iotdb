@@ -20,7 +20,7 @@ package org.apache.iotdb.tsfile.read.expression;
 
 import org.apache.iotdb.tsfile.read.filter.basic.Filter;
 
-public interface IUnaryExpression extends IExpression {
+public interface IUnaryExpression extends IExpression { //一元表达式抽象类
 
   Filter getFilter();
 

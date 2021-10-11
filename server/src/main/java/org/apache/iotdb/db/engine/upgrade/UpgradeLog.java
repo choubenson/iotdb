@@ -39,11 +39,11 @@ public class UpgradeLog {
   private static final String UPGRADE_DIR = "upgrade";
   private static final String UPGRADE_LOG_NAME = "upgrade.txt";
   private static BufferedWriter upgradeLogWriter;
-  private static File upgradeLogPath =
+  private static File upgradeLogPath =          //升级日志文件upgrade.txt的文件对象，其路径为"data/system/upgrade/upgrade.txt"
       SystemFileFactory.INSTANCE.getFile(
           SystemFileFactory.INSTANCE.getFile(config.getSystemDir(), UPGRADE_DIR), UPGRADE_LOG_NAME);
 
-  public static boolean createUpgradeLog() {
+  public static boolean createUpgradeLog() {    //创建该系统本地的升级日志文件
     try {
       if (!upgradeLogPath.getParentFile().exists()) {
         upgradeLogPath.getParentFile().mkdirs();
@@ -57,7 +57,7 @@ public class UpgradeLog {
     }
   }
 
-  public static String getUpgradeLogPath() {
+  public static String getUpgradeLogPath() {  //获取升级日志文件upgrade.txt的文件对象的路径，"data/system/upgrade/upgrade.txt"
     return upgradeLogPath.getAbsolutePath();
   }
 

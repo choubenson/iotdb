@@ -39,14 +39,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 /** Represents an MNode which has a Measurement or Sensor attached to it. */
-public class MeasurementMNode extends MNode implements IMeasurementMNode {
+public class MeasurementMNode extends MNode implements IMeasurementMNode {  //传感器节点类，每个传感器节点会有个TimeValuePair用来缓存上个时间戳的数据点
 
   private static final Logger logger = LoggerFactory.getLogger(MeasurementMNode.class);
 
   private static final long serialVersionUID = -1199657856921206435L;
 
   /** measurement's Schema for one timeseries represented by current leaf node */
-  private IMeasurementSchema schema;
+  private IMeasurementSchema schema;    //传感器配置类对象
 
   /** alias name of this measurement */
   private String alias;
@@ -55,7 +55,7 @@ public class MeasurementMNode extends MNode implements IMeasurementMNode {
   private long offset = -1;
 
   /** last value cache */
-  private TimeValuePair cachedLastValuePair = null;
+  private TimeValuePair cachedLastValuePair = null; //该传感器上一个时间点的TimeValuePair数据点缓存
 
   /** registered trigger */
   private TriggerExecutor triggerExecutor = null;
@@ -166,28 +166,28 @@ public class MeasurementMNode extends MNode implements IMeasurementMNode {
    */
   @Override
   public synchronized void updateCachedLast(
-      TimeValuePair timeValuePair, boolean highPriorityUpdate, Long latestFlushedTime) {
+      TimeValuePair timeValuePair, boolean highPriorityUpdate, Long latestFlushedTime) {//最后一个参数是该设备在全局、跨时间分区的最后刷盘数据的最大时间戳
     if (timeValuePair == null || timeValuePair.getValue() == null) {
       return;
     }
 
-    if (cachedLastValuePair == null) {
+    if (cachedLastValuePair == null) {  //如果该传感器不存在上个数据点的缓存
       // If no cached last, (1) a last query (2) an unseq insertion or (3) a seq insertion will
       // update cache.
-      if (!highPriorityUpdate || latestFlushedTime <= timeValuePair.getTimestamp()) {
-        cachedLastValuePair =
+      if (!highPriorityUpdate || latestFlushedTime <= timeValuePair.getTimestamp()) {//若不是高优先级更新 或者 该设备全局、跨时间分区的最后刷盘数据的最大时间戳小于此次插入行为的时间戳（说明是顺序插入）
+        cachedLastValuePair =   //新建一个此传感器的上个数据点缓存为此次插入行为的（时间戳，数值）
             new TimeValuePair(timeValuePair.getTimestamp(), timeValuePair.getValue());
       }
     } else if (timeValuePair.getTimestamp() > cachedLastValuePair.getTimestamp()
         || (timeValuePair.getTimestamp() == cachedLastValuePair.getTimestamp()
-            && highPriorityUpdate)) {
+            && highPriorityUpdate)) { //若是高优先级更新 或者 此次插入的时间戳大于等于此传感器的上个数据点缓存的时间戳，则更新此传感器的上个数据点缓存为此次插入行为的（时间戳，数值）
       cachedLastValuePair.setTimestamp(timeValuePair.getTimestamp());
       cachedLastValuePair.setValue(timeValuePair.getValue());
     }
   }
 
   @Override
-  public void resetCache() {
+  public void resetCache() {//重置上个数据点缓存，清空
     cachedLastValuePair = null;
   }
 

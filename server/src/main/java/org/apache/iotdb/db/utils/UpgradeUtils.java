@@ -50,7 +50,7 @@ public class UpgradeUtils {
 
   private static FSFactory fsFactory = FSFactoryProducer.getFSFactory();
 
-  private static Map<String, Integer> upgradeRecoverMap = new HashMap<>();
+  private static Map<String, Integer> upgradeRecoverMap = new HashMap<>();    //存放了系统升级日志文件upgrade.txt里的相关内容，即（TsFile文件名，对应的升级状态）
 
   public static ReadWriteLock getCntUpgradeFileLock() {
     return cntUpgradeFileLock;
@@ -90,43 +90,43 @@ public class UpgradeUtils {
     return false;
   }
 
-  public static void moveUpgradedFiles(TsFileResource resource) throws IOException {
-    List<TsFileResource> upgradedResources = resource.getUpgradedResources();
-    for (TsFileResource upgradedResource : upgradedResources) {
-      File upgradedFile = upgradedResource.getTsFile();
-      long partition = upgradedResource.getTimePartition();
-      String virtualStorageGroupDir = upgradedFile.getParentFile().getParentFile().getParent();
-      File partitionDir = fsFactory.getFile(virtualStorageGroupDir, String.valueOf(partition));
-      if (!partitionDir.exists()) {
+  public static void moveUpgradedFiles(TsFileResource resource) throws IOException {  //参数是旧TsFile的TsFileResource，遍历该旧TsFile文件升级后生成的每个新TsFile的TsFileResouce：（1）创建本地虚拟存储组目录下对应的时间分区目录，并将该新TsFile和对应新.mods文件移动到此时间分区目录下（2）将本地新的.mods文件和新TsFile文件反序列化到该TsFileResource对象的属性里，然后关闭该新TsFileResource，并把它的内容序列化写到本地的.resource文件里
+    List<TsFileResource> upgradedResources = resource.getUpgradedResources(); //获取该旧TsFile升级后生成的多个新TsFile对应的TsFileResource
+    for (TsFileResource upgradedResource : upgradedResources) {//遍历每个新TsFile对应的TsFileResource
+      File upgradedFile = upgradedResource.getTsFile(); //获取新TsFile的文件对象
+      long partition = upgradedResource.getTimePartition();//获取该新TsFile对应的时间分区
+      String virtualStorageGroupDir = upgradedFile.getParentFile().getParentFile().getParent();//获取该新TsFile所属虚拟存储组的目录路径
+      File partitionDir = fsFactory.getFile(virtualStorageGroupDir, String.valueOf(partition));//获取该虚拟存储组下的该新TsFile所属时间分区的目录
+      if (!partitionDir.exists()) { //若该虚拟存储组下的该新TsFile所属时间分区的目录不存在，则本地新建该新TsFile所属的时间分区目录
         partitionDir.mkdir();
       }
       // move upgraded TsFile
-      if (upgradedFile.exists()) {
+      if (upgradedFile.exists()) {  //若本地存在该新TsFile文件，则把它移动到对应的时间分区目录下
         fsFactory.moveFile(upgradedFile, fsFactory.getFile(partitionDir, upgradedFile.getName()));
       }
       // get temp resource
-      File tempResourceFile =
+      File tempResourceFile =   //获取该新的TsFile文件对应的.resource文件对象
           fsFactory.getFile(upgradedResource.getTsFile().toPath() + TsFileResource.RESOURCE_SUFFIX);
       // move upgraded mods file
-      File newModsFile =
+      File newModsFile =      //获取该新的TsFile文件对应的.mods文件对象
           fsFactory.getFile(upgradedResource.getTsFile().toPath() + ModificationFile.FILE_SUFFIX);
-      if (newModsFile.exists()) {
+      if (newModsFile.exists()) { //若本地存在该新的TsFile文件对应的.mods文件，则把它移动到对应的时间分区目录下
         fsFactory.moveFile(newModsFile, fsFactory.getFile(partitionDir, newModsFile.getName()));
       }
       // re-serialize upgraded resource to correct place
-      upgradedResource.setFile(fsFactory.getFile(partitionDir, upgradedFile.getName()));
-      if (fsFactory.getFile(partitionDir, newModsFile.getName()).exists()) {
-        upgradedResource.getModFile();
+      upgradedResource.setFile(fsFactory.getFile(partitionDir, upgradedFile.getName()));//设置该新的TsFileResource对应的新TsFile文件对象，即把TsFile文件解码反序列化到该新TsFileResource的TsFile类对象属性里
+      if (fsFactory.getFile(partitionDir, newModsFile.getName()).exists()) {  //如果对应时间分区目录下存在该新TsFile对应的新.mods文件，则
+        upgradedResource.getModFile();//将本地新的.mods文件解码反序列化到该新TsFileResource的ModificationFile类对象属性里
       }
-      upgradedResource.setClosed(true);
-      upgradedResource.serialize();
+      upgradedResource.setClosed(true); //关闭、封口此新TsFileResource
+      upgradedResource.serialize(); //将该新TsFile文件对应的新TsFileResource对象里的内容序列化写到本地的.resource文件里
       // delete generated temp resource file
-      Files.delete(tempResourceFile.toPath());
+      Files.delete(tempResourceFile.toPath());//删除原本新TsFile对应的.resource文件
     }
   }
 
-  public static boolean isUpgradedFileGenerated(String oldFileName) {
-    return upgradeRecoverMap.containsKey(oldFileName)
+  public static boolean isUpgradedFileGenerated(String oldFileName) {   //一般传递的是TsFile文件名，用于判断该TsFile的新的升级文件(.tsfile)是否已经生成并封口了
+    return upgradeRecoverMap.containsKey(oldFileName) //若upgradeRecoverMap这个数据结构（TsFile文件名，对应的升级状态）包含该TsFile，并且该TsFile对应的升级状态是2（即该TsFile对应的新的升级文件.tsfile已经生成并封口了），则返回真
         && upgradeRecoverMap.get(oldFileName)
             == UpgradeCheckStatus.AFTER_UPGRADE_FILE.getCheckStatusCode();
   }
@@ -136,19 +136,19 @@ public class UpgradeUtils {
   }
 
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
-  public static void recoverUpgrade() {
-    if (FSFactoryProducer.getFSFactory().getFile(UpgradeLog.getUpgradeLogPath()).exists()) {
-      try (BufferedReader upgradeLogReader =
+  public static void recoverUpgrade() { //读取系统原先的升级日志文件upgrade.txt，把其内容读进upgradeRecoverMap这个数据结构（TsFile文件名，对应的升级状态）中，并更新对应TsFile文件的升级状态
+    if (FSFactoryProducer.getFSFactory().getFile(UpgradeLog.getUpgradeLogPath()).exists()) {//若升级日志文件upgrade.txt存在，"data/system/upgrade/upgrade.txt"
+      try (BufferedReader upgradeLogReader =    //读取升级日志文件upgrade.txt内容
           new BufferedReader(
               new FileReader(
                   FSFactoryProducer.getFSFactory().getFile(UpgradeLog.getUpgradeLogPath())))) {
         String line = null;
-        while ((line = upgradeLogReader.readLine()) != null) {
-          String oldFilePath = line.split(COMMA_SEPERATOR)[0];
-          String oldFileName = new File(oldFilePath).getName();
-          if (upgradeRecoverMap.containsKey(oldFileName)) {
+        while ((line = upgradeLogReader.readLine()) != null) {  //一行一行读取升级日志文件内容
+          String oldFilePath = line.split(COMMA_SEPERATOR)[0];  //获取日志文件该行的TSFile路径
+          String oldFileName = new File(oldFilePath).getName();   //获取日志文件该行的TSFile文件名
+          if (upgradeRecoverMap.containsKey(oldFileName)) { //如果upgradeRecoverMap已经包含该TsFile文件，则把其升级状态+1
             upgradeRecoverMap.put(oldFileName, upgradeRecoverMap.get(oldFileName) + 1);
-          } else {
+          } else {  //若不存在，则把该TsFile文件放入upgradeRecoverMap，并设置升级状态为1
             upgradeRecoverMap.put(oldFileName, 1);
           }
         }
@@ -158,7 +158,7 @@ public class UpgradeUtils {
             UpgradeLog.getUpgradeLogPath(),
             e);
       } finally {
-        FSFactoryProducer.getFSFactory().getFile(UpgradeLog.getUpgradeLogPath()).delete();
+        FSFactoryProducer.getFSFactory().getFile(UpgradeLog.getUpgradeLogPath()).delete();  //把系统原先的upgrade.txt升级日志文件删除
       }
     }
   }

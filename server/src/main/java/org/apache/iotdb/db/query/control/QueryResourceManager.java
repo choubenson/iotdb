@@ -51,8 +51,8 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class QueryResourceManager {
 
-  private final AtomicLong queryIdAtom = new AtomicLong();
-  private final QueryFileManager filePathsManager;
+  private final AtomicLong queryIdAtom = new AtomicLong();  //查询ID,也是计数器，即使用计数当作此查询的ID
+  private final QueryFileManager filePathsManager;//该类对象存放了每个查询需要用到的已封口和未封口的TsFileResource
   private static final Logger logger = LoggerFactory.getLogger(QueryResourceManager.class);
   private IoTDBConfig CONFIG = IoTDBDescriptor.getInstance().getConfig();
 
@@ -73,9 +73,9 @@ public class QueryResourceManager {
   }
 
   /** Register a new query. When a query request is created firstly, this method must be invoked. */
-  public long assignQueryId(boolean isDataQuery) {
-    long queryId = queryIdAtom.incrementAndGet();
-    if (isDataQuery) {
+  public long assignQueryId(boolean isDataQuery) {  //注册该查询，并获得对应的查询ID
+    long queryId = queryIdAtom.incrementAndGet(); //根据计数器获取当前查询ID
+    if (isDataQuery) {  //若是查询，则若两个map里不存在当前查询ID的元素，就往两个map里新增该查询ID对应的hashmap
       filePathsManager.addQueryId(queryId);
     }
     return queryId;
@@ -92,13 +92,13 @@ public class QueryResourceManager {
     externalSortFileMap.computeIfAbsent(queryId, x -> new ArrayList<>()).add(deserializer);
   }
 
-  public QueryDataSource getQueryDataSource(
-      PartialPath selectedPath, QueryContext context, Filter filter)
+  public QueryDataSource getQueryDataSource(//根据给定此查询的某一时间序列路径和过滤器创建SingleSeriesExpression对象，根据该对象获取此次查询需要用到的所有顺序or乱序TsFileResource,并把它们往添加入查询文件管理类里，即添加此次查询ID对应需要用到的顺序和乱序TsFileResource,并创建返回QueryDataSource对象，该类对象存放了一次查询里对一条时间序列涉及到的所有顺序TsFileResource和乱序TsFileResource和数据TTL
+      PartialPath selectedPath, QueryContext context, Filter filter)  //第一个参数是此次查询的某一条时间序列路径，第二个参数是此次的查询环境类对象，第三个参数是过滤器（可能是一元或者多个过滤器，是关于时间的过滤器）
       throws StorageEngineException, QueryProcessException {
 
-    SingleSeriesExpression singleSeriesExpression =
+    SingleSeriesExpression singleSeriesExpression = //根据此次查询的指定时间序列路径和过滤器创建SingleSeriesExpression一元表达式
         new SingleSeriesExpression(selectedPath, filter);
-    QueryDataSource queryDataSource =
+    QueryDataSource queryDataSource =//获取此次查询需要用到的所有顺序or乱序TsFileResource,并把它们往添加入查询文件管理类里，即添加此次查询ID对应需要用到的顺序和乱序TsFileResource,并创建返回QueryDataSource对象，该类对象存放了一次查询里对一条时间序列涉及到的所有顺序TsFileResource和乱序TsFileResource和数据TTL
         StorageEngine.getInstance().query(singleSeriesExpression, context, filePathsManager);
     // calculate the distinct number of seq and unseq tsfiles
     if (CONFIG.isEnablePerformanceTracing()) {

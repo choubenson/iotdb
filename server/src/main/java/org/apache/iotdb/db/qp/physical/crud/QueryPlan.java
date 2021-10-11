@@ -33,10 +33,10 @@ import java.util.Map;
 
 public abstract class QueryPlan extends PhysicalPlan {
 
-  protected List<ResultColumn> resultColumns = null;
+  protected List<ResultColumn> resultColumns = null;  //该列表存放了此次查询结果的所有列对象
   protected List<PartialPath> paths = null;
   protected List<TSDataType> dataTypes = null;
-  private boolean alignByTime = true; // for disable align sql
+  private boolean alignByTime = true;//Todo:???啥意思？ // for disable align sql，如果查询是disable align的，则该属性为true
 
   private int rowLimit = 0;
   private int rowOffset = 0;

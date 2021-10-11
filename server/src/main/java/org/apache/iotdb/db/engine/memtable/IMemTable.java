@@ -40,7 +40,7 @@ import java.util.Map;
  * i.e., Writing and querying operations must already have gotten writeLock and readLock
  * respectively.<br>
  */
-public interface IMemTable {
+public interface IMemTable {  //用于存放那些还没被flush刷进TsFile文件里的数据点，可以理解为内存缓冲区。每个IMemtable存放着一个存储组下的所有时间序列待被写入的数据点。
 
   Map<String, Map<String, IWritableMemChunk>> getMemTableMap();
 

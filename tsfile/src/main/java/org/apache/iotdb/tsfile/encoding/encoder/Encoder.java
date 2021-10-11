@@ -87,7 +87,7 @@ public abstract class Encoder {
    * @param out - ByteArrayOutputStream
    * @throws IOException cannot flush to OutputStream
    */
-  public abstract void flush(ByteArrayOutputStream out) throws IOException;
+  public abstract void flush(ByteArrayOutputStream out) throws IOException;//对那些残留在时间编码器和数据值编码器中的数据，把他们写入到指定的输出写入流out的缓存中
 
   /**
    * When encoder accepts a new incoming data point, the maximal possible size in byte it takes to

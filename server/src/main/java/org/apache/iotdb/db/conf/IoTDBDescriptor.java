@@ -49,7 +49,7 @@ public class IoTDBDescriptor {
   private final IoTDBConfig conf = new IoTDBConfig();
 
   protected IoTDBDescriptor() {
-    loadProps();
+    loadProps();  //加载系统属性等参数配置
   }
 
   public static IoTDBDescriptor getInstance() {
@@ -65,7 +65,7 @@ public class IoTDBDescriptor {
    *
    * @return url object if location exit, otherwise null.
    */
-  public URL getPropsUrl() {
+  public URL getPropsUrl() {  //获取系统参数文件的路径对象，如（system.property等）
     // Check if a config-directory was specified first.
     String urlString = System.getProperty(IoTDBConstant.IOTDB_CONF, null);
     // If it wasn't, check if a home directory was provided (This usually contains a config)
@@ -109,8 +109,8 @@ public class IoTDBDescriptor {
 
   /** load an property file and set TsfileDBConfig variables. */
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
-  private void loadProps() {
-    URL url = getPropsUrl();
+  private void loadProps() {  //加载系统属性等参数配置，把这些配置
+    URL url = getPropsUrl();    //获取本地系统参数文件的路径对象
     if (url == null) {
       logger.warn("Couldn't load the configuration from any of the known sources.");
       return;
@@ -491,7 +491,7 @@ public class IoTDBDescriptor {
           Integer.parseInt(
               properties.getProperty(
                   "external_sort_threshold", Integer.toString(conf.getExternalSortThreshold()))));
-      conf.setUpgradeThreadNum(
+      conf.setUpgradeThreadNum(   //获取系统配置的升级线程数量
           Integer.parseInt(
               properties.getProperty(
                   "upgrade_thread_num", Integer.toString(conf.getUpgradeThreadNum()))));

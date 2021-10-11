@@ -26,7 +26,7 @@ import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
 import java.util.HashMap;
 import java.util.Map;
 
-public class PrimitiveMemTable extends AbstractMemTable {
+public class PrimitiveMemTable extends AbstractMemTable {//TsFileProcessor的workMemTable里存放了该TsFile的不同设备下的所有传感器Chunk的memTable（IWritableMemChunk类对象）
 
   public PrimitiveMemTable() {}
 
@@ -39,12 +39,12 @@ public class PrimitiveMemTable extends AbstractMemTable {
   }
 
   @Override
-  protected IWritableMemChunk genMemSeries(IMeasurementSchema schema) {
+  protected IWritableMemChunk genMemSeries(IMeasurementSchema schema) { //根据传感器的配置类信息创建其memtable，即IWritableMemChunk类对象
     if (schema.getType() == TSDataType.VECTOR) {
       return new WritableMemChunk(
           schema, TVListAllocator.getInstance().allocate(schema.getValueTSDataTypeList()));
     }
-    return new WritableMemChunk(schema, TVListAllocator.getInstance().allocate(schema.getType()));
+    return new WritableMemChunk(schema, TVListAllocator.getInstance().allocate(schema.getType()));//根据传感器配置类schema和对应数据类型的新TVList去创建该传感器的memtable
   }
 
   @Override

@@ -36,9 +36,9 @@ public class UpgradeSevice implements IService {
 
   private static final Logger logger = LoggerFactory.getLogger(UpgradeSevice.class);
 
-  private ExecutorService upgradeThreadPool;
-  private AtomicInteger threadCnt = new AtomicInteger();
-  private static AtomicInteger cntUpgradeFileNum = new AtomicInteger();
+  private ExecutorService upgradeThreadPool;    //升级线程的线程池，该池里存放了一个个升级线程（这些线程可能是被占用也可能空闲）
+  private AtomicInteger threadCnt = new AtomicInteger();    //线程数量，默认是0 //AtomicInteger其实就是整数类型的数据，只不过它是线程安全的，主要用在高并发环境下的高效程序处理,来帮助我们简化同步处理.
+  private static AtomicInteger cntUpgradeFileNum = new AtomicInteger();//待升级的TSFile文件数量
 
   private UpgradeSevice() {}
 
@@ -54,20 +54,20 @@ public class UpgradeSevice implements IService {
 
   @Override
   public void start() {
-    int updateThreadNum = IoTDBDescriptor.getInstance().getConfig().getUpgradeThreadNum();
+    int updateThreadNum = IoTDBDescriptor.getInstance().getConfig().getUpgradeThreadNum();  //获取系统配置的升级线程的数量
     if (updateThreadNum <= 0) {
       updateThreadNum = 1;
     }
     upgradeThreadPool =
         Executors.newFixedThreadPool(
-            updateThreadNum, r -> new Thread(r, "UpgradeThread-" + threadCnt.getAndIncrement()));
-    UpgradeLog.createUpgradeLog();
-    countUpgradeFiles();
-    if (cntUpgradeFileNum.get() == 0) {
+            updateThreadNum, r -> new Thread(r, "UpgradeThread-" + threadCnt.getAndIncrement())); //创建升级线程池
+    UpgradeLog.createUpgradeLog();//创建该系统本地的升级日志文件
+    countUpgradeFiles();  //计算该系统的待升级TSFile文件数量存入cntUpgradeFileNum变量中
+    if (cntUpgradeFileNum.get() == 0) { //若没有带升级的文件，则停止该服务
       stop();
       return;
     }
-    upgradeAll();
+    upgradeAll(); //进行升级所有的待升级TSFile
   }
 
   @Override
@@ -91,16 +91,16 @@ public class UpgradeSevice implements IService {
     return cntUpgradeFileNum;
   }
 
-  public void submitUpgradeTask(UpgradeTask upgradeTask) {
+  public void submitUpgradeTask(UpgradeTask upgradeTask) {  //往该“升级TSFile文件”服务的线程池里提交该升级线程upgradeTask
     upgradeThreadPool.submit(upgradeTask);
   }
 
-  private static void countUpgradeFiles() {
-    cntUpgradeFileNum.addAndGet(StorageEngine.getInstance().countUpgradeFiles());
+  private static void countUpgradeFiles() { //计算该IOTDB系统里待升级的TSFile文件数量
+    cntUpgradeFileNum.addAndGet(StorageEngine.getInstance().countUpgradeFiles());//将cntUpgradeFileNum相加后再返回
     logger.info("finish counting upgrading files, total num:{}", cntUpgradeFileNum);
   }
 
-  private static void upgradeAll() {
+  private static void upgradeAll() {//升级所有待升级的TSFile
     try {
       StorageEngine.getInstance().upgradeAll();
     } catch (StorageEngineException e) {

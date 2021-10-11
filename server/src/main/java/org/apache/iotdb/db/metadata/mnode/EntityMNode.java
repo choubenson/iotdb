@@ -22,7 +22,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class EntityMNode extends InternalMNode implements IEntityMNode {
+public class EntityMNode extends InternalMNode implements IEntityMNode {  //设备实体节点类
 
   /**
    * suppress warnings reason: volatile for double synchronized check

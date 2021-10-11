@@ -199,7 +199,7 @@ public class ReadWriteForEncodingUtils {
    * @return the number of bytes that the value consume.
    * @throws IOException exception in IO
    */
-  public static int writeUnsignedVarInt(int value, ByteBuffer buffer) {
+  public static int writeUnsignedVarInt(int value, ByteBuffer buffer) {//把value的二进制格式写入buffer缓存中，返回写入的字节数量
     int position = 1;
     while ((value & 0xFFFFFF80) != 0L) {
       buffer.put((byte) ((value & 0x7F) | 0x80));

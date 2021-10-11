@@ -46,7 +46,7 @@ import java.util.Map;
  * ReadOnlyMemChunk is a snapshot of the working MemTable and flushing memtable in the memory used
  * for querying
  */
-public class ReadOnlyMemChunk {
+public class ReadOnlyMemChunk { //只读的内存Chunk类，该类是那些在内存中（还未被flush或正在flush）的Chunk的快照，主要用于查询操作中，需要创建它们的快照。在查询操作中，每个在内存中的Chunk对应一个快照，即对应一个各自的ReadOnlyMemChunk类对象
 
   // deletion list for this chunk
   private final List<TimeRange> deletionList;

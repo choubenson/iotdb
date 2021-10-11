@@ -31,7 +31,7 @@ import static org.apache.iotdb.db.rescon.PrimitiveArrayManager.ARRAY_SIZE;
 
 public class BooleanTVList extends TVList {
 
-  private List<boolean[]> values;
+  private List<boolean[]> values; //存放了一个个boolean类型数组的列表
 
   private boolean[][] sortedValues;
 
@@ -43,15 +43,15 @@ public class BooleanTVList extends TVList {
   }
 
   @Override
-  public void putBoolean(long timestamp, boolean value) {
-    checkExpansion();
-    int arrayIndex = size / ARRAY_SIZE;
-    int elementIndex = size % ARRAY_SIZE;
-    minTime = Math.min(minTime, timestamp);
+  public void putBoolean(long timestamp, boolean value) { //首先判断是否要对此TVList的values和timestamps列表，然后往该BooleanTVList的values和timestamps列表的某一数组里里插入对应的时间戳和数值
+    checkExpansion();//检查是否需要扩容，即判断该TVList的values和timestamps列表是否需要扩容，每次扩容都是分别新增一个ARRAY_SIZE数量的数组，放入values列表和timestamps列表中
+    int arrayIndex = size / ARRAY_SIZE;   //计算当前values和timestamps列表里的数组索引，即要往values和timestamps列表中哪个数组插入数据
+    int elementIndex = size % ARRAY_SIZE; //元素索引，即插入具体数组的哪个位置
+    minTime = Math.min(minTime, timestamp); //记录此TVList的最小时间戳
     timestamps.get(arrayIndex)[elementIndex] = timestamp;
     values.get(arrayIndex)[elementIndex] = value;
-    size++;
-    if (sorted && size > 1 && timestamp < getTime(size - 2)) {
+    size++; //数据点数量+1
+    if (sorted && size > 1 && timestamp < getTime(size - 2)) {//若原先该TVList是顺序的，且此次插入的时间戳小于上一个数据点的时间戳，则此TVList为乱序的
       sorted = false;
     }
   }
@@ -66,12 +66,12 @@ public class BooleanTVList extends TVList {
     return values.get(arrayIndex)[elementIndex];
   }
 
-  protected void set(int index, long timestamp, boolean value) {
+  protected void set(int index, long timestamp, boolean value) {//将此TVList第index个位置换成新的值
     if (index >= size) {
       throw new ArrayIndexOutOfBoundsException(index);
     }
-    int arrayIndex = index / ARRAY_SIZE;
-    int elementIndex = index % ARRAY_SIZE;
+    int arrayIndex = index / ARRAY_SIZE;  //计算数组索引，即是第几个数组
+    int elementIndex = index % ARRAY_SIZE;  //计算元素索引，即是数组里第几个元素
     timestamps.get(arrayIndex)[elementIndex] = timestamp;
     values.get(arrayIndex)[elementIndex] = value;
   }
@@ -134,9 +134,9 @@ public class BooleanTVList extends TVList {
   }
 
   @Override
-  protected void set(int src, int dest) {
-    long srcT = getTime(src);
-    boolean srcV = getBoolean(src);
+  protected void set(int src, int dest) {//该方法用来重置此TVList，把原先TVList中第src个元素的时间戳和数值放到此TVList第dest个位置
+    long srcT = getTime(src); //根据给定的src索引获取对应的时间戳
+    boolean srcV = getBoolean(src);//根据给定的src索引获取对应的数值
     set(dest, srcT, srcV);
   }
 
@@ -160,8 +160,8 @@ public class BooleanTVList extends TVList {
   }
 
   @Override
-  protected void expandValues() {
-    values.add((boolean[]) getPrimitiveArraysByType(TSDataType.BOOLEAN));
+  protected void expandValues() {//对此TVList进行扩容，每次扩容都是新增一个ARRAY_SIZE数量的数组，放入values列表中
+    values.add((boolean[]) getPrimitiveArraysByType(TSDataType.BOOLEAN)); //往values列表里增加下一个新的boolean数值数组
   }
 
   @Override
@@ -189,8 +189,8 @@ public class BooleanTVList extends TVList {
   }
 
   @Override
-  protected void releaseLastValueArray() {
-    PrimitiveArrayManager.release(values.remove(values.size() - 1));
+  protected void releaseLastValueArray() {//释放该TVList的最后一个数值数组
+    PrimitiveArrayManager.release(values.remove(values.size() - 1));//首先从该TVList的数值数组列表中移除最后一个数值数组，并把它还给系统，系统会把其整理清空后继续添加进系统的可用数组列表中
   }
 
   @Override

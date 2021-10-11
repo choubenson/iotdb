@@ -49,8 +49,8 @@ public class MemUtils {
    * function for getting the value size. If mem control enabled, do not add text data size here,
    * the size will be added to memtable before inserting.
    */
-  public static long getRecordSize(TSDataType dataType, Object value, boolean addingTextDataSize) {
-    if (dataType == TSDataType.TEXT) {
+  public static long getRecordSize(TSDataType dataType, Object value, boolean addingTextDataSize) { //根据数据类型计算给定数值的大小
+    if (dataType == TSDataType.TEXT) {    //如果是Text字符串型，需要根据值额外计算大小
       return 8L + (addingTextDataSize ? getBinarySize((Binary) value) : 0);
     }
     return 8L + dataType.getDataTypeSize();

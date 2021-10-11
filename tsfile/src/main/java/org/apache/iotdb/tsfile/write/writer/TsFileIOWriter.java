@@ -57,7 +57,7 @@ import java.util.TreeMap;
 /**
  * TsFileIOWriter is used to construct metadata and write data stored in memory to output stream.
  */
-public class TsFileIOWriter {
+public class TsFileIOWriter { //TsFile写入类，在写入操作中，要写入一个TSFile就要对应一个TsFileIOWriter类对象
 
   protected static final byte[] MAGIC_STRING_BYTES;
   public static final byte VERSION_NUMBER_BYTE;
@@ -70,22 +70,22 @@ public class TsFileIOWriter {
     VERSION_NUMBER_BYTE = TSFileConfig.VERSION_NUMBER;
   }
 
-  protected TsFileOutput out;
+  protected TsFileOutput out;   //TsFile写入类对象，它有相应的输出缓存流BufferedOutputStream（该缓存流有对应的缓存数组）。所有往该TsFile写入的内容都会被存入该TsFileOutput对象的输出流BufferedOutputStream的缓存数组里
   protected boolean canWrite = true;
-  protected File file;
+  protected File file;    //该写入类要写入的TSFile文件
 
   // current flushed Chunk
-  private ChunkMetadata currentChunkMetadata;
+  private ChunkMetadata currentChunkMetadata;   //当前要写入的ChunkGroup的Chunk的元数据类对象
   // current flushed ChunkGroup
-  protected List<ChunkMetadata> chunkMetadataList = new ArrayList<>();
+  protected List<ChunkMetadata> chunkMetadataList = new ArrayList<>();  //该列表存放当前写操作的ChunkGroup里的所有Chunk的元数据类对象
   // all flushed ChunkGroups
-  protected List<ChunkGroupMetadata> chunkGroupMetadataList = new ArrayList<>();
+  protected List<ChunkGroupMetadata> chunkGroupMetadataList = new ArrayList<>();  //该写入类要写入的TsFile的所有ChunkGroup元数据列表
 
   private long markedPosition;
-  private String currentChunkGroupDeviceId;
+  private String currentChunkGroupDeviceId;   //当前ChunkGroup对应的设备ID
 
   // for upgrade tool
-  Map<String, List<TimeseriesMetadata>> deviceTimeseriesMetadataMap;
+  Map<String, List<TimeseriesMetadata>> deviceTimeseriesMetadataMap;    //(设备路径，该设备下所有传感器的TimeseriesMetadata对象列表)
 
   // the two longs marks the index range of operations in current MemTable
   // and are serialized after MetaMarker.OPERATION_INDEX_RANGE to recover file-level range
@@ -102,7 +102,7 @@ public class TsFileIOWriter {
    * @throws IOException if I/O error occurs
    */
   public TsFileIOWriter(File file) throws IOException {
-    this.out = FSFactoryProducer.getFileOutputFactory().getTsFileOutput(file.getPath(), false);
+    this.out = FSFactoryProducer.getFileOutputFactory().getTsFileOutput(file.getPath(), false);   //获取给定TsFile文件的写入流
     this.file = file;
     if (resourceLogger.isDebugEnabled()) {
       resourceLogger.debug("{} writer is opened.", file.getName());
@@ -132,37 +132,37 @@ public class TsFileIOWriter {
    * @param bytes - data of several pages which has been packed
    * @throws IOException if an I/O error occurs.
    */
-  public void writeBytesToStream(PublicBAOS bytes) throws IOException {
+  public void writeBytesToStream(PublicBAOS bytes) throws IOException { //该参数是待写入Chunk的输出流pageBuffer(里面存放了该Chunk的所有page数据（pageHeader+pageData）)  将指定Chunk里的所有page数据（pageHeader+pageData）写入该TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里
     bytes.writeTo(out.wrapAsStream());
   }
 
-  protected void startFile() throws IOException {
-    out.write(MAGIC_STRING_BYTES);
-    out.write(VERSION_NUMBER_BYTE);
+  protected void startFile() throws IOException { //往该TsFileIOWriter的文件写入对象TsFileOutput的缓存输出流BufferedOutputStream的数组里写Magic String和version number
+    out.write(MAGIC_STRING_BYTES);  //写入Magic String
+    out.write(VERSION_NUMBER_BYTE); //写入version number
   }
 
-  public void startChunkGroup(String deviceId) throws IOException {
-    this.currentChunkGroupDeviceId = deviceId;
+  public void startChunkGroup(String deviceId) throws IOException {   //开启一个新的设备ChunkGroup，并把该新的ChunkGroupHeader的内容（marker（为0）和设备ID）写入该TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里
+    this.currentChunkGroupDeviceId = deviceId;  //设置当前的ChunkGroup的设备ID
     if (logger.isDebugEnabled()) {
       logger.debug("start chunk group:{}, file position {}", deviceId, out.getPosition());
     }
-    chunkMetadataList = new ArrayList<>();
-    ChunkGroupHeader chunkGroupHeader = new ChunkGroupHeader(currentChunkGroupDeviceId);
-    chunkGroupHeader.serializeTo(out.wrapAsStream());
+    chunkMetadataList = new ArrayList<>();  //初始化该ChunkGroup的Chunk元数据对象列表，为空列表
+    ChunkGroupHeader chunkGroupHeader = new ChunkGroupHeader(currentChunkGroupDeviceId);//根据设备ID创建当前ChunkGroup的ChunkGroupHeader
+    chunkGroupHeader.serializeTo(out.wrapAsStream());//将TsFile写入类对象out封装成outputStream输出流，并向该输出流写入ChunkGroupHeader的内容（marker（为0）和设备ID），返回写入的字节数
   }
 
   /**
    * end chunk and write some log. If there is no data in the chunk group, nothing will be flushed.
-   */
-  public void endChunkGroup() throws IOException {
-    if (currentChunkGroupDeviceId == null || chunkMetadataList.isEmpty()) {
+   */     //每往TSFileIOWriter的缓存里写完一个ChunkGroup的数据就会将该缓存里的内容flush到本地TsFile文件
+  public void endChunkGroup() throws IOException {  //结束currentChunkGroupDeviceId对应ChunkGroup，即把其ChunkGroupMeatadata元数据加入该写入类的chunkGroupMetadataList列表缓存里，并把该写入类的相关属性（设备ID和ChunkMetadataList清空），并将该TsFile的TsFileIOWriter对象的输出缓存流TsFileOutput的内容给flush到本地对应TsFile文件
+    if (currentChunkGroupDeviceId == null || chunkMetadataList.isEmpty()) { //若当前ChunkGroup的所属设备ID为null或者某ChunkGroup的所有Chunk的元数据类对象列表为空  则返回
       return;
     }
-    chunkGroupMetadataList.add(
-        new ChunkGroupMetadata(currentChunkGroupDeviceId, chunkMetadataList));
+    chunkGroupMetadataList.add(//往该TSFile写入类对象的chunkGroupMetadataList缓存里加入该待被结束的ChunkGroup的元数据对象
+        new ChunkGroupMetadata(currentChunkGroupDeviceId, chunkMetadataList));  //根据当前ChunkGroup的设备ID和Chunk其元数据对象列表创建ChunkGroup元数据类对象，并加入该写入类要写入的TsFile的ChunkGroup元数据列表
     currentChunkGroupDeviceId = null;
     chunkMetadataList = null;
-    out.flush();
+    out.flush();  //将该TsFile的TsFileIOWriter对象的输出缓存流TsFileOutput的内容给flush到本地文件
   }
 
   /**
@@ -176,7 +176,7 @@ public class TsFileIOWriter {
    * @param mask - 0x80 for time chunk, 0x40 for value chunk, 0x00 for common chunk
    * @throws IOException if I/O error occurs
    */
-  public void startFlushChunk(
+  public void startFlushChunk(    //初始化该TsFileIOWriter的当前要写入的Chunk元数据对象属性currentChunkMetadata，并把该Chunk的ChunkHeader内容写入该TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里
       String measurementId,
       CompressionType compressionCodecName,
       TSDataType tsDataType,
@@ -187,11 +187,11 @@ public class TsFileIOWriter {
       int mask)
       throws IOException {
 
-    currentChunkMetadata =
+    currentChunkMetadata =    //创建当前Chunk的元数据类对象
         new ChunkMetadata(measurementId, tsDataType, out.getPosition(), statistics);
     currentChunkMetadata.setMask((byte) mask);
 
-    ChunkHeader header =
+    ChunkHeader header =    //创建当前Chunk的ChunkHeader
         new ChunkHeader(
             measurementId,
             dataSize,
@@ -200,7 +200,7 @@ public class TsFileIOWriter {
             encodingType,
             numOfPages,
             mask);
-    header.serializeTo(out.wrapAsStream());
+    header.serializeTo(out.wrapAsStream());//把该Chunk的ChunkHeader内容写入该TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里
   }
 
   /** Write a whole chunk in another file into this file. Providing fast merge for IoTDB. */
@@ -224,9 +224,9 @@ public class TsFileIOWriter {
   }
 
   /** end chunk and write some log. */
-  public void endCurrentChunk() {
-    chunkMetadataList.add(currentChunkMetadata);
-    currentChunkMetadata = null;
+  public void endCurrentChunk() { //当结束当前Chunk的写操作后就会调用此方法，做一些善后工作
+    chunkMetadataList.add(currentChunkMetadata);//往当前写操作的ChunkGroup里的所有Chunk的元数据类对象列表里加入此Chunk元数据对象
+    currentChunkMetadata = null;  //把当前Chunk元数据对象情况
   }
 
   /**
@@ -235,15 +235,15 @@ public class TsFileIOWriter {
    * @throws IOException if I/O error occurs
    */
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
-  public void endFile() throws IOException {
+  public void endFile() throws IOException {  //在向该TsFileIOWriter的TsFileOutput的缓存输出流BufferedOutputStream的数组里写完数据区的内容并flush到本地后，再往该缓存里写对应索引区的内容，以及剩余的小内容（如TsFile结尾的Magic String等），最后关闭该TsFileIOWriter的TsFileOutput的两个输出流BufferedOutputStream和FileOutputStream，会往对应的本地TsFile写入该TsFileIOWriter缓存里的数据（即索引区和小内容等，数据区之前已经flush到本地文件了）
     long metaOffset = out.getPosition();
 
     // serialize the SEPARATOR of MetaData
-    ReadWriteIOUtils.write(MetaMarker.SEPARATOR, out.wrapAsStream());
+    ReadWriteIOUtils.write(MetaMarker.SEPARATOR, out.wrapAsStream()); //往该TsFileIOWriter的TsFileOutput的缓存输出流BufferedOutputStream的数组里写入索引区的marker(为2)
 
     // group ChunkMetadata by series
     // only contains ordinary path and time column of vector series
-    Map<Path, List<IChunkMetadata>> chunkMetadataListMap = new TreeMap<>();
+    Map<Path, List<IChunkMetadata>> chunkMetadataListMap = new TreeMap<>(); //传感器Chunk元数据对象列表，存放（传感器Chunk or 时间序列路径对象，Chunk元数据类对象）
 
     // time column -> ChunkMetadataList TreeMap of value columns in vector
     Map<Path, Map<Path, List<IChunkMetadata>>> vectorToPathsMap = new HashMap<>();
@@ -308,7 +308,7 @@ public class TsFileIOWriter {
     out.write(MAGIC_STRING_BYTES);
 
     // close file
-    out.close();
+    out.close();    //关闭该TsFileIOWriter的TsFileOutput的两个输出流BufferedOutputStream和FileOutputStream，会往对应的本地TsFile写入缓存里的数据（即整个TsFile内容，包括数据区和索引区等）
     if (resourceLogger.isDebugEnabled() && file != null) {
       resourceLogger.debug("{} writer is closed.", file.getName());
     }
@@ -445,7 +445,7 @@ public class TsFileIOWriter {
     out.write(new byte[] {MetaMarker.CHUNK_GROUP_HEADER});
   }
 
-  public File getFile() {
+  public File getFile() { //获取对应的TsFile文件对象
     return file;
   }
 
@@ -486,8 +486,8 @@ public class TsFileIOWriter {
       }
     }
   }
-
-  public void writePlanIndices() throws IOException {
+  //每往TSFileIOWriter的缓存里写完一个PlanIndex,就会将该缓存里的内容flush到本地TsFile文件
+  public void writePlanIndices() throws IOException { //往该TsFile对应的TsFileIOWriter类对象的TsFileOutput对象的输出流BufferedOutputStream的缓存数组里写入planIndex，并将该TsFileIOWriter类对象的TsFileOutput对象的输出流BufferedOutputStream的缓存数组内容flush到本地TsFile文件
     ReadWriteIOUtils.write(MetaMarker.OPERATION_INDEX_RANGE, out.wrapAsStream());
     ReadWriteIOUtils.write(minPlanIndex, out.wrapAsStream());
     ReadWriteIOUtils.write(maxPlanIndex, out.wrapAsStream());

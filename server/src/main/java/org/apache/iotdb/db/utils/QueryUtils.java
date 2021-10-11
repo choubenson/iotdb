@@ -62,8 +62,8 @@ public class QueryUtils {
         // The case modification.getFileOffset() == metaData.getOffsetOfChunkHeader()
         // is not supposed to exist as getFileOffset() is offset containing full chunk,
         // while getOffsetOfChunkHeader() returns the chunk header offset
-        if (modification.getFileOffset() > metaData.getOffsetOfChunkHeader()) {
-          doModifyChunkMetaData(modification, metaData);
+        if (modification.getFileOffset() > metaData.getOffsetOfChunkHeader()) { //由于写文件的时候是以Chunk为单位一一flush到本地文件，所以在删除操作时记录的offset是当下文件最后一个Chunk的结束位置，
+          doModifyChunkMetaData(modification, metaData);    //而此处getOffsetOfChunkHeader获取的是该Chunk的起使位置，因此怎样如何都不可能deletion的offset等于某chunk的起使位置
         }
       }
     }

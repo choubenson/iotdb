@@ -28,7 +28,7 @@ import java.io.Serializable;
 import java.util.Map;
 
 /** This interface defines a MNode's operation interfaces. */
-public interface IMNode extends Serializable {
+public interface IMNode extends Serializable {    //节点类
 
   String getName();
 

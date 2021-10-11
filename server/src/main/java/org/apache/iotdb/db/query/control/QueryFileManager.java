@@ -33,12 +33,12 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>
  */
-public class QueryFileManager {
+public class QueryFileManager { //查询文件管理类，该类存放了每个查询需要用到的已封口和未封口的TsFileResource
 
   /** Map<queryId, Set<filePaths>> */
-  private Map<Long, Set<TsFileResource>> sealedFilePathsMap;
+  private Map<Long, Set<TsFileResource>> sealedFilePathsMap;  //存放了每个查询对应用到的已封口的TsFileResource
 
-  private Map<Long, Set<TsFileResource>> unsealedFilePathsMap;
+  private Map<Long, Set<TsFileResource>> unsealedFilePathsMap;//存放了每个查询对应用到的未封口的TsFileResource
 
   QueryFileManager() {
     sealedFilePathsMap = new ConcurrentHashMap<>();
@@ -47,15 +47,15 @@ public class QueryFileManager {
 
   /**
    * Set job id for current request thread. When a query request is created firstly, this method
-   * must be invoked.
+   * must be invoked.  //当一个新的查询请求发起时，就要调用此方法
    */
-  void addQueryId(long queryId) {
+  void addQueryId(long queryId) {   //若两个map里不存在当前查询ID的元素，则往两个map里新增该查询ID对应的hashmap
     sealedFilePathsMap.computeIfAbsent(queryId, x -> new HashSet<>());
     unsealedFilePathsMap.computeIfAbsent(queryId, x -> new HashSet<>());
   }
 
   /** Add the unique file paths to sealedFilePathsMap and unsealedFilePathsMap. */
-  public void addUsedFilesForQuery(long queryId, QueryDataSource dataSource) {
+  public void addUsedFilesForQuery(long queryId, QueryDataSource dataSource) {  //往查询文件管理类里添加指定查询ID对应需要用到的顺序和乱序TsFileResource
 
     // sequence data
     addUsedFilesForQuery(queryId, dataSource.getSeqResources());

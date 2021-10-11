@@ -25,10 +25,10 @@ import org.apache.iotdb.tsfile.read.filter.basic.Filter;
 
 import java.io.Serializable;
 
-public class GlobalTimeExpression implements IUnaryExpression, Serializable {
+public class GlobalTimeExpression implements IUnaryExpression, Serializable { //GlobalTimeExpression表达式是个一元表达式，并且该一元表达式有一个过滤器对象，该过滤器可能是一个：(1)二元过滤器，如OrFilter或者AndFilter，而他们的左、右过滤器是时间过滤器 (2)一元过滤器，是时间过滤器
 
   private static final long serialVersionUID = 1146132942359113670L;
-  private Filter filter;
+  private Filter filter;  //过滤器类对象，可能是：(1)二元过滤器，如OrFilter或者AndFilter，而他们的左、右过滤器最终是时间过滤器 (2)一元过滤器，是时间过滤器
 
   public GlobalTimeExpression(Filter filter) {
     this.filter = filter;
@@ -45,7 +45,7 @@ public class GlobalTimeExpression implements IUnaryExpression, Serializable {
   }
 
   @Override
-  public ExpressionType getType() {
+  public ExpressionType getType() { //获取该表达式的类别，为Global_Time
     return ExpressionType.GLOBAL_TIME;
   }
 

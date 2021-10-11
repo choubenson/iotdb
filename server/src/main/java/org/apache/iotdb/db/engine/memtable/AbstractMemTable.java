@@ -44,9 +44,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-public abstract class AbstractMemTable implements IMemTable {
+public abstract class AbstractMemTable implements IMemTable {//TsFileProcessor的workMemTable里存放了该TsFile的不同设备下的所有传感器Chunk的memTable（IWritableMemChunk类对象）
 
-  private final Map<String, Map<String, IWritableMemChunk>> memTableMap;
+  private final Map<String, Map<String, IWritableMemChunk>> memTableMap; //deviceId-> measureId-> IWritableMemChunk，该属性存放了每个设备下的每个传感器对应的memtable(IWritableMemChunk类对象)
   /**
    * The initial value is true because we want calculate the text data size when recover memTable!!
    */
@@ -56,7 +56,7 @@ public abstract class AbstractMemTable implements IMemTable {
   private int avgSeriesPointNumThreshold =
       IoTDBDescriptor.getInstance().getConfig().getAvgSeriesPointNumberThreshold();
   /** memory size of data points, including TEXT values */
-  private long memSize = 0;
+  private long memSize = 0; //该memtable里数据点占用的大小
   /**
    * memory usage of all TVLists memory usage regardless of whether these TVLists are full,
    * including TEXT values
@@ -65,7 +65,7 @@ public abstract class AbstractMemTable implements IMemTable {
 
   private int seriesNumber = 0;
 
-  private long totalPointsNum = 0;
+  private long totalPointsNum = 0;  //该workMemTable所有数据点的数量，即该TsFile里每个传感器的memTable的数据点数量的总和
 
   private long totalPointsNumThreshold = 0;
 
@@ -93,7 +93,7 @@ public abstract class AbstractMemTable implements IMemTable {
    *
    * @return true if seriesPath is within this memtable
    */
-  private boolean checkPath(String deviceId, String measurement) {
+  private boolean checkPath(String deviceId, String measurement) {  //判断此TsFile的workmemTable里的memTableMap是否包含此设备对应的此传感器
     return memTableMap.containsKey(deviceId) && memTableMap.get(deviceId).containsKey(measurement);
   }
 
@@ -106,9 +106,9 @@ public abstract class AbstractMemTable implements IMemTable {
    */
   private IWritableMemChunk createIfNotExistAndGet(String deviceId, IMeasurementSchema schema) {
     Map<String, IWritableMemChunk> memSeries =
-        memTableMap.computeIfAbsent(deviceId, k -> new HashMap<>());
+        memTableMap.computeIfAbsent(deviceId, k -> new HashMap<>());  //获取该设备下的每个传感器对应的IWritableMemChunk信息对象，若不存在该设备的则创建一个
 
-    return memSeries.computeIfAbsent(
+    return memSeries.computeIfAbsent( //返回该设备下该传感器的IWritableMemChunk信息（即memtable），若不存在此传感器的memtable则创建一个
         schema.getMeasurementId(),
         k -> {
           seriesNumber++;
@@ -120,13 +120,13 @@ public abstract class AbstractMemTable implements IMemTable {
   protected abstract IWritableMemChunk genMemSeries(IMeasurementSchema schema);
 
   @Override
-  public void insert(InsertRowPlan insertRowPlan) {
-    updatePlanIndexes(insertRowPlan.getIndex());
-    Object[] values = insertRowPlan.getValues();
+  public void insert(InsertRowPlan insertRowPlan) {//遍历该插入计划中每个待插入传感器的数值，往该传感器对应的memtable里的TVList写入待插入的数值,首先判断是否要对此TVList的values和timestamps列表，然后往该TVList的values和timestamps列表的某一数组里里插入对应的时间戳和数值
+    updatePlanIndexes(insertRowPlan.getIndex());    //更新该TsFileProcessor的workMemTable的minPlanIndex和maxPlanIndex
+   Object[] values = insertRowPlan.getValues();
 
     IMeasurementMNode[] measurementMNodes = insertRowPlan.getMeasurementMNodes();
-    int columnIndex = 0;
-    if (insertRowPlan.isAligned()) {
+    int columnIndex = 0;  //用作临时的传感器索引，用于遍历该插入计划的指定设备下的一个个传感器
+    if (insertRowPlan.isAligned()) {  //如果是对齐的
       IMeasurementMNode measurementMNode = measurementMNodes[0];
       if (measurementMNode != null) {
         // write vector
@@ -147,26 +147,26 @@ public abstract class AbstractMemTable implements IMemTable {
             insertRowPlan.getTime(),
             vectorValue);
       }
-    } else {
+    } else {    //如果是不对齐的
       for (IMeasurementMNode measurementMNode : measurementMNodes) {
-        if (values[columnIndex] == null) {
+        if (values[columnIndex] == null) {  //判断当前要插入传感器的值是否为空
           columnIndex++;
           continue;
         }
         memSize +=
-            MemUtils.getRecordSize(
+            MemUtils.getRecordSize(     //根据数据类型计算给定数值的大小
                 measurementMNode.getSchema().getType(), values[columnIndex], disableMemControl);
 
-        write(
-            insertRowPlan.getPrefixPath().getFullPath(),
+        write(   //往指定设备的指定传感器对应的memtable里的TVList写入待插入的数值,首先判断是否要对此TVList的values和timestamps列表，然后往该TVList的values和timestamps列表的某一数组里里插入对应的时间戳和数值
+            insertRowPlan.getPrefixPath().getFullPath(),  //设备ID
             measurementMNode.getSchema(),
             insertRowPlan.getTime(),
             values[columnIndex]);
-        columnIndex++;
+        columnIndex++;  //传感器索引+1，继续往下个传感器的memtable里写数据
       }
     }
 
-    totalPointsNum +=
+    totalPointsNum +=           //总的数据点等于原本的+此插入计划的传感器数量-失败传感器数量。每往一个传感器里插入一个数据就算一个数据点
         insertRowPlan.getMeasurements().length - insertRowPlan.getFailedMeasurementNumber();
   }
 
@@ -186,10 +186,10 @@ public abstract class AbstractMemTable implements IMemTable {
   }
 
   @Override
-  public void write(
+  public void write( //往指定设备的指定传感器对应的memtable里的TVList写入待插入的数值,首先判断是否要对此TVList的values和timestamps列表，然后往该TVList的values和timestamps列表的某一数组里里插入对应的时间戳和数值
       String deviceId, IMeasurementSchema schema, long insertTime, Object objectValue) {
-    IWritableMemChunk memSeries = createIfNotExistAndGet(deviceId, schema);
-    memSeries.write(insertTime, objectValue);
+    IWritableMemChunk memSeries = createIfNotExistAndGet(deviceId, schema); //根据该设备和该传感器获取或创建对应传感器的Memtable，即IWritableMemChunk类对象
+    memSeries.write(insertTime, objectValue);  //往该Chunk的memtable对应数据类型的TVList插入时间戳和数值， 首先判断是否要对此TVList的values和timestamps列表，然后往该TVList的values和timestamps列表的某一数组里里插入对应的时间戳和数值
   }
 
   @SuppressWarnings("squid:S3776") // high Cognitive Complexity
@@ -237,19 +237,19 @@ public abstract class AbstractMemTable implements IMemTable {
   }
 
   @Override
-  public boolean checkIfChunkDoesNotExist(String deviceId, String measurement) {
-    Map<String, IWritableMemChunk> memSeries = memTableMap.get(deviceId);
-    if (null == memSeries) {
+  public boolean checkIfChunkDoesNotExist(String deviceId, String measurement) {  //检查该设备下的该传感器是否不存在memtable(IWritableMemChunk类对象)，若不存在返回true，存在返回false
+    Map<String, IWritableMemChunk> memSeries = memTableMap.get(deviceId);    //获取该设备下每个传感器对应的IWritableMemChunk信息对象
+    if (null == memSeries) {    //若内存不存在该设备的任何（传感器，IWritableMemChunk类）信息，则返回真
       return true;
     }
 
-    return !memSeries.containsKey(measurement);
+    return !memSeries.containsKey(measurement);   //判断内存是否不存在该设备的该传感器的IWritableMemChunk类信息，若不存在则返回真
   }
 
   @Override
-  public int getCurrentChunkPointNum(String deviceId, String measurement) {
+  public int getCurrentChunkPointNum(String deviceId, String measurement) { //返回此设备的此传感器的Chunk的TVList占用空间的大小
     Map<String, IWritableMemChunk> memSeries = memTableMap.get(deviceId);
-    IWritableMemChunk memChunk = memSeries.get(measurement);
+    IWritableMemChunk memChunk = memSeries.get(measurement);  //获取该设备的该传感器对应的IWritableMemChunk对象
     return memChunk.getTVList().size();
   }
 
@@ -304,14 +304,14 @@ public abstract class AbstractMemTable implements IMemTable {
   }
 
   @Override
-  public ReadOnlyMemChunk query(
+  public ReadOnlyMemChunk query(  //根据给定的设备路径和传感器名，以及传感器配置类对象等属性获取该Chunk里排好序的TVList数据，并创建返回只读的内存Chunk类对象
       String deviceId,
       String measurement,
-      IMeasurementSchema partialVectorSchema,
+      IMeasurementSchema partialVectorSchema, //传感器配置类对象
       long ttlLowerBound,
       List<TimeRange> deletionList)
       throws IOException, QueryProcessException {
-    if (partialVectorSchema.getType() == TSDataType.VECTOR) {
+    if (partialVectorSchema.getType() == TSDataType.VECTOR) { //如果当前是vector
       if (!memTableMap.containsKey(deviceId)) {
         return null;
       }
@@ -331,16 +331,16 @@ public abstract class AbstractMemTable implements IMemTable {
       TVList vectorTvListCopy = vectorMemChunk.getSortedTvListForQuery(columns);
       int curSize = vectorTvListCopy.size();
       return new ReadOnlyMemChunk(partialVectorSchema, vectorTvListCopy, curSize, deletionList);
-    } else {
-      if (!checkPath(deviceId, measurement)) {
+    } else {  //若不是vector
+      if (!checkPath(deviceId, measurement)) {//若此TsFile的workmemTable里的memTableMap不包含此设备对应的此传感器，则返回null
         return null;
       }
       IWritableMemChunk memChunk =
-          memTableMap.get(deviceId).get(partialVectorSchema.getMeasurementId());
+          memTableMap.get(deviceId).get(partialVectorSchema.getMeasurementId());//获取此TsFile的workmemTable里的memTableMap里指定设备和传感器对应的IWritableMemChunk
       // get sorted tv list is synchronized so different query can get right sorted list reference
-      TVList chunkCopy = memChunk.getSortedTvListForQuery();
-      int curSize = chunkCopy.size();
-      return new ReadOnlyMemChunk(
+      TVList chunkCopy = memChunk.getSortedTvListForQuery();//返回此Chunk的WritableMemChunk的被排过序的TVList
+      int curSize = chunkCopy.size(); //获取此Chunk存放的数据点的数量
+      return new ReadOnlyMemChunk(  //新建只读的内存Chunk类对象，并返回
           measurement,
           partialVectorSchema.getType(),
           partialVectorSchema.getEncodingType(),
@@ -353,25 +353,25 @@ public abstract class AbstractMemTable implements IMemTable {
 
   @SuppressWarnings("squid:S3776") // high Cognitive Complexity
   @Override
-  public void delete(
-      PartialPath originalPath, PartialPath devicePath, long startTimestamp, long endTimestamp) {
-    Map<String, IWritableMemChunk> deviceMap = memTableMap.get(devicePath.getFullPath());
+  public void delete(   //根据通配路径originalPath下的指定设备，找到所有待删除的明确时间序列路径，依次遍历该设备下的待删除传感器进行删除内存中数据：(1) 若此传感器的内存memtable里的所有数据都要被删除掉，则直接从该workMemTable的memTableMap中把此传感器和对应的memtable直接删除掉（2）若此传感器内不是所有数据都要被删，则把该传感器的memtable对象里的TVList里对应时间范围里的数据删掉即可，该传感器的memtable仍然保存在对应TSFileProcessor的workMemTable的memTableMap中
+      PartialPath originalPath, PartialPath devicePath, long startTimestamp, long endTimestamp) {//注意：此时originalPath时间序列路径的存储组是确定的，但设备、传感器路径还不确定，可能包含通配符*，因此可能有多个设备。eg:root.ln.*.*.*
+    Map<String, IWritableMemChunk> deviceMap = memTableMap.get(devicePath.getFullPath());//获取该设备下的每个传感器对应的memtable(IWritableMemChunk类对象)
     if (deviceMap == null) {
       return;
     }
 
     Iterator<Entry<String, IWritableMemChunk>> iter = deviceMap.entrySet().iterator();
-    while (iter.hasNext()) {
+    while (iter.hasNext()) {  //开始循环遍历deviceMap里每个传感器对应的memtable
       Entry<String, IWritableMemChunk> entry = iter.next();
-      IWritableMemChunk chunk = entry.getValue();
-      PartialPath fullPath = devicePath.concatNode(entry.getKey());
-      IMeasurementSchema schema = chunk.getSchema();
-      if (originalPath.matchFullPath(fullPath)) {
-        if (startTimestamp == Long.MIN_VALUE && endTimestamp == Long.MAX_VALUE) {
-          iter.remove();
+      IWritableMemChunk chunk = entry.getValue(); //获取到某传感器的memtable
+      PartialPath fullPath = devicePath.concatNode(entry.getKey());//将设备路径和传感器名连接，获得完整的确定的时间序列路径对象
+      IMeasurementSchema schema = chunk.getSchema();  //获取该传感器的配置类对象
+      if (originalPath.matchFullPath(fullPath)) { //若通配的originalPath路径对象与具体的时间序列路径fullPath对象的路径匹配，则  （注意此处是遍历该设备下的所有传感器，可是有可能该方法第一个参数已经明确了某个传感器，因此要进行路径适配检查）
+        if (startTimestamp == Long.MIN_VALUE && endTimestamp == Long.MAX_VALUE) { //如果删除操作里要删除的时间范围是全部整数型范围（即说明该传感器的memtable的所有数据都要被删除），则
+          iter.remove();    //从deviceMap中（从该workMemTable的memTableMap中）把当前遍历到的 传感器和对应的memtable 直接删除掉
         }
-        int deletedPointsNumber = chunk.delete(startTimestamp, endTimestamp);
-        totalPointsNum -= deletedPointsNumber;
+        int deletedPointsNumber = chunk.delete(startTimestamp, endTimestamp);   //根据给出的时间范围，使用对应传感器的memtable对象删除其TVList里对应时间范围里的数据，返回被删除的数据点个数
+        totalPointsNum -= deletedPointsNumber;  //更新此TsFile中删除操作后剩余所有数据点的数量
       }
       // for vector type
       else if (schema.getType() == TSDataType.VECTOR) {

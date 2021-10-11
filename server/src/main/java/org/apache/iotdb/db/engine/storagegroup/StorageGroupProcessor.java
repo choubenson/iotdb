@@ -137,7 +137,7 @@ import static org.apache.iotdb.tsfile.common.constant.TsFileConstant.TSFILE_SUFF
  * <p>When a TsFileProcessor is closed, the closeUnsealedTsFileProcessorCallBack() method will be
  * called as a callback.
  */
-public class StorageGroupProcessor {
+public class StorageGroupProcessor {//每个虚拟存储组对应一个StorageGroupProcessor
 
   public static final String MERGING_MODIFICATION_FILE_NAME = "merge.mods";
   private static final IoTDBConfig config = IoTDBDescriptor.getInstance().getConfig();
@@ -170,33 +170,33 @@ public class StorageGroupProcessor {
    */
   private final ReadWriteLock closeQueryLock = new ReentrantReadWriteLock();
   /** time partition id in the storage group -> tsFileProcessor for this time partition */
-  private final TreeMap<Long, TsFileProcessor> workSequenceTsFileProcessors = new TreeMap<>();
+  private final TreeMap<Long, TsFileProcessor> workSequenceTsFileProcessors = new TreeMap<>();//是个键值对结构数据，存放了所有工作的顺序TsFileProcessor，存放的是该工作TsFile的所属时间分区和对应TsFileProcessor
   /** time partition id in the storage group -> tsFileProcessor for this time partition */
-  private final TreeMap<Long, TsFileProcessor> workUnsequenceTsFileProcessors = new TreeMap<>();
+  private final TreeMap<Long, TsFileProcessor> workUnsequenceTsFileProcessors = new TreeMap<>();//是个键值对结构数据，存放了每个时间分区对应的乱序工作TsFileProcessor
   /** compactionMergeWorking is used to wait for last compaction to be done. */
   private volatile boolean compactionMergeWorking = false;
   // upgrading sequence TsFile resource list
-  private List<TsFileResource> upgradeSeqFileList = new LinkedList<>();
+  private List<TsFileResource> upgradeSeqFileList = new LinkedList<>(); //待升级的顺序TSFile文件的TsFileResource类对象列表
 
   /** sequence tsfile processors which are closing */
-  private CopyOnReadLinkedList<TsFileProcessor> closingSequenceTsFileProcessor =
+  private CopyOnReadLinkedList<TsFileProcessor> closingSequenceTsFileProcessor =    //存放着那些已经被关闭的顺序TsFileProcessor
       new CopyOnReadLinkedList<>();
 
   // upgrading unsequence TsFile resource list
-  private List<TsFileResource> upgradeUnseqFileList = new LinkedList<>();
+  private List<TsFileResource> upgradeUnseqFileList = new LinkedList<>();//待升级的乱序TSFile文件的TsFileResource类对象列表
 
   /** unsequence tsfile processors which are closing */
-  private CopyOnReadLinkedList<TsFileProcessor> closingUnSequenceTsFileProcessor =
+  private CopyOnReadLinkedList<TsFileProcessor> closingUnSequenceTsFileProcessor =   //存放着那些已经被关闭的乱序TsFileProcessor
       new CopyOnReadLinkedList<>();
 
-  private AtomicInteger upgradeFileCount = new AtomicInteger();
+  private AtomicInteger upgradeFileCount = new AtomicInteger();//当前虚拟存储组目录下待升级的旧的TSFile文件数量（包括顺序和乱序）
   /*
    * time partition id -> map, which contains
    * device -> global latest timestamp of each device latestTimeForEachDevice caches non-flushed
    * changes upon timestamps of each device, and is used to update partitionLatestFlushedTimeForEachDevice
    * when a flush is issued.
    */
-  private Map<Long, Map<String, Long>> latestTimeForEachDevice = new HashMap<>();
+  private Map<Long, Map<String, Long>> latestTimeForEachDevice = new HashMap<>();//该存储组下每一个时间分区的每一个设备的写入数据的最大时间戳（包括未flush和已经flush的数据时间戳）
   /**
    * time partition id -> map, which contains device -> largest timestamp of the latest memtable to
    * be submitted to asyncTryToFlush partitionLatestFlushedTimeForEachDevice determines whether a
@@ -204,11 +204,11 @@ public class StorageGroupProcessor {
    * with timestamp less than or equals to the device's latestFlushedTime should go into an
    * unsequential file.
    */
-  private Map<Long, Map<String, Long>> partitionLatestFlushedTimeForEachDevice = new HashMap<>();
+  private Map<Long, Map<String, Long>> partitionLatestFlushedTimeForEachDevice = new HashMap<>();//记录该存储组下每一个时间分区下的每一个设备已刷盘数据的最大时间戳，以此确定该设备后面插入的新数据点是顺序还是乱序数据，当某个设备的待插入数据的时间戳小于等于该设备的lastestFlushedTime最后刷盘数据最大时间戳，则该待插入数据应该被刷盘放入乱序文件里
 
   /** used to record the latest flush time while upgrading and inserting */
   private Map<Long, Map<String, Long>> newlyFlushedPartitionLatestFlushedTimeForEachDevice =
-      new HashMap<>();
+      new HashMap<>(); //记录升级文件成功后，每一个新TsFile文件所属时间分区的每个设备的最大时间戳
   /**
    * global mapping of device -> largest timestamp of the latest memtable to * be submitted to
    * asyncTryToFlush, globalLatestFlushedTimeForEachDevice is utilized to maintain global
@@ -227,13 +227,13 @@ public class StorageGroupProcessor {
   private File storageGroupSysDir;
 
   /** manage seqFileList and unSeqFileList */
-  private TsFileManagement tsFileManagement;
+  private TsFileManagement tsFileManagement;//每个虚拟存储组有一个TsFile管理器类对象，负责管理该虚拟存储组下所有的顺序和乱序TsFile，他还可以获取该虚拟存储组下的所有TsFile
   /**
    * time partition id -> version controller which assigns a version for each MemTable and
    * deletion/update such that after they are persisted, the order of insertions, deletions and
    * updates can be re-determined. Will be empty if there are not MemTables in memory.
    */
-  private HashMap<Long, VersionController> timePartitionIdVersionControllerMap = new HashMap<>();
+  private HashMap<Long, VersionController> timePartitionIdVersionControllerMap = new HashMap<>(); //（时间分区ID，版本控制对象）
   /**
    * when the data in a storage group is older than dataTTL, it is considered invalid and will be
    * eventually removed.
@@ -388,19 +388,19 @@ public class StorageGroupProcessor {
       TsFileFlushPolicy fileFlushPolicy,
       String logicalStorageGroupName)
       throws StorageGroupProcessorException {
-    this.virtualStorageGroupId = virtualStorageGroupId;
-    this.logicalStorageGroupName = logicalStorageGroupName;
-    this.fileFlushPolicy = fileFlushPolicy;
+    this.virtualStorageGroupId = virtualStorageGroupId;//该存储组所属的虚拟存储组ID
+    this.logicalStorageGroupName = logicalStorageGroupName; //该存储组的逻辑名
+    this.fileFlushPolicy = fileFlushPolicy; //flush策略
 
-    storageGroupSysDir = SystemFileFactory.INSTANCE.getFile(systemDir, virtualStorageGroupId);
-    if (storageGroupSysDir.mkdirs()) {
+    storageGroupSysDir = SystemFileFactory.INSTANCE.getFile(systemDir, virtualStorageGroupId);  //该虚拟存储组目录文件
+    if (storageGroupSysDir.mkdirs()) {  //若本地不存在该存储组的目录则进行创建
       logger.info(
           "Storage Group system Directory {} doesn't exist, create it",
           storageGroupSysDir.getPath());
     } else if (!storageGroupSysDir.exists()) {
       logger.error("create Storage Group system Directory {} failed", storageGroupSysDir.getPath());
     }
-    this.tsFileManagement =
+    this.tsFileManagement =       //获取该虚拟存储组对应的TSFile管理器对象
         IoTDBDescriptor.getInstance()
             .getConfig()
             .getCompactionStrategy()
@@ -412,7 +412,7 @@ public class StorageGroupProcessor {
         config.getWalPoolTrimIntervalInMS(),
         config.getWalPoolTrimIntervalInMS(),
         TimeUnit.MILLISECONDS);
-    recover();
+    recover();    //
   }
 
   public String getLogicalStorageGroupName() {
@@ -427,7 +427,7 @@ public class StorageGroupProcessor {
     isReady = ready;
   }
 
-  private Map<Long, List<TsFileResource>> splitResourcesByPartition(
+  private Map<Long, List<TsFileResource>> splitResourcesByPartition(  //对给定的TsFileResource按照时间分区进行分组，（时间分区ID，TsFileResource对象列表）
       List<TsFileResource> resources) {
     Map<Long, List<TsFileResource>> ret = new HashMap<>();
     for (TsFileResource resource : resources) {
@@ -437,7 +437,7 @@ public class StorageGroupProcessor {
   }
 
   /** recover from file */
-  private void recover() throws StorageGroupProcessorException {
+  private void recover() throws StorageGroupProcessorException {    //开始根据本地文件夹和文件里存储的数据恢复此虚拟存储组的StorageGroupProcessor的相关属性值，即deserialize
     logger.info(
         String.format(
             "start recovering virtual storage group %s[%s]",
@@ -446,28 +446,28 @@ public class StorageGroupProcessor {
     try {
       // collect candidate TsFiles from sequential and unsequential data directory
       Pair<List<TsFileResource>, List<TsFileResource>> seqTsFilesPair =
-          getAllFiles(DirectoryManager.getInstance().getAllSequenceFileFolders());
-      List<TsFileResource> tmpSeqTsFiles = seqTsFilesPair.left;
-      List<TsFileResource> oldSeqTsFiles = seqTsFilesPair.right;
-      upgradeSeqFileList.addAll(oldSeqTsFiles);
-      Pair<List<TsFileResource>, List<TsFileResource>> unseqTsFilesPair =
+          getAllFiles(DirectoryManager.getInstance().getAllSequenceFileFolders());//根据给定的顺序TsFile文件目录路径列表(目前folders列表只有一个元素，eg:"data/data/sequence")，获取该目录下所有时间分区目录下的TSFile对应的TSFileResource文件对象放入第一个List里，并获取该目录下的upgrade目录下的待升级TsFile文件对应的TsFileResource，把他们反序列化后放入第二个列表List里。
+      List<TsFileResource> tmpSeqTsFiles = seqTsFilesPair.left;//获取该顺序文件目录下所有时间分区目录下的TSFile对应的TSFileResource文件对象
+      List<TsFileResource> oldSeqTsFiles = seqTsFilesPair.right;//获取该顺序文件目录下的upgrade目录下的待升级TsFile文件对应的TsFileResource，把他们反序列化后放入的列表
+      upgradeSeqFileList.addAll(oldSeqTsFiles);//把该顺序文件目录下的upgrade目录下的所有待升级TsFile文件对应的经反序列化的TsFileResource加入待升级的顺序TSFile文件的TsFileResource类对象列表
+      Pair<List<TsFileResource>, List<TsFileResource>> unseqTsFilesPair =   //对给定的乱序文件目录"data/data/unsequence"，获取其下所有的TSFile的TsFileResource和待升级TSFile的TsFileResource
           getAllFiles(DirectoryManager.getInstance().getAllUnSequenceFileFolders());
       List<TsFileResource> tmpUnseqTsFiles = unseqTsFilesPair.left;
       List<TsFileResource> oldUnseqTsFiles = unseqTsFilesPair.right;
-      upgradeUnseqFileList.addAll(oldUnseqTsFiles);
+      upgradeUnseqFileList.addAll(oldUnseqTsFiles);//把该乱序文件目录下的upgrade目录下的所有待升级TsFile文件对应的经反序列化的TsFileResource加入待升级的乱序TSFile文件的TsFileResource类对象列表
 
-      if (upgradeSeqFileList.size() + upgradeUnseqFileList.size() != 0) {
-        upgradeFileCount.set(upgradeSeqFileList.size() + upgradeUnseqFileList.size());
+      if (upgradeSeqFileList.size() + upgradeUnseqFileList.size() != 0) { //如果待升级的顺序和乱序的TSFile对应的TsFileResource数量不为0
+        upgradeFileCount.set(upgradeSeqFileList.size() + upgradeUnseqFileList.size());//设置待升级的TSFile文件数量
       }
 
       // split by partition so that we can find the last file of each partition and decide to
       // close it or not
-      Map<Long, List<TsFileResource>> partitionTmpSeqTsFiles =
-          splitResourcesByPartition(tmpSeqTsFiles);
+      Map<Long, List<TsFileResource>> partitionTmpSeqTsFiles =  //每个时间分区对应着多个顺序TsFile的TsFileResource
+          splitResourcesByPartition(tmpSeqTsFiles);   //将所有顺序TSFile的TsFileResource按照时间分区进行分组，时间分区ID，TsFileResource对象列表）
       Map<Long, List<TsFileResource>> partitionTmpUnseqTsFiles =
-          splitResourcesByPartition(tmpUnseqTsFiles);
-      for (List<TsFileResource> value : partitionTmpSeqTsFiles.values()) {
-        recoverTsFiles(value, true);
+          splitResourcesByPartition(tmpUnseqTsFiles);//将所有乱序TSFile的TsFileResource按照时间分区进行分组，时间分区ID，TsFileResource对象列表）
+      for (List<TsFileResource> value : partitionTmpSeqTsFiles.values()) {  //循环遍历每个时间分区的顺序TsFileResoure列表
+        recoverTsFiles(value, true);  //恢复相关TSFile
       }
       for (List<TsFileResource> value : partitionTmpUnseqTsFiles.values()) {
         recoverTsFiles(value, false);
@@ -635,11 +635,11 @@ public class StorageGroupProcessor {
 
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
   private Pair<List<TsFileResource>, List<TsFileResource>> getAllFiles(List<String> folders)
-      throws IOException, StorageGroupProcessorException {
-    List<File> tsFiles = new ArrayList<>();
-    List<File> upgradeFiles = new ArrayList<>();
-    for (String baseDir : folders) {
-      File fileFolder =
+      throws IOException, StorageGroupProcessorException {//根据给定的目录路径列表(目前folders列表只有一个元素，eg:"data/data/sequence")，获取该目录下所有时间分区目录下的TSFile对应的TSFileResource文件对象放入第一个List里，并获取该目录下的upgrade目录下的待升级TsFile文件对应的TsFileResource，把他们反序列化后放入第二个列表List里。
+    List<File> tsFiles = new ArrayList<>();   //文件类列表，用来存放TsFile文件对象
+    List<File> upgradeFiles = new ArrayList<>();  //文件类列表，用来存放待升级的TSFile文件对象
+    for (String baseDir : folders) {  //遍历给定目录列表(目前folders列表只有一个元素，eg:"data/data/sequence")，找出其下的所有虚拟存储组目录的时间分区目录和升级目录下是否存在TSFile文件，分别一起放入TSFile文件列表tsFiles和待升级TSFile文件列表upgradeFiles
+      File fileFolder = //获取该存储组的该虚拟存储组的目录文件File对象。即此处获取到的File对象其实是一个虚拟存储组目录
           fsFactory.getFile(
               baseDir + File.separator + logicalStorageGroupName, virtualStorageGroupId);
       if (!fileFolder.exists()) {
@@ -649,71 +649,72 @@ public class StorageGroupProcessor {
       // old version
       // some TsFileResource may be being persisted when the system crashed, try recovering such
       // resources
-      continueFailedRenames(fileFolder, TEMP_SUFFIX);
+      continueFailedRenames(fileFolder, TEMP_SUFFIX); //判断该fileFolder虚拟存储组目录下是否存在tmp后缀的文件（如example.tmp），若存在则：(1) 若存在不含后缀的同名文件example，则把example.tmp本地文件删掉（2）否则把example.tmp文件重命名为example文件
 
       // some TsFiles were going to be replaced by the merged files when the system crashed and
       // the process was interrupted before the merged files could be named
-      continueFailedRenames(fileFolder, MERGE_SUFFIX);
+      continueFailedRenames(fileFolder, MERGE_SUFFIX);  //判断该fileFolder虚拟存储组目录下是否存在merge后缀的文件（如example.merge），若存在则：(1) 若存在不含后缀的同名文件example，则把example.merge本地文件删掉（2）否则把example.merge文件重命名为example文件
 
-      File[] subFiles = fileFolder.listFiles();
+      File[] subFiles = fileFolder.listFiles(); //获取该虚拟存储组目录下的子目录或子文件
       if (subFiles != null) {
-        for (File partitionFolder : subFiles) {
-          if (!partitionFolder.isDirectory()) {
+        for (File partitionFolder : subFiles) { //遍历该虚拟存储组目录下的子文件
+          if (!partitionFolder.isDirectory()) { //如果不是个目录
             logger.warn("{} is not a directory.", partitionFolder.getAbsolutePath());
-          } else if (!partitionFolder.getName().equals(IoTDBConstant.UPGRADE_FOLDER_NAME)) {
+          } else if (!partitionFolder.getName().equals(IoTDBConstant.UPGRADE_FOLDER_NAME)) {  //如果该该虚拟存储组目录下的该文件是个目录并且名不是为"upgrade"，此时一般是时间分区ID目录
             // some TsFileResource may be being persisted when the system crashed, try recovering
             // such
             // resources
-            continueFailedRenames(partitionFolder, TEMP_SUFFIX);
+            continueFailedRenames(partitionFolder, TEMP_SUFFIX);//判断该时间分区目录下是否存在tmp后缀的文件（如example.tmp），若存在则：(1) 若存在不含后缀的同名文件example，则把example.tmp本地文件删掉（2）否则把example.tmp文件重命名为example文件
 
             // some TsFiles were going to be replaced by the merged files when the system crashed
             // and
             // the process was interrupted before the merged files could be named
-            continueFailedRenames(partitionFolder, MERGE_SUFFIX);
+            continueFailedRenames(partitionFolder, MERGE_SUFFIX);//判断该时间分区目录下是否存在merge后缀的文件（如example.merge），若存在则：(1) 若存在不含后缀的同名文件example，则把example.merge本地文件删掉（2）否则把example.merge文件重命名为example文件
 
             Collections.addAll(
                 tsFiles,
-                fsFactory.listFilesBySuffix(partitionFolder.getAbsolutePath(), TSFILE_SUFFIX));
-          } else {
+                fsFactory.listFilesBySuffix(partitionFolder.getAbsolutePath(), TSFILE_SUFFIX));//获取该时间分区目录下的所有.tsfile文件对象，并把把这些文件对象放入TSFile文件列表tsFiles里
+          } else {  //若该虚拟存储组目录下的该文件是个目录并且名为"upgrade"，即该虚拟存储组目录下存在升级目录
             // collect old TsFiles for upgrading
             Collections.addAll(
                 upgradeFiles,
-                fsFactory.listFilesBySuffix(partitionFolder.getAbsolutePath(), TSFILE_SUFFIX));
+                fsFactory.listFilesBySuffix(partitionFolder.getAbsolutePath(), TSFILE_SUFFIX)); //获取该虚拟存储组下的升级目录下的所有.tsfile文件对象，并把把这些文件对象放入待升级的TsFile文件列表upgradeFiles里
           }
         }
       }
     }
 
-    tsFiles.sort(this::compareFileName);
-    if (!tsFiles.isEmpty()) {
-      checkTsFileTime(tsFiles.get(tsFiles.size() - 1));
+    tsFiles.sort(this::compareFileName);  //对TSFile文件按照名称里的时间进行从小到大排序
+    if (!tsFiles.isEmpty()) { //若TSFile文件列表不空，则
+      checkTsFileTime(tsFiles.get(tsFiles.size() - 1));//用于判断最后一个（即时间最大的）TSFile文件的时间是否小于系统当前时间，若大于系统时间则说明存储时出了问题，会抛出异常
     }
+    //若TsFile的时间没有抛出异常，则继续下面的操作
     List<TsFileResource> ret = new ArrayList<>();
-    tsFiles.forEach(f -> ret.add(new TsFileResource(f)));
+    tsFiles.forEach(f -> ret.add(new TsFileResource(f))); //为该虚拟存储组下所有时间分区目录的TsFile创建对应的TsFileResource对象并放入ret列表里
 
-    upgradeFiles.sort(this::compareFileName);
+    upgradeFiles.sort(this::compareFileName);//对待升级文件列表里的TSFile文件按照文件名里的时间进行从小到大排序
     if (!upgradeFiles.isEmpty()) {
-      checkTsFileTime(upgradeFiles.get(upgradeFiles.size() - 1));
+      checkTsFileTime(upgradeFiles.get(upgradeFiles.size() - 1));//用于判断最后一个（即时间最大的）TSFile文件的时间是否小于系统当前时间，若大于系统时间则说明存储时出了问题，会抛出异常
     }
-    List<TsFileResource> upgradeRet = new ArrayList<>();
-    for (File f : upgradeFiles) {
-      TsFileResource fileResource = new TsFileResource(f);
-      fileResource.setClosed(true);
+    List<TsFileResource> upgradeRet = new ArrayList<>();  //用于存放该虚拟存储组下的待升级upgrade目录下的TsFile对应的TsFileResource对象
+    for (File f : upgradeFiles) { //循环遍历带升级TSFile
+      TsFileResource fileResource = new TsFileResource(f); //创建其对应的TsFileResource
+      fileResource.setClosed(true); //把该TsFileResource设为封口，说明该TsFile是关闭封口的
       // make sure the flush command is called before IoTDB is down.
-      fileResource.deserializeFromOldFile();
-      upgradeRet.add(fileResource);
+      fileResource.deserializeFromOldFile();  //反序列化
+      upgradeRet.add(fileResource);//把该待升级的TSFile的TsFileResource对象加入列表
     }
     return new Pair<>(ret, upgradeRet);
   }
 
-  private void continueFailedRenames(File fileFolder, String suffix) {
-    File[] files = fsFactory.listFilesBySuffix(fileFolder.getAbsolutePath(), suffix);
-    if (files != null) {
-      for (File tempResource : files) {
-        File originResource = fsFactory.getFile(tempResource.getPath().replace(suffix, ""));
-        if (originResource.exists()) {
+  private void continueFailedRenames(File fileFolder, String suffix) {  //判断该fileFolder目录下是否存在suffix后缀的文件（如example.suffix），若存在则：(1) 若存在不含后缀的同名文件example，则把example.suffix本地文件删掉（2）否则把example.suffix文件重命名为example文件
+    File[] files = fsFactory.listFilesBySuffix(fileFolder.getAbsolutePath(), suffix);//获取该fileFolder目录下所有以suffix后缀（如.tmp）结尾的子文件
+    if (files != null) {//若该目录下存在此后缀名的文件，则
+      for (File tempResource : files) {//循环遍历该fileFolder目录下所有以suffix后缀（如.tmp）结尾的这些子文件
+        File originResource = fsFactory.getFile(tempResource.getPath().replace(suffix, ""));//获取同路径名的不包含后缀名的文件，比如该fileFolder目录下存在tempResource所代表的example.tmp文件，则此originResource存放的就是不含后缀的example文件。
+        if (originResource.exists()) {//若该目录下也存在example文件，则把包含后缀名的example.tmp文件给删除掉；
           tempResource.delete();
-        } else {
+        } else {    //否则把example.tmp文件重命名为example文件
           tempResource.renameTo(originResource);
         }
       }
@@ -721,7 +722,7 @@ public class StorageGroupProcessor {
   }
 
   /** check if the tsfile's time is smaller than system current time */
-  private void checkTsFileTime(File tsFile) throws StorageGroupProcessorException {
+  private void checkTsFileTime(File tsFile) throws StorageGroupProcessorException { //用于判断TSFile文件的时间是否小于系统当前时间，若大于系统时间则说明存储时出了问题，会抛出异常
     String[] items = tsFile.getName().replace(TSFILE_SUFFIX, "").split(FILE_NAME_SEPARATOR);
     long fileTime = Long.parseLong(items[0]);
     long currentTime = System.currentTimeMillis();
@@ -738,10 +739,10 @@ public class StorageGroupProcessor {
     }
   }
 
-  private void recoverTsFiles(List<TsFileResource> tsFiles, boolean isSeq) {
-    for (int i = 0; i < tsFiles.size(); i++) {
+  private void recoverTsFiles(List<TsFileResource> tsFiles, boolean isSeq) {  //恢复TsFile
+    for (int i = 0; i < tsFiles.size(); i++) {  //循环遍历给定的TsFileResource
       TsFileResource tsFileResource = tsFiles.get(i);
-      long timePartitionId = tsFileResource.getTimePartition();
+      long timePartitionId = tsFileResource.getTimePartition(); //获取时间分区ID
 
       TsFileRecoverPerformer recoverPerformer =
           new TsFileRecoverPerformer(
@@ -837,7 +838,7 @@ public class StorageGroupProcessor {
   }
 
   // ({systemTime}-{versionNum}-{mergeNum}.tsfile)
-  private int compareFileName(File o1, File o2) {
+  private int compareFileName(File o1, File o2) { //比较两个TsFile文件名是否相同，相同则返回0
     String[] items1 = o1.getName().replace(TSFILE_SUFFIX, "").split(FILE_NAME_SEPARATOR);
     String[] items2 = o2.getName().replace(TSFILE_SUFFIX, "").split(FILE_NAME_SEPARATOR);
     long ver1 = Long.parseLong(items1[0]);
@@ -858,18 +859,19 @@ public class StorageGroupProcessor {
   public void insert(InsertRowPlan insertRowPlan)
       throws WriteProcessException, TriggerExecutionException {
     // reject insertions that are out of ttl
-    if (!isAlive(insertRowPlan.getTime())) {
+    if (!isAlive(insertRowPlan.getTime())) {  //当待插入的数据仍在其所属存储组设定的TTL生存时间内才允许插入，否则拒绝并抛出异常
       throw new OutOfTTLException(insertRowPlan.getTime(), (System.currentTimeMillis() - dataTTL));
     }
-    writeLock("InsertRow");
+    writeLock("InsertRow"); //获取写锁
     try {
       // init map
-      long timePartitionId = StorageEngine.getTimePartition(insertRowPlan.getTime());
+      long timePartitionId = StorageEngine.getTimePartition(insertRowPlan.getTime()); //根据当前插入数据的时间获取其所在的时间分区
 
-      partitionLatestFlushedTimeForEachDevice.computeIfAbsent(
-          timePartitionId, id -> new HashMap<>());
+      //获取该存储组下指定时间分区下的每一个设备已刷盘数据的最大时间戳（时间分区,(设备名称,已刷盘数据的最大时间戳)）//当partitionLatestFlushedTimeForEachDevice在该时间分区key下的value为空或者不存在该key，则初始化一个（timePartitionId,new HashMap()）键值对
+      partitionLatestFlushedTimeForEachDevice.computeIfAbsent(    //该方法是jdk8中对map类新增的方法，第一个参数是key，第二个参数是一个方法，即"参数->方法名()"等同于"方法名(参数)"
+          timePartitionId, id -> new HashMap<>());  // 此处是根据timePartitionId这个key来获取value值，当map中不存在此键值对，则把第二个参数方法的返回值当作value，把这个键值对存入map中，其中第二个参数里的id就等于第一个参数timePartitionId的值，id用作第二个参数方法的参数传入
 
-      boolean isSequence =
+      boolean isSequence =    //判断当前待插入数据是否是顺序，根据对应时间分区的partitionLatestFlushedTimeForEachDevice进行比较，若大于partitionLatestFlushedTimeForEachDevice则说明是顺序的。
           insertRowPlan.getTime()
               > partitionLatestFlushedTimeForEachDevice
                   .get(timePartitionId)
@@ -877,20 +879,20 @@ public class StorageGroupProcessor {
 
       // is unsequence and user set config to discard out of order data
       if (!isSequence
-          && IoTDBDescriptor.getInstance().getConfig().isEnableDiscardOutOfOrderData()) {
+          && IoTDBDescriptor.getInstance().getConfig().isEnableDiscardOutOfOrderData()) { //当是乱序的数据并且系统配置是无视、丢弃乱序数据，则抛弃该乱序数据不进行插入数据库，返回。
         return;
       }
-
-      latestTimeForEachDevice.computeIfAbsent(timePartitionId, l -> new HashMap<>());
+      //获取该存储组下指定时间分区的每一个设备的写入数据的最大时间戳（包括未flush和已经flush的数据时间戳）
+      latestTimeForEachDevice.computeIfAbsent(timePartitionId, l -> new HashMap<>()); //当该latestTimeForEachDevice时间分区key下的value为空或者不存在该key，则初始化一个(timePartitionId,new HashMap())键值对
 
       // fire trigger before insertion
       TriggerEngine.fire(TriggerEvent.BEFORE_INSERT, insertRowPlan);
       // insert to sequence or unSequence file
-      insertToTsFileProcessor(insertRowPlan, isSequence, timePartitionId);
+      insertToTsFileProcessor(insertRowPlan, isSequence, timePartitionId);  //交给对应时间分区的TsFileProcessor进行处理
       // fire trigger after insertion
       TriggerEngine.fire(TriggerEvent.AFTER_INSERT, insertRowPlan);
     } finally {
-      writeUnlock();
+      writeUnlock();  //StorageGroupProcessor释放写锁
     }
   }
 
@@ -1016,7 +1018,7 @@ public class StorageGroupProcessor {
   }
 
   /** @return whether the given time falls in ttl */
-  private boolean isAlive(long time) {
+  private boolean isAlive(long time) {  //当待插入的数据仍在其所属存储组设定的TTL生存时间内才允许插入，否则拒绝
     return dataTTL == Long.MAX_VALUE || (System.currentTimeMillis() - time) <= dataTTL;
   }
 
@@ -1120,60 +1122,61 @@ public class StorageGroupProcessor {
     }
   }
 
-  private void insertToTsFileProcessor(
+  private void insertToTsFileProcessor(    //把插入计划交给对应时间分区的TsFileProcessor进行处理：(1) 获取（若没有则创建）当前TsFile对应的TsFileProcessor （2）往当前TsFileProcessor的workMemTable里插入数据
       InsertRowPlan insertRowPlan, boolean sequence, long timePartitionId)
       throws WriteProcessException {
-    TsFileProcessor tsFileProcessor = getOrCreateTsFileProcessor(timePartitionId, sequence);
+    //根据时间分区和是否乱序获取对应的TsFileProcessor，若该存储组下的该时间分区里不存在TsFileProcessor,则说明插入数据的时间很新，即时间分区是新的，需要新建对应乱序or顺序的TsFileProcessor（同时也会创建对应的TsFile文件和TsFileResource对象）并返回
+    TsFileProcessor tsFileProcessor = getOrCreateTsFileProcessor(timePartitionId, sequence);//根据时间分区和是否乱序获取对应的TsFileProcessor，若不存在则创建新的一个对应的TsFileProcessor
     if (tsFileProcessor == null) {
       return;
     }
 
-    tsFileProcessor.insert(insertRowPlan);
+    tsFileProcessor.insert(insertRowPlan);    //往对应TsFileProcessor的workMemTable里插入数据，该方法做的事：（1）若当前TsFileProcessor的workMemTable是空，则创建一个（2）统计当前写入计划新增的内存占用，增加至TspInfo和SgInfo中（3）若系统配置是允许写前日志，则记录写前日志（4）写入workMemTable，即遍历该插入计划中每个待插入传感器的数值，往该传感器对应的memtable里的TVList写入待插入的数值,首先判断是否要对此TVList的values和timestamps列表，然后往该TVList的values和timestamps列表的某一数组里里插入对应的时间戳和数值（5）在插入操作后，要更新该TsFile对应TsFileResource对象里该设备数据的最大、最小时间戳
 
     // try to update the latest time of the device of this tsRecord
     if (latestTimeForEachDevice
             .get(timePartitionId)
             .getOrDefault(insertRowPlan.getPrefixPath().getFullPath(), Long.MIN_VALUE)
-        < insertRowPlan.getTime()) {
+        < insertRowPlan.getTime()) {  //如果该存储组下该时间分区里该设备的最后写入数据的最大时间戳小于此次插入数据的时间戳，则需要更新该存储组下该分区的该设备的最后写入数据的时间戳
       latestTimeForEachDevice
           .get(timePartitionId)
           .put(insertRowPlan.getPrefixPath().getFullPath(), insertRowPlan.getTime());
     }
 
-    long globalLatestFlushTime =
+    long globalLatestFlushTime =  //获取此次该设备在全局、跨时间分区的最后刷盘数据的最大时间戳
         globalLatestFlushedTimeForEachDevice.getOrDefault(
             insertRowPlan.getPrefixPath().getFullPath(), Long.MIN_VALUE);
 
-    tryToUpdateInsertLastCache(insertRowPlan, globalLatestFlushTime);
+    tryToUpdateInsertLastCache(insertRowPlan, globalLatestFlushTime); //为此次插入行为的设备下的每个传感器更新对应的上个时间戳数据点缓存，即记录的是每个传感器在此插入行为后最大的时间戳和对应的数值
 
     // check memtable size and may asyncTryToFlush the work memtable
-    if (tsFileProcessor.shouldFlush()) {
-      fileFlushPolicy.apply(this, tsFileProcessor, sequence);
+    if (tsFileProcessor.shouldFlush()) {  //判断该TsFileProcessor的workMemTable是否需要被Flush
+      fileFlushPolicy.apply(this, tsFileProcessor, sequence); //执行flush此TSFile的workMemTable
     }
   }
 
-  private void tryToUpdateInsertLastCache(InsertRowPlan plan, Long latestFlushedTime) {
+  private void tryToUpdateInsertLastCache(InsertRowPlan plan, Long latestFlushedTime) { //为此次插入行为的设备下的每个传感器更新对应的上个时间戳数据点缓存，即记录的是每个传感器在此插入行为后最大的时间戳和对应的数值//第二个参数是该设备在全局、跨时间分区的最后刷盘数据的最大时间戳
     if (!IoTDBDescriptor.getInstance().getConfig().isLastCacheEnabled()) {
       return;
     }
     IMeasurementMNode[] mNodes = plan.getMeasurementMNodes();
-    int columnIndex = 0;
-    for (IMeasurementMNode mNode : mNodes) {
+    int columnIndex = 0;  //用作临时的传感器索引，供下方遍历使用
+    for (IMeasurementMNode mNode : mNodes) {  //循环遍历每个传感器节点
       // Don't update cached last value for vector type
-      if (!plan.isAligned()) {
+      if (!plan.isAligned()) {  //如果是不对齐的
         if (plan.getValues()[columnIndex] == null) {
           columnIndex++;
           continue;
         }
         // Update cached last value with high priority
-        if (mNode != null) {
+        if (mNode != null) {  //如果传感器节点不为空
           // in stand alone version, the seriesPath is not needed, just use measurementMNodes[i] to
           // update last cache
-          IoTDB.metaManager.updateLastCache(
+          IoTDB.metaManager.updateLastCache(  //更新此传感器上个时间戳数据点缓存（必须是顺序的，即记录的是每个传感器在上次插入行为后最晚的时间戳和对应的数值）
               null, plan.composeTimeValuePair(columnIndex), true, latestFlushedTime, mNode);
-        } else {
+        } else {  //如果传感器节点为空
           IoTDB.metaManager.updateLastCache(
-              plan.getPrefixPath().concatNode(plan.getMeasurements()[columnIndex]),
+              plan.getPrefixPath().concatNode(plan.getMeasurements()[columnIndex]), //要自己获取对应的传感器节点
               plan.composeTimeValuePair(columnIndex),
               true,
               latestFlushedTime,
@@ -1201,13 +1204,13 @@ public class StorageGroupProcessor {
     }
   }
 
-  private TsFileProcessor getOrCreateTsFileProcessor(long timeRangeId, boolean sequence) {
+  private TsFileProcessor getOrCreateTsFileProcessor(long timeRangeId, boolean sequence) {//根据时间分区和是否乱序获取对应的TsFileProcessor，若不存在则创建新的一个对应的TsFileProcessor
     TsFileProcessor tsFileProcessor = null;
     try {
-      if (sequence) {
+      if (sequence) { //如果是顺序的
         tsFileProcessor =
-            getOrCreateTsFileProcessorIntern(timeRangeId, workSequenceTsFileProcessors, true);
-      } else {
+            getOrCreateTsFileProcessorIntern(timeRangeId, workSequenceTsFileProcessors, true);//workSequenceTsFileProcessors存放了每个时间分区下对应的顺序TsFileProcessor,即（时间分区ID,TsFileProcessor对象）
+      } else {  //如果是乱序的
         tsFileProcessor =
             getOrCreateTsFileProcessorIntern(timeRangeId, workUnsequenceTsFileProcessors, false);
       }
@@ -1231,44 +1234,44 @@ public class StorageGroupProcessor {
    * @param tsFileProcessorTreeMap tsFileProcessorTreeMap
    * @param sequence whether is sequence or not
    */
-  private TsFileProcessor getOrCreateTsFileProcessorIntern(
+  private TsFileProcessor getOrCreateTsFileProcessorIntern( //返回或创建新的TsFileProcessor（若创建新的TsFileProcessor则需要先创建对应的TsFile文件）
       long timeRangeId, TreeMap<Long, TsFileProcessor> tsFileProcessorTreeMap, boolean sequence)
       throws IOException, DiskSpaceInsufficientException {
 
-    TsFileProcessor res = tsFileProcessorTreeMap.get(timeRangeId);
+    TsFileProcessor res = tsFileProcessorTreeMap.get(timeRangeId);  //根据时间分区id从workSequenceTsFileProcessors/workUnSequenceTsFileProcessors中获取TsFileProcessor
 
-    if (null == res) {
+    if (null == res) {  //当workSequenceTsFileProcessors里不包含该时间分区的TsFileProcessor，说明该时间分区是新的，则需要创建该新时间分区的TsFile文件，也需要创建一个对应新的TsFileProcessor存入workSequenceTsFileProcessors中，这个时候就需要注意内存的占用情况
       // we have to remove oldest processor to control the num of the memtables
       // TODO: use a method to control the number of memtables
       if (tsFileProcessorTreeMap.size()
-          >= IoTDBDescriptor.getInstance().getConfig().getConcurrentWritingTimePartition()) {
-        Map.Entry<Long, TsFileProcessor> processorEntry = tsFileProcessorTreeMap.firstEntry();
+          >= IoTDBDescriptor.getInstance().getConfig().getConcurrentWritingTimePartition()) {//当workSequenceTsFileProcessors里存放TsFileProcessor的数量超过了系统的指定数量，则需要把最早的，即第一个TsFileProcessor给删除掉
+        Map.Entry<Long, TsFileProcessor> processorEntry = tsFileProcessorTreeMap.firstEntry();//获取最早加入的、第一个TsFileProcessor
         logger.info(
             "will close a {} TsFile because too many active partitions ({} > {}) in the storage group {},",
             sequence,
             tsFileProcessorTreeMap.size(),
             IoTDBDescriptor.getInstance().getConfig().getConcurrentWritingTimePartition(),
             logicalStorageGroupName);
-        asyncCloseOneTsFileProcessor(sequence, processorEntry.getValue());
+        asyncCloseOneTsFileProcessor(sequence, processorEntry.getValue());  //异步关闭最早的TsFileProcessor
       }
 
       // build new processor
-      res = newTsFileProcessor(sequence, timeRangeId);
-      tsFileProcessorTreeMap.put(timeRangeId, res);
-      tsFileManagement.add(res.getTsFileResource(), sequence);
+      res = newTsFileProcessor(sequence, timeRangeId);  //根据是否顺序，创建该存储组下该时间分区对应新的TsFileProcessor
+      tsFileProcessorTreeMap.put(timeRangeId, res); //把新建的该时间分区的TsFileProcessor放入工作的活跃workSequenceTsFileProcessors/workUnSequenceTsFileProcessors队列中
+      tsFileManagement.add(res.getTsFileResource(), sequence);  //由于会新建TsFile，所以要把该文件相应的TsFileResource信息存入TsFileManagement管理类里。
     }
 
     return res;
   }
 
   private TsFileProcessor newTsFileProcessor(boolean sequence, long timePartitionId)
-      throws IOException, DiskSpaceInsufficientException {
+      throws IOException, DiskSpaceInsufficientException {    //根据时间分区和是否顺序创建对应的TsFile文件和对应的TsFileProcessor
     DirectoryManager directoryManager = DirectoryManager.getInstance();
-    String baseDir =
+    String baseDir =    //获取根目录
         sequence
             ? directoryManager.getNextFolderForSequenceFile()
             : directoryManager.getNextFolderForUnSequenceFile();
-    fsFactory
+    fsFactory   //创建TsFile文件
         .getFile(baseDir + File.separator + logicalStorageGroupName, virtualStorageGroupId)
         .mkdirs();
 
@@ -1286,10 +1289,10 @@ public class StorageGroupProcessor {
     return getTsFileProcessor(sequence, filePath, timePartitionId);
   }
 
-  private TsFileProcessor getTsFileProcessor(
+  private TsFileProcessor getTsFileProcessor( //新建TsFileProcessor
       boolean sequence, String filePath, long timePartitionId) throws IOException {
     TsFileProcessor tsFileProcessor;
-    if (sequence) {
+    if (sequence) { //如果是顺序
       tsFileProcessor =
           new TsFileProcessor(
               logicalStorageGroupName + File.separator + virtualStorageGroupId,
@@ -1298,7 +1301,7 @@ public class StorageGroupProcessor {
               this::closeUnsealedTsFileProcessorCallBack,
               this::updateLatestFlushTimeCallback,
               true);
-    } else {
+    } else {    //如果是乱序
       tsFileProcessor =
           new TsFileProcessor(
               logicalStorageGroupName + File.separator + virtualStorageGroupId,
@@ -1309,15 +1312,15 @@ public class StorageGroupProcessor {
               false);
     }
 
-    if (enableMemControl) {
+    if (enableMemControl) { //如果系统开启了内存控制，则创建TsFileProcessor对应的内存控制类TsFileProcessorInfo对象
       TsFileProcessorInfo tsFileProcessorInfo = new TsFileProcessorInfo(storageGroupInfo);
-      tsFileProcessor.setTsFileProcessorInfo(tsFileProcessorInfo);
+      tsFileProcessor.setTsFileProcessorInfo(tsFileProcessorInfo);  //将控制类配置给此TsFileProcessor
       this.storageGroupInfo.initTsFileProcessorInfo(tsFileProcessor);
     }
 
-    tsFileProcessor.addCloseFileListeners(customCloseFileListeners);
-    tsFileProcessor.addFlushListeners(customFlushListeners);
-    tsFileProcessor.setTimeRangeId(timePartitionId);
+    tsFileProcessor.addCloseFileListeners(customCloseFileListeners);  //增加CloseFileListener
+    tsFileProcessor.addFlushListeners(customFlushListeners);  //增加FlushListener
+    tsFileProcessor.setTimeRangeId(timePartitionId);  //设置时间分区ID
 
     return tsFileProcessor;
   }
@@ -1375,38 +1378,40 @@ public class StorageGroupProcessor {
    * @param sequence whether this tsfile processor is sequence or not
    * @param tsFileProcessor tsfile processor
    */
-  public void asyncCloseOneTsFileProcessor(boolean sequence, TsFileProcessor tsFileProcessor) {
+  public void asyncCloseOneTsFileProcessor(boolean sequence, TsFileProcessor tsFileProcessor) {   //异步关闭指定的TsFileProcessor，以保证内存大小的可使用，或者是当该TsFile文件过大时就需要关闭此文件(具体做法是将其加入关闭TsFileProcessor队列中，并更新对应的TsFileResource每个设备的最后写入数据的时间戳，然后异步关闭该TsFileProcessor，然后从活跃队列中移除，并判断是否关闭对应分区的版本控制)
     // for sequence tsfile, we update the endTimeMap only when the file is prepared to be closed.
     // for unsequence tsfile, we have maintained the endTimeMap when an insertion comes.
     if (closingSequenceTsFileProcessor.contains(tsFileProcessor)
         || closingUnSequenceTsFileProcessor.contains(tsFileProcessor)
-        || tsFileProcessor.alreadyMarkedClosing()) {
+        || tsFileProcessor.alreadyMarkedClosing()) {    //如果该TsFileProcessor已经被关闭了，则返回
       return;
     }
     logger.info(
         "Async close tsfile: {}",
         tsFileProcessor.getTsFileResource().getTsFile().getAbsolutePath());
-    if (sequence) {
-      closingSequenceTsFileProcessor.add(tsFileProcessor);
-      updateEndTimeMap(tsFileProcessor);
-      tsFileProcessor.asyncClose();
+    if (sequence) { //如果待关闭的TsFileProcessor是顺序的
+      closingSequenceTsFileProcessor.add(tsFileProcessor);  //把该TsFileProcessor加入到关闭的顺序队列closingSequenceTsFileProcessor中
+      updateEndTimeMap(tsFileProcessor);  //更新该TsFile对应TsFileResource的每个设备的最后写入的数据时间戳
+      tsFileProcessor.asyncClose();   //将此TsFileProcessor进行异步关闭
 
-      workSequenceTsFileProcessors.remove(tsFileProcessor.getTimeRangeId());
+      workSequenceTsFileProcessors.remove(tsFileProcessor.getTimeRangeId());  //从活跃顺序workSequenceTsFileProcessors队列中移除此TsFileProcessor
       // if unsequence files don't contain this time range id, we should remove it's version
       // controller
+      //当活跃的乱序TsFileProcessor队列workUnsequenceTsFileProcessors不包含此已关闭的顺序TsFileProcessor所在时间分区对应的乱序TsFileProcessor，即该存储组的该时间分区里已经不存在任何活跃的顺序、乱序TsFileProcessor，该时间分区必不会占用任何内存memtable，所以要从timePartitionIdVersionControllerMap移除该分区的版本控制。
       if (!workUnsequenceTsFileProcessors.containsKey(tsFileProcessor.getTimeRangeId())) {
         timePartitionIdVersionControllerMap.remove(tsFileProcessor.getTimeRangeId());
       }
       logger.info(
           "close a sequence tsfile processor {}",
           logicalStorageGroupName + "-" + virtualStorageGroupId);
-    } else {
-      closingUnSequenceTsFileProcessor.add(tsFileProcessor);
-      tsFileProcessor.asyncClose();
+    } else {    //如果待关闭的TsFileProcessor是乱序的
+      closingUnSequenceTsFileProcessor.add(tsFileProcessor);//把该TsFileProcessor加入到关闭的乱序队列closingUnSequenceTsFileProcessor中
+      tsFileProcessor.asyncClose();//将此TsFileProcessor进行异步关闭
 
-      workUnsequenceTsFileProcessors.remove(tsFileProcessor.getTimeRangeId());
+      workUnsequenceTsFileProcessors.remove(tsFileProcessor.getTimeRangeId());//从活跃乱序workSequenceTsFileProcessors队列中移除此TsFileProcessor
       // if sequence files don't contain this time range id, we should remove it's version
       // controller
+      //当该时间分区里也不存在活跃的顺序TsFileProcessor时，即该时间分区不存在任何乱序、顺序TsFileProcessor，必不占用任何内存memtable，因此要从timePartitionIdVersionControllerMap移除该分区的版本控制。
       if (!workSequenceTsFileProcessors.containsKey(tsFileProcessor.getTimeRangeId())) {
         timePartitionIdVersionControllerMap.remove(tsFileProcessor.getTimeRangeId());
       }
@@ -1512,7 +1517,7 @@ public class StorageGroupProcessor {
   }
 
   /** Iterate each TsFile and try to lock and remove those out of TTL. */
-  public synchronized void checkFilesTTL() {
+  public synchronized void checkFilesTTL() {   //检查该虚拟存储组下所有顺序和乱序的TsFile的数据是否超过TTL,若有则删除本地相关的文件(TsFile和mods文件和resource文件)
     if (dataTTL == Long.MAX_VALUE) {
       logger.debug(
           "{}: TTL not set, ignore the check",
@@ -1532,24 +1537,25 @@ public class StorageGroupProcessor {
     List<TsFileResource> unseqFiles = new ArrayList<>(tsFileManagement.getTsFileList(false));
 
     for (TsFileResource tsFileResource : seqFiles) {
-      checkFileTTL(tsFileResource, ttlLowerBound, true);
+      checkFileTTL(tsFileResource, ttlLowerBound, true);//判断给定的TsFile里是否存在数据超过TTL，若有则删除本地相关的文件(TsFile和mods文件和resource文件)
     }
     for (TsFileResource tsFileResource : unseqFiles) {
-      checkFileTTL(tsFileResource, ttlLowerBound, false);
+      checkFileTTL(tsFileResource, ttlLowerBound, false);//判断给定的TsFile里是否存在数据超过TTL，若有则删除本地相关的文件(TsFile和mods文件和resource文件)
     }
   }
 
-  private void checkFileTTL(TsFileResource resource, long ttlLowerBound, boolean isSeq) {
-    if (resource.isMerging()
+  private void checkFileTTL(TsFileResource resource, long ttlLowerBound, boolean isSeq) { //判断给定的TsFile里是否存在数据超过TTL，若有则删除本地相关的文件(TsFile和mods文件和resource文件)
+    if (resource.isMerging()  //若文件正在合并中or文件未封口or（文件未被删除并且文件里的所有数据还活着，未超出TTL），则直接返回
         || !resource.isClosed()
         || !resource.isDeleted() && resource.stillLives(ttlLowerBound)) {
       return;
     }
 
-    writeLock("checkFileTTL");
+    //若该TsFile的存在数据超过了TTL，则把该TsFile本地文件和相关文件给删除
+    writeLock("checkFileTTL");  //对该虚拟存储组加写锁，防止用户对该虚拟存储组下的文件有其他操作
     try {
       // prevent new merges and queries from choosing this file
-      resource.setDeleted(true);
+      resource.setDeleted(true);  //设置删除状态，防止后续系统对此被删除的TsFile进行merge合并
       // the file may be chosen for merge after the last check and before writeLock()
       // double check to ensure the file is not used by a merge
       if (resource.isMerging()) {
@@ -1557,10 +1563,10 @@ public class StorageGroupProcessor {
       }
 
       // ensure that the file is not used by any queries
-      if (resource.tryWriteLock()) {
+      if (resource.tryWriteLock()) {  //对该TsFileResource加写锁
         try {
           // physical removal
-          resource.remove();
+          resource.remove();  //删除该TsFile对应的本地文件和.mods文件和.resource文件
           if (logger.isInfoEnabled()) {
             logger.info(
                 "Removed a file {} before {} by ttl ({}ms)",
@@ -1570,11 +1576,11 @@ public class StorageGroupProcessor {
           }
           tsFileManagement.remove(resource, isSeq);
         } finally {
-          resource.writeUnlock();
+          resource.writeUnlock(); //释放该TsfileResource的写锁
         }
       }
     } finally {
-      writeUnlock();
+      writeUnlock();  //释放该虚拟存储组的写锁
     }
   }
 
@@ -1680,23 +1686,23 @@ public class StorageGroupProcessor {
    * @param timeFilter time filter
    * @return query data source
    */
-  public QueryDataSource query(
-      PartialPath fullPath,
-      QueryContext context,
-      QueryFileManager filePathsManager,
-      Filter timeFilter)
+  public QueryDataSource query(//获取此次查询需要用到的所有顺序or乱序TsFileResource,并把它们往添加入查询文件管理类里，即添加此次查询ID对应需要用到的顺序和乱序TsFileResource,并创建返回QueryDataSource对象，该类对象存放了一次查询里对一条时间序列涉及到的所有顺序TsFileResource和乱序TsFileResource和数据TTL
+      PartialPath fullPath, //此次查询的此单一时间序列的全路径
+      QueryContext context, //此次查询的查询环境类对象
+      QueryFileManager filePathsManager,//查询文件管理类对象，该类存放了每个查询ID对应需要的已封口和为封口的TsFileResource
+      Filter timeFilter)  //此次查询的时间过滤器，可能是一元或二元的过滤器
       throws QueryProcessException {
-    readLock();
+    readLock();   //查询操作前，先对虚拟存储组粒度加读锁
     try {
       List<TsFileResource> seqResources =
-          getFileResourceListForQuery(
-              tsFileManagement.getTsFileList(true),
-              upgradeSeqFileList,
-              fullPath,
-              context,
-              timeFilter,
+          getFileResourceListForQuery(//获取该虚拟存储组下的所有满足此次查询要求（即该TsFile里存在待查询的设备，且设备下的所有数据都存活，且存在满足时间过滤器的数据点）的顺序的TsFileResource（包含已封口和为封口的）和待升级的TsFileResource，将它们放入此次的待查寻TsFileResource列表中
+              tsFileManagement.getTsFileList(true), //获取此虚拟存储组下所有顺序的TsFileResource
+              upgradeSeqFileList, //待升级的顺序TsFileResource列表
+              fullPath, //此次查询的此单一时间序列路径
+              context,  //查询环境
+              timeFilter, //此查询的时间过滤器
               true);
-      List<TsFileResource> unseqResources =
+      List<TsFileResource> unseqResources =//获取该虚拟存储组下的所有满足此次查询要求（即该TsFile里存在待查询的设备，且设备下的所有数据都存活，且存在满足时间过滤器的数据点）的乱序的TsFileResource（包含已封口和为封口的）和待升级的TsFileResource，将它们放入此次的待查寻TsFileResource列表中
           getFileResourceListForQuery(
               tsFileManagement.getTsFileList(false),
               upgradeUnseqFileList,
@@ -1704,14 +1710,14 @@ public class StorageGroupProcessor {
               context,
               timeFilter,
               false);
-      QueryDataSource dataSource = new QueryDataSource(seqResources, unseqResources);
+      QueryDataSource dataSource = new QueryDataSource(seqResources, unseqResources);//创建QueryDataSource对象，该类对象存放了一次查询里对一条时间序列涉及到的所有顺序TsFileResource和乱序TsFileResource
       // used files should be added before mergeLock is unlocked, or they may be deleted by
       // running merge
       // is null only in tests
       if (filePathsManager != null) {
-        filePathsManager.addUsedFilesForQuery(context.getQueryId(), dataSource);
+        filePathsManager.addUsedFilesForQuery(context.getQueryId(), dataSource);//往查询文件管理类里添加此次查询ID对应需要用到的顺序和乱序TsFileResource
       }
-      dataSource.setDataTTL(dataTTL);
+      dataSource.setDataTTL(dataTTL); //对QueryDataSource对象设置TTL数据存活时间
       return dataSource;
     } catch (MetadataException e) {
       throw new QueryProcessException(e);
@@ -1750,15 +1756,15 @@ public class StorageGroupProcessor {
    * @param tsFileResources includes sealed and unsealed tsfile resources
    * @return fill unsealed tsfile resources with memory data and ChunkMetadataList of data in disk
    */
-  private List<TsFileResource> getFileResourceListForQuery(
-      Collection<TsFileResource> tsFileResources,
-      List<TsFileResource> upgradeTsFileResources,
-      PartialPath fullPath,
-      QueryContext context,
-      Filter timeFilter,
-      boolean isSeq)
+  private List<TsFileResource> getFileResourceListForQuery( //获取该虚拟存储组下的所有满足此次查询要求（即该TsFile里存在待查询的设备，且设备下的所有数据都存活，且存在满足时间过滤器的数据点）的顺序or乱序的TsFileResource（包含已封口和为封口的）和待升级的TsFileResource，将它们放入此次的待查寻TsFileResource列表中
+      Collection<TsFileResource> tsFileResources,//此虚拟存储组下所有顺序or乱序的TsFileResource
+      List<TsFileResource> upgradeTsFileResources,//待升级的顺序or乱序TsFileResource列表
+      PartialPath fullPath,//此次查询的此单一时间序列路径
+      QueryContext context,//查询环境类对象
+      Filter timeFilter,    //时间过滤器
+      boolean isSeq)  //是否顺序
       throws MetadataException {
-    String deviceId = fullPath.getDevice();
+    String deviceId = fullPath.getDevice(); //根据查询的时间序列路径获取设备路径ID
 
     if (context.isDebug()) {
       DEBUG_LOGGER.info(
@@ -1770,44 +1776,45 @@ public class StorageGroupProcessor {
           (timeFilter == null ? "null" : timeFilter));
     }
 
-    IMeasurementSchema schema = IoTDB.metaManager.getSeriesSchema(fullPath);
+    IMeasurementSchema schema = IoTDB.metaManager.getSeriesSchema(fullPath);  //根据时间序列全路径获取该路径上对应的传感器的配置类对象。
 
-    List<TsFileResource> tsfileResourcesForQuery = new ArrayList<>();
-    long ttlLowerBound =
+    List<TsFileResource> tsfileResourcesForQuery = new ArrayList<>(); //存放了此次查询需要用到的TsFile对应的TsFileResource
+    long ttlLowerBound = //该属性表示在当下对于给定的TTL，数据点允许的最小时间戳，即时间戳小于ttlLowerBound的数据就是超过了TTL存活时间了，只有时间戳大于等于ttlLowerBound的数据才处于存活状态    //对于某一TsFile，ttlLowerBound必须小于等于该TsFile里每个设备的最大数据时间戳endTime，即ttlLowerBound=currentTime-dataTTL<=endTime，则说明该TsFile仍存活，未超出TTL
         dataTTL != Long.MAX_VALUE ? System.currentTimeMillis() - dataTTL : Long.MIN_VALUE;
-    context.setQueryTimeLowerBound(ttlLowerBound);
+    context.setQueryTimeLowerBound(ttlLowerBound);  //
 
     // for upgrade files and old files must be closed
-    for (TsFileResource tsFileResource : upgradeTsFileResources) {
-      if (!tsFileResource.isSatisfied(deviceId, timeFilter, isSeq, dataTTL, context.isDebug())) {
+    for (TsFileResource tsFileResource : upgradeTsFileResources) {  //遍历待升级or正在升级中的顺序or乱序TsFileResource
+      if (!tsFileResource.isSatisfied(deviceId, timeFilter, isSeq, dataTTL, context.isDebug())) { //根据给定的时间过滤器和ttl等参数，判断该TsFile里的该设备下的所有数据是否满足要求（即该设备下的所有数据都存活，且存在满足时间过滤器的数据点）。若不满足要求，则遍历下一个待升级的TsFileResource
         continue;
       }
-      closeQueryLock.readLock().lock();
+      closeQueryLock.readLock().lock();//加读锁
       try {
-        tsfileResourcesForQuery.add(tsFileResource);
+        tsfileResourcesForQuery.add(tsFileResource);//将此待升级or正在升级中的TsFileResource加入tsfileResourcesForQuery待查寻列表中
       } finally {
-        closeQueryLock.readLock().unlock();
+        closeQueryLock.readLock().unlock(); //释放读锁
       }
     }
 
-    for (TsFileResource tsFileResource : tsFileResources) {
-      if (!tsFileResource.isSatisfied(
+    for (TsFileResource tsFileResource : tsFileResources) { //循环遍历给定的该虚拟存储组下的顺序or乱序TsFileResource列表
+      if (!tsFileResource.isSatisfied(  //若该TsFileResource的该指定设备下的数据不满足要求（要求即未超过TTL且存在数据点满足给定的时间过滤器），则遍历下一个
           fullPath.getDevice(), timeFilter, isSeq, dataTTL, context.isDebug())) {
         continue;
       }
-      closeQueryLock.readLock().lock();
+      //若该TsFile的指定设备下的所有数据都满足要求，则
+      closeQueryLock.readLock().lock();//加读锁
       try {
-        if (tsFileResource.isClosed()) {
+        if (tsFileResource.isClosed()) {  //若该TsFile已封口，则把其TsFileResource加入待查询列表tsfileResourcesForQuery中
           tsfileResourcesForQuery.add(tsFileResource);
-        } else {
+        } else {  //否则获取该TsFile对应的未封口的TsFileProcessor进行查询操作
           tsFileResource
               .getUnsealedFileProcessor()
-              .query(deviceId, fullPath.getMeasurement(), schema, context, tsfileResourcesForQuery);
+              .query(deviceId, fullPath.getMeasurement(), schema, context, tsfileResourcesForQuery); //此方法根据给定的设备和传感器等参数，创建一个只读的TsFileResource对象，并把它放入tsfileResourcesForQuery列表里，用作查询
         }
       } catch (IOException e) {
         throw new MetadataException(e);
       } finally {
-        closeQueryLock.readLock().unlock();
+        closeQueryLock.readLock().unlock();//释放读锁
       }
     }
     return tsfileResourcesForQuery;
@@ -1822,72 +1829,72 @@ public class StorageGroupProcessor {
    * @param endTime the endTime of delete range.
    */
   public void delete(PartialPath path, long startTime, long endTime, long planIndex)
-      throws IOException {
+      throws IOException {    //注意：时间序列路径的存储组是确定的，但设备路径还不确定，可能包含通配符*，因此可能有多个设备。eg:root.ln.*.*.*
     // If there are still some old version tsfiles, the delete won't succeeded.
-    if (upgradeFileCount.get() != 0) {
-      throw new IOException(
+    if (upgradeFileCount.get() != 0) {  //当仍然存在旧的待升级的TsFile，说明这些旧的TsFile正在升级中，此时不能执行删除操作。其实，只要判断若该删除操作是对旧的升级中的TsFile里的数据进行删除，则才不允许此删除操作执行，因为删除操作会修改对应旧TsFile的mods文件，而升级过程会对这些旧TsFile的mods文件进行删除。
+     throw new IOException(
           "Delete failed. " + "Please do not delete until the old files upgraded.");
     }
     // TODO: how to avoid partial deletion?
     // FIXME: notice that if we may remove a SGProcessor out of memory, we need to close all opened
     // mod files in mergingModification, sequenceFileList, and unsequenceFileList
-    writeLock("delete");
+    writeLock("delete");  //加锁
 
     // record files which are updated so that we can roll back them in case of exception
     List<ModificationFile> updatedModFiles = new ArrayList<>();
 
     try {
-      Set<PartialPath> devicePaths = IoTDB.metaManager.getDevices(path.getDevicePath());
-      for (PartialPath device : devicePaths) {
-        Long lastUpdateTime = null;
-        for (Map<String, Long> latestTimeMap : latestTimeForEachDevice.values()) {
-          Long curTime = latestTimeMap.get(device.getFullPath());
-          if (curTime != null && (lastUpdateTime == null || lastUpdateTime < curTime)) {
-            lastUpdateTime = curTime;
+      Set<PartialPath> devicePaths = IoTDB.metaManager.getDevices(path.getDevicePath());  //根据时间路径获取其上的设备路径，此处由于只确定了存储组，因此可能有一个或多个设备
+      for (PartialPath device : devicePaths) {//循环遍历根据该确定存储组的路径搜索到的所有设备路径对象
+        Long lastUpdateTime = null; //用于记录该存储组下待删除的所有设备中写入数据的最大时间戳
+        for (Map<String, Long> latestTimeMap : latestTimeForEachDevice.values()) {//循环遍历该存储组下（设备名称 ,最后写入时间戳），即每个设备的写入数据的最大时间戳（包括未flush和已经flush的数据时间戳）
+          Long curTime = latestTimeMap.get(device.getFullPath()); //获取该存储组下的该设备的写入数据的最大时间戳
+          if (curTime != null && (lastUpdateTime == null || lastUpdateTime < curTime)) {//若（该设备的写入数据的最大时间戳不为空）并且（（是第一次循环）或者（最大时间戳小于此设备写入数据的最大时间戳））
+            lastUpdateTime = curTime;       //记最大时间戳为此设备写入数据的最大时间戳
           }
         }
-
         // delete Last cache record if necessary
-        tryToDeleteLastCache(device, path, startTime, endTime);
+        tryToDeleteLastCache(device, path, startTime, endTime);//在删除操作时，根据给定的设备判断其下的每个传感器节点是否需要重置清空上个最大时间戳数据点缓存（若该缓存在此删除操作的时间范围里，则清空）
       }
 
-      // write log to impacted working TsFileProcessors
-      logDeletion(startTime, endTime, path);
+      // write log to impacted working TsFileProcessors//对于每一个 Memtable，都会记录一个 WAL 文件，当 Memtable 被 flush 完成时，WAL 会被删掉。WAL只针对正在工作的TSFileProcessor下的每个传感器memtable
+      logDeletion(startTime, endTime, path);  //对于该存储组下当前正在工作的顺序或乱序TsFileProcessor中，若他们所属的时间分区正好是待删除数据的时间分区范围内，则使用该时间分区正在工作的TsFileProcessor把删除计划记录进写前日志
 
-      Deletion deletion = new Deletion(path, MERGE_MOD_START_VERSION_NUM, startTime, endTime);
-      if (tsFileManagement.mergingModification != null) {
-        tsFileManagement.mergingModification.write(deletion);
-        updatedModFiles.add(tsFileManagement.mergingModification);
+      Deletion deletion = new Deletion(path, MERGE_MOD_START_VERSION_NUM, startTime, endTime);  //新建一个删除操作类对象
+      if (tsFileManagement.mergingModification != null) { //如果mergingModification不为空，说明此该虚拟存储组下存在正在合并的TsFile，则将此次删除操作写入临时mods文件里 //由于乱序合并在开始时会在当前存储组创建一个名为mergingModification的临时ModificationFile变量，因此每次deleteion操作前都需要判断存储组中的mergingModification变量是否为null，如果不为null，说明当前正在进行乱序合并则将此次delete操作写入mergingModification临时变量中，不再写入TSFile对应的本地mods文件中；否则写入对应的本地mods文件中。
+        tsFileManagement.mergingModification.write(deletion);//将此delete操作写入mergingModification临时文件中
+        updatedModFiles.add(tsFileManagement.mergingModification);  //将此次删除操作的ModificationFile对象加入列表
       }
 
-      deleteDataInFiles(
+      deleteDataInFiles( //对该存储组下的所有顺序TsFile中存在待删除的设备的在待删除时间范围内的数据进行删除操作，1. 首先往本地对应的.mods文件记录此删除操作  2. 若某TsFile的内存workMemTable中存在数据，则根据该workMemTable是未flush还是正在flushing进行相关的删除操作
           tsFileManagement.getTsFileList(true), deletion, devicePaths, updatedModFiles, planIndex);
-      deleteDataInFiles(
+      deleteDataInFiles( //对该存储组下的所有乱序TsFile中存在待删除的设备的在待删除时间范围内的数据进行删除操作，1. 首先往本地对应的.mods文件记录此删除操作  2. 若某TsFile的内存workMemTable中存在数据，则根据该workMemTable是未flush还是正在flushing进行相关的删除操作
           tsFileManagement.getTsFileList(false), deletion, devicePaths, updatedModFiles, planIndex);
 
-    } catch (Exception e) {
+    } catch (Exception e) { //若出现意外，则roll back
       // roll back
       for (ModificationFile modFile : updatedModFiles) {
         modFile.abort();
       }
       throw new IOException(e);
     } finally {
-      writeUnlock();
+      writeUnlock();  //释放锁
     }
   }
 
-  private void logDeletion(long startTime, long endTime, PartialPath path) throws IOException {
-    long timePartitionStartId = StorageEngine.getTimePartition(startTime);
-    long timePartitionEndId = StorageEngine.getTimePartition(endTime);
-    if (IoTDBDescriptor.getInstance().getConfig().isEnableWal()) {
+  private void logDeletion(long startTime, long endTime, PartialPath path) throws IOException { //对于当前正在工作的顺序或乱序TsFileProcessor中，若他们所属的时间分区正好是待删除数据的时间分区范围内，则使用该时间分区正在工作的TsFileProcessor把删除计划记录进写前日志//此处是只明确了存储组的之间序列路径，eg:root.ln.*.*.*
+    long timePartitionStartId = StorageEngine.getTimePartition(startTime);  //开始时间所在的时间分区ID
+    long timePartitionEndId = StorageEngine.getTimePartition(endTime); //结束时间所在的时间分区ID
+    if (IoTDBDescriptor.getInstance().getConfig().isEnableWal()) {  //若系统允许记录写前日志
       DeletePlan deletionPlan = new DeletePlan(startTime, endTime, path);
-      for (Map.Entry<Long, TsFileProcessor> entry : workSequenceTsFileProcessors.entrySet()) {
-        if (timePartitionStartId <= entry.getKey() && entry.getKey() <= timePartitionEndId) {
-          entry.getValue().getLogNode().write(deletionPlan);
+      //当前面有对该存储组的插入操作时，该存储组下就会有某时间分区的正在工作的workSequenceTsFileProcessors和workUnsequenceTsFileProcessors 列表
+      for (Map.Entry<Long, TsFileProcessor> entry : workSequenceTsFileProcessors.entrySet()) {  //遍历每个时间分区对应的顺序工作TsFileProcessor
+        if (timePartitionStartId <= entry.getKey() && entry.getKey() <= timePartitionEndId) { //当此工作的顺序TsFile的TsFileProcessor所在时间分区正好是待删除数据的时间分区范围内
+          entry.getValue().getLogNode().write(deletionPlan);  //使用该时间分区正在工作的TsFileProcessor把删除计划记录进写前日志
         }
       }
 
-      for (Map.Entry<Long, TsFileProcessor> entry : workUnsequenceTsFileProcessors.entrySet()) {
+      for (Map.Entry<Long, TsFileProcessor> entry : workUnsequenceTsFileProcessors.entrySet()) {//遍历每个时间分区对应的乱序工作TsFileProcessor
         if (timePartitionStartId <= entry.getKey() && entry.getKey() <= timePartitionEndId) {
           entry.getValue().getLogNode().write(deletionPlan);
         }
@@ -1895,56 +1902,58 @@ public class StorageGroupProcessor {
     }
   }
 
-  private boolean canSkipDelete(
+  private boolean canSkipDelete(    //判断该顺序（乱序）TsFile里的待删除设备，他们是否可以跳过删除操作（若有任一设备下的数据待删除则不能跳过）
       TsFileResource tsFileResource,
       Set<PartialPath> devicePaths,
       long deleteStart,
       long deleteEnd) {
-    for (PartialPath device : devicePaths) {
+    for (PartialPath device : devicePaths) {//遍历设备路径对象
       String deviceId = device.getFullPath();
-      long endTime = tsFileResource.getEndTime(deviceId);
-      if (endTime == Long.MIN_VALUE) {
+      long endTime = tsFileResource.getEndTime(deviceId); //获取该TsFile里该设备的数据的最大时间戳。
+      if (endTime == Long.MIN_VALUE) {  //如果最大时间戳=最小整数，说明该TSFile文件还未被写入数据，说明数据还有可能存在于内存workMemTable中，因此需要被删除，返回false
         return false;
       }
 
-      if (tsFileResource.isDeviceIdExist(deviceId)
+      if (tsFileResource.isDeviceIdExist(deviceId)  //若此TsFile文件里有包含此设备的数据  并且  该设备数据的时间范围与待删除的时间范围存在重叠区域  则返回false
           && (deleteEnd >= tsFileResource.getStartTime(deviceId) && deleteStart <= endTime)) {
         return false;
       }
     }
-    return true;
+    return true;  //若此TsFile不存在所有给定设备的数据 或者 若此TsFile的所有给定设备的数据范围都不在待删除的时间范围内 则返回真
   }
 
-  private void deleteDataInFiles(
-      Collection<TsFileResource> tsFileResourceList,
-      Deletion deletion,
-      Set<PartialPath> devicePaths,
+  private void deleteDataInFiles(    //对该存储组下的所有顺序（乱序）TsFile中存在待删除的设备的在待删除时间范围内的数据进行删除操作，1. 首先往本地对应的.mods文件记录此删除操作  2. 若某TsFile的内存workMemTable中存在数据，则根据该workMemTable是未flush还是正在flushing进行相关的删除操作
+      Collection<TsFileResource> tsFileResourceList,   //该存储组下的所有顺序的（不顺序的）TsFile的TsFileResource类对象
+      Deletion deletion,          //删除操作类对象
+      Set<PartialPath> devicePaths,   //待删除路径中包含的所有设备路径对象
       List<ModificationFile> updatedModFiles,
       long planIndex)
       throws IOException {
-    for (TsFileResource tsFileResource : tsFileResourceList) {
-      if (canSkipDelete(
-          tsFileResource, devicePaths, deletion.getStartTime(), deletion.getEndTime())) {
+    for (TsFileResource tsFileResource : tsFileResourceList) {//循环遍历每个TsFileResource
+      if (canSkipDelete(  //判断当前TSFile下给定的所有设备中是否存在待删除的数据，若存在则不能跳过删除操作
+          tsFileResource, devicePaths, deletion.getStartTime(), deletion.getEndTime())) { //如果当前TsFile能跳过删除操作则跳到下个TsFile
         continue;
       }
-
-      deletion.setFileOffset(tsFileResource.getTsFileSize());
+      //若当前TSFile的给定设备中存在待删除的数据，则进行下面的操作：
+        //1. 往本地对应的.mods文件记录此删除操作
+      deletion.setFileOffset(tsFileResource.getTsFileSize());//(1) 设置删除操作里生效位置为当前TsFile的文件大小
       // write deletion into modification file
-      tsFileResource.getModFile().write(deletion);
+      tsFileResource.getModFile().write(deletion);  //(2) 往当前TsFile对应的本地.mods文件写入此次删除操作的记录，并往mods文件类ModificationFile对象里写入此次删除操作的相关信息
       // remember to close mod file
-      tsFileResource.getModFile().close();
+      tsFileResource.getModFile().close();  //(3) 关闭此TsFile的修改文件类对象，首先会把writer资源释放，并且把此mods文件类对象的修改操作列表清空
       logger.info(
           "[Deletion] Deletion with path:{}, time:{}-{} written into mods file.",
           deletion.getPath(),
           deletion.getStartTime(),
           deletion.getEndTime());
 
-      tsFileResource.updatePlanIndexes(planIndex);
+      tsFileResource.updatePlanIndexes(planIndex);//更新TsFileResource文件里的planIndex字段
 
       // delete data in memory of unsealed file
-      if (!tsFileResource.isClosed()) {
-        TsFileProcessor tsfileProcessor = tsFileResource.getUnsealedFileProcessor();
-        tsfileProcessor.deleteDataInMemory(deletion, devicePaths);
+        //2. 若此TsFile的内存workMemTable中存在数据，则根据该workMemTable是未flush还是正在flushing进行相关的删除操作
+      if (!tsFileResource.isClosed()) { //若当前TsFile是未封口、未关闭的，说明可能还存在那些存放于内存memtable的数据
+        TsFileProcessor tsfileProcessor = tsFileResource.getUnsealedFileProcessor();  //获取该未封口TsFile文件的TsFileProcessor
+        tsfileProcessor.deleteDataInMemory(deletion, devicePaths);//根据指定的设备路径和删除操作信息(时间范围等)，删除那些还在内存中的数据（包含存在各个传感器里未被flush的memtable的数据和正在被进行flush的memtable的数据）
       }
 
       // add a record in case of rollback
@@ -1952,23 +1961,23 @@ public class StorageGroupProcessor {
     }
   }
 
-  private void tryToDeleteLastCache(
-      PartialPath deviceId, PartialPath originalPath, long startTime, long endTime)
+  private void tryToDeleteLastCache(  //在删除操作时，根据给定的设备判断其下的每个传感器节点是否需要重置清空上个最大时间戳数据点缓存（若该缓存在此删除操作的时间范围里，则清空）
+      PartialPath deviceId, PartialPath originalPath, long startTime, long endTime)//originalPath是只确定了存储组的时间序列路径（设备可能不确定）
       throws WriteProcessException {
-    if (!IoTDBDescriptor.getInstance().getConfig().isLastCacheEnabled()) {
+    if (!IoTDBDescriptor.getInstance().getConfig().isLastCacheEnabled()) {  //如果系统没开启允许缓存上个数据点，则返回
       return;
     }
     try {
-      IMNode node = IoTDB.metaManager.getDeviceNode(deviceId);
+      IMNode node = IoTDB.metaManager.getDeviceNode(deviceId);  //根据设备路径对象获取对应的设备节点对象
 
-      for (IMNode measurementNode : node.getChildren().values()) {
+      for (IMNode measurementNode : node.getChildren().values()) {  //依次遍历该设备下的所有传感器节点对象
         if (measurementNode != null
-            && originalPath.matchFullPath(measurementNode.getPartialPath())) {
-          TimeValuePair lastPair = ((IMeasurementMNode) measurementNode).getCachedLast();
-          if (lastPair != null
+            && originalPath.matchFullPath(measurementNode.getPartialPath())) {//若传感器节点对象不为空且该具体的传感器路径与只确定了存储组的通配originalPath路径匹配，则
+          TimeValuePair lastPair = ((IMeasurementMNode) measurementNode).getCachedLast();//获取该传感器节点对象缓存的上个最大时间戳的数据点
+          if (lastPair != null        //若上个缓存数据点不为空，并且其时间戳在这次待删除的时间范围内
               && startTime <= lastPair.getTimestamp()
               && lastPair.getTimestamp() <= endTime) {
-            ((IMeasurementMNode) measurementNode).resetCache();
+            ((IMeasurementMNode) measurementNode).resetCache();//把该传感器节点对象的上个数据点缓存清空
             logger.info(
                 "[tryToDeleteLastCache] Last cache for path: {} is set to null",
                 measurementNode.getFullPath());
@@ -1984,10 +1993,10 @@ public class StorageGroupProcessor {
    * when close an TsFileProcessor, update its EndTimeMap immediately
    *
    * @param tsFileProcessor processor to be closed
-   */
-  private void updateEndTimeMap(TsFileProcessor tsFileProcessor) {
-    TsFileResource resource = tsFileProcessor.getTsFileResource();
-    for (String deviceId : resource.getDevices()) {
+   */                                                         //由于每个时区有自己的TsFile，每个TsFile文件对应有自己的TsFileProcessor和TsFileResource，TsFileResource记录了该文件里不同设备写入数据的时间戳范围，因此
+  private void updateEndTimeMap(TsFileProcessor tsFileProcessor) {  //对于要被关闭的TsFileProcessor，要即时更新它的TsFileResource对象里记录的每个设备的最后写入时间戳。
+    TsFileResource resource = tsFileProcessor.getTsFileResource();  //获取TsFileProcessor对应的TsFileResource
+    for (String deviceId : resource.getDevices()) { //更新每个设备的最后写入的数据时间戳
       resource.updateEndTime(
           deviceId, latestTimeForEachDevice.get(tsFileProcessor.getTimeRangeId()).get(deviceId));
     }
@@ -2064,7 +2073,7 @@ public class StorageGroupProcessor {
   }
 
   /** used for upgrading */
-  public void updateNewlyFlushedPartitionLatestFlushedTimeForEachDevice(
+  public void updateNewlyFlushedPartitionLatestFlushedTimeForEachDevice(//在文件升级成功后，调用此方法来记录每一个新TsFile文件所属时间分区的每个设备的最大时间戳，用于最终更新partitionLatestFlushedTimeForEachDevice
       long partitionId, String deviceId, long time) {
     newlyFlushedPartitionLatestFlushedTimeForEachDevice
         .computeIfAbsent(partitionId, id -> new HashMap<>())
@@ -2143,41 +2152,41 @@ public class StorageGroupProcessor {
    *
    * @return total num of the tsfiles which need to be upgraded in the storage group
    */
-  public int countUpgradeFiles() {
-    return upgradeFileCount.get();
+  public int countUpgradeFiles() {//计算该存储下的该虚拟存储组下对应的待升级的TSFile文件数量
+    return upgradeFileCount.get();//返回待升级的TSFile文件数量
   }
 
   /** upgrade all files belongs to this storage group */
-  public void upgrade() {
-    for (TsFileResource seqTsFileResource : upgradeSeqFileList) {
-      seqTsFileResource.setSeq(true);
-      seqTsFileResource.setUpgradeTsFileResourceCallBack(this::upgradeTsFileResourceCallBack);
-      seqTsFileResource.doUpgrade();
+  public void upgrade() {//使用该存储组下的该虚拟存储组的StorageGroupProcessor对象进行升级文件
+    for (TsFileResource seqTsFileResource : upgradeSeqFileList) { //遍历待升级的顺序TSFile文件的TsFileResource对象
+      seqTsFileResource.setSeq(true);//设置为顺序
+      seqTsFileResource.setUpgradeTsFileResourceCallBack(this::upgradeTsFileResourceCallBack);//升级完该TsFileResource文件后进行回调的函数
+      seqTsFileResource.doUpgrade();  //进行升级该TSFileResource
     }
-    for (TsFileResource unseqTsFileResource : upgradeUnseqFileList) {
+    for (TsFileResource unseqTsFileResource : upgradeUnseqFileList) {//遍历待升级的乱序TSFile文件的TsFileResource对象
       unseqTsFileResource.setSeq(false);
       unseqTsFileResource.setUpgradeTsFileResourceCallBack(this::upgradeTsFileResourceCallBack);
       unseqTsFileResource.doUpgrade();
     }
   }
 
-  private void upgradeTsFileResourceCallBack(TsFileResource tsFileResource) {
-    List<TsFileResource> upgradedResources = tsFileResource.getUpgradedResources();
-    for (TsFileResource resource : upgradedResources) {
-      long partitionId = resource.getTimePartition();
+  private void upgradeTsFileResourceCallBack(TsFileResource tsFileResource) {//升级完指定的TSFile文件的TsFileResource文件后进行回调的函数，此参数是旧的TsFile文件对应的TsFileResource
+    List<TsFileResource> upgradedResources = tsFileResource.getUpgradedResources(); //获取所有升级完后生成的新TsFile对应的TsFileResource
+    for (TsFileResource resource : upgradedResources) { //遍历每个新TsFile对应的TsFileResource
+      long partitionId = resource.getTimePartition(); //获取该新TsFile所属时间分区
       resource
           .getDevices()
           .forEach(
               device ->
                   updateNewlyFlushedPartitionLatestFlushedTimeForEachDevice(
-                      partitionId, device, resource.getEndTime(device)));
+                      partitionId, device, resource.getEndTime(device)));   //在文件升级成功后，记录每一个新TsFile文件所属时间分区的每个设备的最大时间戳，用于最终更新partitionLatestFlushedTimeForEachDevice
     }
-    upgradeFileCount.getAndAdd(-1);
+    upgradeFileCount.getAndAdd(-1); //将待升级的旧的TsFile文件数量减1
     // load all upgraded resources in this sg to tsFileManagement
-    if (upgradeFileCount.get() == 0) {
+    if (upgradeFileCount.get() == 0) {    //如果该虚拟存储组下所有的旧TsFile都已经升级完毕了，则
       writeLock("upgradeTsFileResourceCallBack");
       try {
-        loadUpgradedResources(upgradeSeqFileList, true);
+        loadUpgradedResources(upgradeSeqFileList, true);//遍历每个旧TsFileResource，对每个旧TsFile文件升级后生成的每个新TsFile的TsFileResouce做如下操作：（1）创建本地虚拟存储组目录下对应的时间分区目录，并将该新TsFile和对应新.mods文件移动到此时间分区目录下（2）将本地新的.mods文件和新TsFile文件反序列化到该TsFileResource对象的属性里，然后关闭该新TsFileResource，并把它的内容序列化写到本地的.resource文件里。  然后删除本地该旧的TsFile文件和对应的旧.resource和.mods文件。最后往升级日志里写入该旧TsFile对应的升级状态为3，代表升级操作全部结束！
         loadUpgradedResources(upgradeUnseqFileList, false);
       } finally {
         writeUnlock();
@@ -2186,12 +2195,12 @@ public class StorageGroupProcessor {
       for (Entry<Long, Map<String, Long>> entry :
           newlyFlushedPartitionLatestFlushedTimeForEachDevice.entrySet()) {
         long timePartitionId = entry.getKey();
-        Map<String, Long> latestFlushTimeForPartition =
+        Map<String, Long> latestFlushTimeForPartition =//获取原来的该时间分区下每个设备的最大时间戳
             partitionLatestFlushedTimeForEachDevice.getOrDefault(timePartitionId, new HashMap<>());
-        for (Entry<String, Long> endTimeMap : entry.getValue().entrySet()) {
+        for (Entry<String, Long> endTimeMap : entry.getValue().entrySet()) {  //获取更新过程中所记录的该时间分区下每个设备的最大时间戳
           String device = endTimeMap.getKey();
           long endTime = endTimeMap.getValue();
-          if (latestFlushTimeForPartition.getOrDefault(device, Long.MIN_VALUE) < endTime) {
+          if (latestFlushTimeForPartition.getOrDefault(device, Long.MIN_VALUE) < endTime) { //若更新过程中记录的该时间分区下此设备的最大时间戳大于原先记录的该时间分区的该设备的最大时间戳，则更新原先记录的该时间分区的该设备的最大时间戳
             partitionLatestFlushedTimeForEachDevice
                 .computeIfAbsent(timePartitionId, id -> new HashMap<>())
                 .put(device, endTime);
@@ -2201,22 +2210,22 @@ public class StorageGroupProcessor {
     }
   }
 
-  private void loadUpgradedResources(List<TsFileResource> resources, boolean isseq) {
+  private void loadUpgradedResources(List<TsFileResource> resources, boolean isseq) {//参数是该虚拟存储组目录下旧的顺序or乱序TsFile对应的TsFileResource列表。遍历每个旧TsFileResource，对每个旧TsFile文件升级后生成的每个新TsFile的TsFileResouce做如下操作：（1）创建本地虚拟存储组目录下对应的时间分区目录，并将该新TsFile和对应新.mods文件移动到此时间分区目录下（2）将本地新的.mods文件和新TsFile文件反序列化到该TsFileResource对象的属性里，然后关闭该新TsFileResource，并把它的内容序列化写到本地的.resource文件里。  然后删除本地该旧的TsFile文件和对应的旧.resource和.mods文件。最后往升级日志里写入该旧TsFile对应的升级状态为3，代表升级操作全部结束！
     if (resources.isEmpty()) {
       return;
     }
-    for (TsFileResource resource : resources) {
+    for (TsFileResource resource : resources) {//遍历每个旧的TsFile对应的TsFileResource
       resource.writeLock();
       try {
-        UpgradeUtils.moveUpgradedFiles(resource);
-        tsFileManagement.addAll(resource.getUpgradedResources(), isseq);
+        UpgradeUtils.moveUpgradedFiles(resource);//参数是旧TsFile的TsFileResource，遍历该旧TsFile文件升级后生成的每个新TsFile的TsFileResouce：（1）创建本地虚拟存储组目录下对应的时间分区目录，并将该新TsFile和对应新.mods文件移动到此时间分区目录下（2）将本地新的.mods文件和新TsFile文件反序列化到该TsFileResource对象的属性里，然后关闭该新TsFileResource，并把它的内容序列化写到本地的.resource文件里
+        tsFileManagement.addAll(resource.getUpgradedResources(), isseq);//往TsFile文件管理器增加这些升级后生成的新TsFile对应的TsFileResource
         // delete old TsFile and resource
-        resource.delete();
-        Files.deleteIfExists(
+        resource.delete();//删除本地该旧的TsFile文件和对应的旧.resource文件
+        Files.deleteIfExists( //删除对应的旧.mods文件
             fsFactory
                 .getFile(resource.getTsFile().toPath() + ModificationFile.FILE_SUFFIX)
                 .toPath());
-        UpgradeLog.writeUpgradeLogFile(
+        UpgradeLog.writeUpgradeLogFile(       //往升级日志里写入该旧TsFile对应的升级状态为3，代表升级操作全部结束！
             resource.getTsFile().getAbsolutePath() + "," + UpgradeCheckStatus.UPGRADE_SUCCESS);
       } catch (IOException e) {
         logger.error("Unable to load {}, caused by ", resource, e);
@@ -2919,7 +2928,7 @@ public class StorageGroupProcessor {
 
   public void setDataTTL(long dataTTL) {
     this.dataTTL = dataTTL;
-    checkFilesTTL();
+    checkFilesTTL(); //检查该虚拟存储组下所有顺序和乱序的TsFile的数据是否超过TTL,若有则删除本地相关的文件(TsFile和mods文件和resource文件)
   }
 
   public List<TsFileResource> getSequenceFileTreeSet() {
@@ -3145,7 +3154,7 @@ public class StorageGroupProcessor {
   }
 
   @FunctionalInterface
-  public interface UpgradeTsFileResourceCallBack {
+  public interface UpgradeTsFileResourceCallBack {//升级完指定的TSFile文件的TsFileResource文件后进行回调的函数对象
 
     void call(TsFileResource caller);
   }

@@ -109,7 +109,7 @@ public class IoTDBConfig {
   private int rpcMaxConcurrentClientNum = 65535;
 
   /** Memory allocated for the write process */
-  private long allocateMemoryForWrite = Runtime.getRuntime().maxMemory() * 4 / 10;
+  private long allocateMemoryForWrite = Runtime.getRuntime().maxMemory() * 4 / 10;  //系统分配给写入操作、进行可使用的内存大小
 
   /** Memory allocated for the read process */
   private long allocateMemoryForRead = Runtime.getRuntime().maxMemory() * 3 / 10;
@@ -634,7 +634,7 @@ public class IoTDBConfig {
   private long defaultTTL = Long.MAX_VALUE;
 
   /** The default value of primitive array size in array pool */
-  private int primitiveArraySize = 32;
+  private int primitiveArraySize = 32;  //IOTDB项目里设定的数组默认元素数量是32
 
   /** whether enable data partition. If disabled, all data belongs to partition 0 */
   private boolean enablePartition = false;

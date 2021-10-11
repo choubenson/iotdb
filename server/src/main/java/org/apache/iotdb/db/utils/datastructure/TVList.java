@@ -35,21 +35,21 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.apache.iotdb.db.rescon.PrimitiveArrayManager.ARRAY_SIZE;
-
-public abstract class TVList {
+                  //每个传感器Chunk都有一个自己数据类型的TVList，来存放数据点。
+public abstract class TVList { //TVList类是Time-Value List，相当于一个List，存放着timestamps和value，它们分别是两个存放了对应数据数组的列表，当然还存了其他相关属性。
 
   protected static final int SMALL_ARRAY_LENGTH = 32;
   protected static final String ERR_DATATYPE_NOT_CONSISTENT = "DataType not consistent";
-  protected List<long[]> timestamps;
-  protected int size;
+  protected List<long[]> timestamps;  //存放了一个个long型数组的列表
+  protected int size;   //此TVList里数据点的数量
 
   protected long[][] sortedTimestamps;
   protected boolean sorted = true;
   // record reference count of this tv list
   // currently this reference will only be increase because we can't know when to decrease it
-  protected AtomicInteger referenceCount;
+  protected AtomicInteger referenceCount; //用于记录某Chunk对应的WritableMemChunk的此TVList被调用了几次，当对此TsFile的此Chunk进行查询操作的时候就会调用到此TVList，就会把它+1
   protected long pivotTime;
-  protected long minTime;
+  protected long minTime;   //存放当前TVList里所有数据点中最小的时间戳
 
   private long version;
 
@@ -84,12 +84,12 @@ public abstract class TVList {
     return new VectorTVList(datatypes);
   }
 
-  public static long tvListArrayMemSize(TSDataType type) {
+  public static long tvListArrayMemSize(TSDataType type) {  //计算此TVList的数组在内存中占用的大小，包括时间字段+值字段的占用大小和
     long size = 0;
     // time size
-    size += (long) PrimitiveArrayManager.ARRAY_SIZE * 8L;
+    size += (long) PrimitiveArrayManager.ARRAY_SIZE * 8L; //该TVList的时间数组占用的大小是"数组元素个数*Long类型大小8byte"
     // value size
-    size += (long) PrimitiveArrayManager.ARRAY_SIZE * (long) type.getDataTypeSize();
+    size += (long) PrimitiveArrayManager.ARRAY_SIZE * (long) type.getDataTypeSize(); //该TVList的数值数组占用的大小是"数组元素个数*数值类型TsDataType大小"
     return size;
   }
 
@@ -128,7 +128,7 @@ public abstract class TVList {
     return size;
   }
 
-  public long getTime(int index) {
+  public long getTime(int index) {    //根据数据索引获取该TVList里对应数据的时间戳
     if (index >= size) {
       throw new ArrayIndexOutOfBoundsException(index);
     }
@@ -239,7 +239,7 @@ public abstract class TVList {
     return version;
   }
 
-  protected abstract void set(int src, int dest);
+  protected abstract void set(int src, int dest);//该方法用来重置此TVList，把原先TVList中第src个元素的时间戳和数值放到此TVList第dest个位置
 
   protected abstract void setFromSorted(int src, int dest);
 
@@ -259,30 +259,32 @@ public abstract class TVList {
 
   protected abstract void releaseLastValueArray();
 
-  protected void releaseLastTimeArray() {
-    PrimitiveArrayManager.release(timestamps.remove(timestamps.size() - 1));
+  protected void releaseLastTimeArray() { //释放该TVList的最后一个时间数组
+    PrimitiveArrayManager.release(timestamps.remove(timestamps.size() - 1));//首先从该TVList的时间数组列表中移除最后一个时间数组，并把它还给系统，系统会把其整理清空后继续添加进系统的可用数组列表中
   }
 
-  public int delete(long lowerBound, long upperBound) {
-    int newSize = 0;
-    minTime = Long.MAX_VALUE;
-    for (int i = 0; i < size; i++) {
-      long time = getTime(i);
-      if (time < lowerBound || time > upperBound) {
-        set(i, newSize++);
-        minTime = Math.min(time, minTime);
+  public int delete(long lowerBound, long upperBound) {//根据给出的时间范围，删除该TVList里对应时间范围里的数据，返回被删除的数据点个数
+    //下面这种方法是：比如原先时间和数值分别有7个数组，删除后剩5个数组，若每个数组可装10个数据点，删除后剩43个数据点，则第5个数组还存在之前未被删掉的7个脏数据点他们是不会被删掉的，而第6、7个数组则会被移除清空返回给系统。虽然第5个数组里有脏数据，但这美关系，后面若还要存进来则直接覆盖就可以了。
+    int newSize = 0;  //记录该TVList共有几个数据点不在待删除的时间范围内，可以理解为此次删除操作后此TVList新的数据点个数
+    minTime = Long.MAX_VALUE; //存放当前TVList所有数据点中最小的时间戳
+    for (int i = 0; i < size; i++) {  //循环遍历当前TVList的元素
+      long time = getTime(i); //获取当前元素时间戳
+      if (time < lowerBound || time > upperBound) { //若当前数据的时间戳不在待删除的时间范围内
+        set(i, newSize++);    //该方法用来重置此TVList，把原先TVList中第i个元素的时间戳和数值放到此TVList第newSize个位置//其实就是把TVList中那些未被删除的数据点依次进行往前挪动，按照原来的顺序放到TVList对应时间数组列表和值数组列表的前面
+        minTime = Math.min(time, minTime);  //记录当前TVList最小时间戳
       }
     }
-    int deletedNumber = size - newSize;
-    size = newSize;
-    // release primitive arrays that are empty
-    int newArrayNum = newSize / ARRAY_SIZE;
-    if (newSize % ARRAY_SIZE != 0) {
+    int deletedNumber = size - newSize;//被删除数据的元素个数=原先TVList数据点个数-未被删除数据点个数
+    size = newSize;//更新此TVList数据点的个数
+    // release primitive arrays that are empty  释放删除操作后TVList中那些空的数组
+    //计算新的数组个数
+    int newArrayNum = newSize / ARRAY_SIZE; //计算新的数组个数
+    if (newSize % ARRAY_SIZE != 0) {  //若数据点没有正好放满数组，则数组个数要+1
       newArrayNum++;
     }
-    for (int releaseIdx = newArrayNum; releaseIdx < timestamps.size(); releaseIdx++) {
-      releaseLastTimeArray();
-      releaseLastValueArray();
+    for (int releaseIdx = newArrayNum; releaseIdx < timestamps.size(); releaseIdx++) {  //从废弃数组开始，依次遍历TVList中剩余的数组进行释放空间。（如原先有7个数组，删除后剩5个，则最后两个是废弃数组，索引从5开始）//此处采用从最后一个数组开始清空
+      releaseLastTimeArray(); //释放该TVList的最后一个时间数组
+      releaseLastValueArray();  //释放该TVList的最后一个数值数组
     }
     if (getDataType() == TSDataType.VECTOR) {
       return deletedNumber * ((VectorTVList) this).getTsDataTypes().size();
@@ -338,14 +340,14 @@ public abstract class TVList {
    */
   abstract void clearSortedValue();
 
-  protected void checkExpansion() {
-    if ((size % ARRAY_SIZE) == 0) {
-      expandValues();
-      timestamps.add((long[]) getPrimitiveArraysByType(TSDataType.INT64));
+  protected void checkExpansion() {   //判断该TVList的values和timestamps列表是否需要扩容，每次扩容都是分别新增一个ARRAY_SIZE数量的数组，放入values列表和timestamps列表中
+    if ((size % ARRAY_SIZE) == 0) {   //如果此TVList数据点的数量到达了系统设置的数组大小的整数倍
+      expandValues(); //进行values列表扩容，每次扩容都是新增一个ARRAY_SIZE数量的数组，放入values列表中
+      timestamps.add((long[]) getPrimitiveArraysByType(TSDataType.INT64));  //对timestamps列表也要进行扩容
     }
   }
 
-  protected Object getPrimitiveArraysByType(TSDataType dataType) {
+  protected Object getPrimitiveArraysByType(TSDataType dataType) {  //根据数据类型获取数组(就是普通的数据类型数组)
     return PrimitiveArrayManager.allocate(dataType);
   }
 
