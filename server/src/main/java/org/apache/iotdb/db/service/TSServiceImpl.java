@@ -949,7 +949,9 @@ public class TSServiceImpl implements TSIService.Iface {
       case FILL:
         for (int i = 0; i < resultColumns.size(); ++i) { // 依次遍历结果列对象
           if (isJdbcQuery) {
-            String sgName = respSgColumns.add(sgName); // 或许此次查询的此结果列对应的存储组
+            String sgName =
+                IoTDB.metaManager.getBelongedStorageGroup(plan.getPaths().get(i)).getFullPath();
+            respSgColumns.add(sgName); // 或许此次查询的此结果列对应的存储组
             if (resultColumns.get(i).getAlias() == null) { // 若别名为空
               IoTDB.metaManager.getBelongedStorageGroup(plan.getPaths().get(i)).getFullPath();
               respColumns.add(

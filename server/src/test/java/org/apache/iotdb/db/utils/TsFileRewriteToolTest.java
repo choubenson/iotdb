@@ -198,11 +198,6 @@ public class TsFileRewriteToolTest {
     }
   }
 
-<<<<<<< HEAD
-  @Test
-  public void rewriteOneTsFileTest(){
-
-=======
   private void createFile(
       List<TsFileResource> resourcesToBeSettled,
       HashMap<String, List<String>> deviceSensorsMap,
@@ -234,7 +229,6 @@ public class TsFileRewriteToolTest {
     } catch (IllegalPathException | IOException e) {
       Assert.fail(e.getMessage());
     }
->>>>>>> 40397fd7aed05906121c1bd735014d0e2e2fe981
   }
 
   private void splitFileAndQueryCheck(HashMap<String, List<String>> deviceSensorsMap) {
