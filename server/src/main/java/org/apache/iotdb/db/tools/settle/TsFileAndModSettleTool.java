@@ -19,17 +19,7 @@
 
 package org.apache.iotdb.db.tools.settle;
 
-import org.apache.iotdb.db.engine.settle.SettleLog;
-import org.apache.iotdb.db.engine.settle.SettleLog.SettleCheckStatus;
-import org.apache.iotdb.db.engine.storagegroup.TsFileResource;
-import org.apache.iotdb.db.exception.metadata.IllegalPathException;
-import org.apache.iotdb.db.tools.TsFileRewriteTool;
-import org.apache.iotdb.tsfile.exception.write.WriteProcessException;
-import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
-import org.apache.iotdb.tsfile.fileSystem.fsFactory.FSFactory;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.apache.iotdb.tsfile.common.constant.TsFileConstant.TSFILE_SUFFIX;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -41,8 +31,16 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.apache.iotdb.tsfile.common.constant.TsFileConstant.TSFILE_SUFFIX;
+import org.apache.iotdb.db.engine.settle.SettleLog;
+import org.apache.iotdb.db.engine.settle.SettleLog.SettleCheckStatus;
+import org.apache.iotdb.db.engine.storagegroup.TsFileResource;
+import org.apache.iotdb.db.exception.metadata.IllegalPathException;
+import org.apache.iotdb.db.tools.TsFileRewriteTool;
+import org.apache.iotdb.tsfile.exception.write.WriteProcessException;
+import org.apache.iotdb.tsfile.fileSystem.FSFactoryProducer;
+import org.apache.iotdb.tsfile.fileSystem.fsFactory.FSFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Offline Settle tool, which is used to settle TsFile and its corresponding mods file to a new
@@ -89,7 +87,6 @@ public class TsFileAndModSettleTool {
   }
 
   public static List<File> checkArgs(String[] args) {
-    String filePath = "test.tsfile";
     List<File> files = new ArrayList<>();
     if (args.length == 0) {
       return null;

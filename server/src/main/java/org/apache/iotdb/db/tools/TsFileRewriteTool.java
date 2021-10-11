@@ -19,6 +19,16 @@
 
 package org.apache.iotdb.db.tools;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import org.apache.iotdb.db.engine.StorageEngine;
 import org.apache.iotdb.db.engine.modification.Deletion;
 import org.apache.iotdb.db.engine.modification.Modification;
@@ -51,20 +61,8 @@ import org.apache.iotdb.tsfile.write.chunk.ChunkWriterImpl;
 import org.apache.iotdb.tsfile.write.chunk.IChunkWriter;
 import org.apache.iotdb.tsfile.write.schema.UnaryMeasurementSchema;
 import org.apache.iotdb.tsfile.write.writer.TsFileIOWriter;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 
 public class TsFileRewriteTool implements AutoCloseable {
 
@@ -173,7 +171,36 @@ public class TsFileRewriteTool implements AutoCloseable {
         switch (marker) {
           case MetaMarker.CHUNK_GROUP_HEADER:
             ChunkGroupHeader chunkGroupHeader = reader.readChunkGroupHeader();
+            String addContent = "";
             deviceId = chunkGroupHeader.getDeviceID();
+            switch (deviceId) {
+              case "root.test.trans.02.9000861394053543802.":
+                addContent = "9000861394053543802";
+                break;
+              case "root.test.trans.31.9000862649047362281.":
+                addContent = "9000862649047362281";
+                break;
+              case "root.test.trans.46.9000862649047363396.":
+                addContent = "9000862649047363396";
+                break;
+              case "root.test.trans.15.9000862649047361465.":
+                addContent = "9000862649047361465";
+                break;
+              case "root.test.trans.36.9000866323035976686.":
+                addContent = "9000866323035976686";
+                break;
+              case "root.test.trans.48.9000862649047361598.":
+                addContent = "9000862649047361598";
+                break;
+              case "root.cty.trans.03.1001201953.":
+                addContent = "88001445574";
+                break;
+              case "root.cty.trans.29.1001148629.":
+                addContent = "88001418005";
+                break;
+            }
+            deviceId = deviceId + addContent;
+
             firstChunkInChunkGroup = true;
             endChunkGroup();
             break;
