@@ -27,7 +27,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
 
-public interface TsFileInput {  //读取一个TsFile需要对应一个TsFileInput类
+public interface TsFileInput { // 读取一个TsFile需要对应一个TsFileInput类
 
   /**
    * Returns the current size of this input.

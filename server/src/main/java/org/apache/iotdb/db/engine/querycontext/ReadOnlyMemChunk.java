@@ -46,7 +46,8 @@ import java.util.Map;
  * ReadOnlyMemChunk is a snapshot of the working MemTable and flushing memtable in the memory used
  * for querying
  */
-public class ReadOnlyMemChunk { //只读的内存Chunk类，该类是那些在内存中（还未被flush或正在flush）的Chunk的快照，主要用于查询操作中，需要创建它们的快照。在查询操作中，每个在内存中的Chunk对应一个快照，即对应一个各自的ReadOnlyMemChunk类对象
+public
+class ReadOnlyMemChunk { // 只读的内存Chunk类，该类是那些在内存中（还未被flush或正在flush）的Chunk的快照，主要用于查询操作中，需要创建它们的快照。在查询操作中，每个在内存中的Chunk对应一个快照，即对应一个各自的ReadOnlyMemChunk类对象
 
   // deletion list for this chunk
   private final List<TimeRange> deletionList;
@@ -173,13 +174,14 @@ public class ReadOnlyMemChunk { //只读的内存Chunk类，该类是那些在�
     IChunkMetadata timeChunkMetadata =
         new ChunkMetadata(measurementUid, TSDataType.VECTOR, 0, timeStatistics);
     List<IChunkMetadata> valueChunkMetadataList = new ArrayList<>();
-    Statistics[] valueStatistics = new Statistics[schema.getValueTSDataTypeList().size()];
-    for (int i = 0; i < schema.getValueTSDataTypeList().size(); i++) {
-      valueStatistics[i] = Statistics.getStatsByType(schema.getValueTSDataTypeList().get(i));
+    Statistics[] valueStatistics = new Statistics[schema.getSubMeasurementsTSDataTypeList().size()];
+    for (int i = 0; i < schema.getSubMeasurementsTSDataTypeList().size(); i++) {
+      valueStatistics[i] =
+          Statistics.getStatsByType(schema.getSubMeasurementsTSDataTypeList().get(i));
       IChunkMetadata valueChunkMetadata =
           new ChunkMetadata(
-              schema.getValueMeasurementIdList().get(i),
-              schema.getValueTSDataTypeList().get(i),
+              schema.getSubMeasurementsList().get(i),
+              schema.getSubMeasurementsTSDataTypeList().get(i),
               0,
               valueStatistics[i]);
       valueChunkMetadataList.add(valueChunkMetadata);
@@ -190,7 +192,7 @@ public class ReadOnlyMemChunk { //只读的内存Chunk类，该类是那些在�
       while (iterator.hasNextTimeValuePair()) {
         TimeValuePair timeValuePair = iterator.nextTimeValuePair();
         timeStatistics.update(timeValuePair.getTimestamp());
-        if (schema.getValueTSDataTypeList().size() == 1) {
+        if (schema.getSubMeasurementsTSDataTypeList().size() == 1) {
           updateValueStatisticsForSingleColumn(schema, valueStatistics, timeValuePair);
         } else {
           updateValueStatistics(schema, valueStatistics, timeValuePair);
@@ -212,7 +214,7 @@ public class ReadOnlyMemChunk { //只读的内存Chunk类，该类是那些在�
   private void updateValueStatisticsForSingleColumn(
       IMeasurementSchema schema, Statistics[] valueStatistics, TimeValuePair timeValuePair)
       throws QueryProcessException {
-    switch (schema.getValueTSDataTypeList().get(0)) {
+    switch (schema.getSubMeasurementsTSDataTypeList().get(0)) {
       case BOOLEAN:
         valueStatistics[0].update(
             timeValuePair.getTimestamp(), timeValuePair.getValue().getBoolean());
@@ -243,11 +245,11 @@ public class ReadOnlyMemChunk { //只读的内存Chunk类，该类是那些在�
   private void updateValueStatistics(
       IMeasurementSchema schema, Statistics[] valueStatistics, TimeValuePair timeValuePair)
       throws QueryProcessException {
-    for (int i = 0; i < schema.getValueTSDataTypeList().size(); i++) {
+    for (int i = 0; i < schema.getSubMeasurementsTSDataTypeList().size(); i++) {
       if (timeValuePair.getValue().getVector()[i] == null) {
         continue;
       }
-      switch (schema.getValueTSDataTypeList().get(i)) {
+      switch (schema.getSubMeasurementsTSDataTypeList().get(i)) {
         case BOOLEAN:
           valueStatistics[i].update(
               timeValuePair.getTimestamp(), timeValuePair.getValue().getVector()[i].getBoolean());

@@ -27,7 +27,7 @@ import org.apache.iotdb.db.engine.flush.pool.AbstractPoolManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class QueryTaskPoolManager extends AbstractPoolManager { //服务线程任务管理器
+public class QueryTaskPoolManager extends AbstractPoolManager { // 服务线程任务管理器
 
   private static final Logger LOGGER = LoggerFactory.getLogger(QueryTaskPoolManager.class);
 

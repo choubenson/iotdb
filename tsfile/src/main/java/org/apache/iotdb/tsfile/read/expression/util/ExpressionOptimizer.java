@@ -49,16 +49,19 @@ public class ExpressionOptimizer {
    *     SingleSeriesExpression
    */
   public IExpression optimize(IExpression expression, List<Path> selectedSeries)
-      throws QueryFilterOptimizationException { //对表达式进行优化：若是一元表达式（GlobalTimeExpression和SingleSeriesExpression）则不优化，若是二元表达式（AndExpression等等），则进行相关合并等优化操作
-    if (expression instanceof IUnaryExpression) {//如果该表达式是一元表达式（GlobalTimeExpression和SingleSeriesExpression），则直接返回，不优化。
+      throws
+          QueryFilterOptimizationException { // 对表达式进行优化：若是一元表达式（GlobalTimeExpression和SingleSeriesExpression）则不优化，若是二元表达式（AndExpression等等），则进行相关合并等优化操作
+    if (expression
+        instanceof
+        IUnaryExpression) { // 如果该表达式是一元表达式（GlobalTimeExpression和SingleSeriesExpression），则直接返回，不优化。
       return expression;
-    } else if (expression instanceof IBinaryExpression) { //如果是二元表达式（AndExpression等等），则
-      ExpressionType relation = expression.getType(); //获取该二元表达式的类型
-      IExpression left = ((IBinaryExpression) expression).getLeft();  //获取左表达式
-      IExpression right = ((IBinaryExpression) expression).getRight();  //获取右表达式
-      if (left.getType() == ExpressionType.GLOBAL_TIME  //若左右表达式类型都为GLOBAL_TIME，则
+    } else if (expression instanceof IBinaryExpression) { // 如果是二元表达式（AndExpression等等），则
+      ExpressionType relation = expression.getType(); // 获取该二元表达式的类型
+      IExpression left = ((IBinaryExpression) expression).getLeft(); // 获取左表达式
+      IExpression right = ((IBinaryExpression) expression).getRight(); // 获取右表达式
+      if (left.getType() == ExpressionType.GLOBAL_TIME // 若左右表达式类型都为GLOBAL_TIME，则
           && right.getType() == ExpressionType.GLOBAL_TIME) {
-        return combineTwoGlobalTimeFilter( //根据type表达式类型（And或者Or）将两个子GlobalTimeExpression表达式合并成一个大的GlobalTimeExpression表达式
+        return combineTwoGlobalTimeFilter( // 根据type表达式类型（And或者Or）将两个子GlobalTimeExpression表达式合并成一个大的GlobalTimeExpression表达式
             (GlobalTimeExpression) left, (GlobalTimeExpression) right, expression.getType());
       } else if (left.getType() == ExpressionType.GLOBAL_TIME
           && right.getType() != ExpressionType.GLOBAL_TIME) {
@@ -70,21 +73,25 @@ public class ExpressionOptimizer {
             (GlobalTimeExpression) right, left, selectedSeries, relation);
       } else if (left.getType() != ExpressionType.GLOBAL_TIME
           && right.getType() != ExpressionType.GLOBAL_TIME) {
-        IExpression regularLeft = optimize(left, selectedSeries);
-        IExpression regularRight = optimize(right, selectedSeries);
-        IBinaryExpression midRet = null;
-        if (relation == ExpressionType.AND) {
-          midRet = BinaryExpression.and(regularLeft, regularRight);
-        } else if (relation == ExpressionType.OR) {
-          midRet = BinaryExpression.or(regularLeft, regularRight);
-        } else {
-          throw new UnsupportedOperationException("unsupported IExpression type: " + relation);
-        }
-        if (midRet.getLeft().getType() == ExpressionType.GLOBAL_TIME
-            || midRet.getRight().getType() == ExpressionType.GLOBAL_TIME) {
-          return optimize(midRet, selectedSeries);
-        } else {
-          return midRet;
+        try {
+          IExpression regularLeft = optimize(left, selectedSeries);
+          IExpression regularRight = optimize(right, selectedSeries);
+          IBinaryExpression midRet = null;
+          if (relation == ExpressionType.AND) {
+            midRet = BinaryExpression.and(regularLeft, regularRight);
+          } else if (relation == ExpressionType.OR) {
+            midRet = BinaryExpression.or(regularLeft, regularRight);
+          } else {
+            throw new UnsupportedOperationException("unsupported IExpression type: " + relation);
+          }
+          if (midRet.getLeft().getType() == ExpressionType.GLOBAL_TIME
+              || midRet.getRight().getType() == ExpressionType.GLOBAL_TIME) {
+            return optimize(midRet, selectedSeries);
+          } else {
+            return midRet;
+          }
+        } catch (StackOverflowError stackOverflowError) {
+          throw new QueryFilterOptimizationException("StackOverflowError is encountered.");
         }
       }
     }
@@ -218,7 +225,8 @@ public class ExpressionOptimizer {
    * input: QueryFilterAnd/OR( GlobalTimeExpression(timeFilter1), GlobalTimeExpression(timeFilter2)
    * ) output: GlobalTimeExpression( AndExpression/OR(timeFilter1, timeFilter2) )
    */
-  private GlobalTimeExpression combineTwoGlobalTimeFilter(  //根据type表达式类型（And或者Or）将两个子GlobalTimeExpression表达式合并成一个大的GlobalTimeExpression表达式
+  private GlobalTimeExpression
+      combineTwoGlobalTimeFilter( // 根据type表达式类型（And或者Or）将两个子GlobalTimeExpression表达式合并成一个大的GlobalTimeExpression表达式
       GlobalTimeExpression left, GlobalTimeExpression right, ExpressionType type) {
     if (type == ExpressionType.AND) {
       return new GlobalTimeExpression(FilterFactory.and(left.getFilter(), right.getFilter()));

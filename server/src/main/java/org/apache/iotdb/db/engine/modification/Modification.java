@@ -24,11 +24,12 @@ import org.apache.iotdb.db.metadata.PartialPath;
 import java.util.Objects;
 
 /** Modification represents an UPDATE or DELETE operation on a certain timeseries. */
-public abstract class Modification {    //修改类，该类记录了修改的具体信息（包括时间序列路径，修改的类型，修改的位置），目前只针对删除操作记录
+public abstract class Modification { // 修改类，该类记录了修改的具体信息（包括时间序列路径，修改的类型，修改的位置），目前只针对删除操作记录
 
-  protected Type type;              //目前type只有deletion
-  protected PartialPath path;       //时间序列路径对象
-  protected long fileOffset;      //生效位置，即修改操作是对该TsFile文件里fileOffset后面的数据生效，当数据在文件中的offset偏移量位置<=fileOffset,则修改操作不会对这些数据生效
+  protected Type type; // 目前type只有deletion
+  protected PartialPath path; // 时间序列路径对象
+  protected long
+      fileOffset; // 生效位置，即修改操作是对该TsFile文件里fileOffset后面的数据生效，当数据在文件中的offset偏移量位置<=fileOffset,则修改操作不会对这些数据生效
 
   Modification(Type type, PartialPath path, long fileOffset) {
     this.type = type;

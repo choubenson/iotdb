@@ -24,33 +24,37 @@ import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import org.apache.iotdb.tsfile.file.metadata.statistics.Statistics;
 import org.apache.iotdb.tsfile.read.common.TimeRange;
 import org.apache.iotdb.tsfile.read.controller.IChunkLoader;
+import org.apache.iotdb.tsfile.utils.FilePathUtils;
 import org.apache.iotdb.tsfile.utils.RamUsageEstimator;
 import org.apache.iotdb.tsfile.utils.ReadWriteIOUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 /** Metadata of one chunk. */
-public class ChunkMetadata implements Accountable, IChunkMetadata { //Chunk元数据类    //ChunkIndex类，某一时间范围内一个设备的一个传感器的数据存在对应Chunk Group的Chunk里
+public class ChunkMetadata
+    implements Accountable,
+        IChunkMetadata { // Chunk元数据类    //ChunkIndex类，某一时间范围内一个设备的一个传感器的数据存在对应Chunk Group的Chunk里
 
-  private String measurementUid;    //该Chunk所属的传感器ID
+  private String measurementUid; // 该Chunk所属的传感器ID
 
   /**
    * Byte offset of the corresponding data in the file Notice: include the chunk header and marker.
    */
-  private long offsetOfChunkHeader;   //该Chunk的ChunkHeader在TsFile文件中的偏移量
+  private long offsetOfChunkHeader; // 该Chunk的ChunkHeader在TsFile文件中的偏移量
 
-  private TSDataType tsDataType;  //该Chunk存储的数据类型
+  private TSDataType tsDataType; // 该Chunk存储的数据类型
 
   /**
    * version is used to define the order of operations(insertion, deletion, update). version is set
    * according to its belonging ChunkGroup only when being queried, so it is not persisted.
    */
-  private long version; //该属性是不持久化的，用于定义操作的顺序
+  private long version; // 该属性是不持久化的，用于定义操作的顺序
 
   /** A list of deleted intervals. */
   private List<TimeRange> deleteIntervalList;
@@ -60,13 +64,14 @@ public class ChunkMetadata implements Accountable, IChunkMetadata { //Chunk元�
   /** ChunkLoader of metadata, used to create ChunkReaderWrap */
   private IChunkLoader chunkLoader;
 
-  private Statistics statistics;
+  private Statistics<? extends Serializable> statistics;
 
   private boolean isFromOldTsFile = false;
 
   private long ramSize;
 
-  private static final int CHUNK_METADATA_FIXED_RAM_SIZE = 80;  //ChunkIndex固定的大小，应该是Statistics类对象（统计量）大小+Long类型对象（Chunk在ChunkFile的偏移量）大小
+  private static final int CHUNK_METADATA_FIXED_RAM_SIZE =
+      80; // ChunkIndex固定的大小，应该是Statistics类对象（统计量）大小+Long类型对象（Chunk在ChunkFile的偏移量）大小
 
   // used for SeriesReader to indicate whether it is a seq/unseq timeseries metadata
   private boolean isSeq = true;
@@ -74,7 +79,10 @@ public class ChunkMetadata implements Accountable, IChunkMetadata { //Chunk元�
   private String filePath;
   private byte mask;
 
-  private ChunkMetadata() {}
+  // used for ChunkCache, Eg:"root.sg1/0/0"
+  private String tsFilePrefixPath;
+
+  public ChunkMetadata() {}
 
   /**
    * constructor of ChunkMetaData.
@@ -85,7 +93,10 @@ public class ChunkMetadata implements Accountable, IChunkMetadata { //Chunk元�
    * @param statistics value statistics
    */
   public ChunkMetadata(
-      String measurementUid, TSDataType tsDataType, long fileOffset, Statistics statistics) {
+      String measurementUid,
+      TSDataType tsDataType,
+      long fileOffset,
+      Statistics<? extends Serializable> statistics) {
     this.measurementUid = measurementUid;
     this.tsDataType = tsDataType;
     this.offsetOfChunkHeader = fileOffset;
@@ -118,7 +129,7 @@ public class ChunkMetadata implements Accountable, IChunkMetadata { //Chunk元�
   }
 
   @Override
-  public Statistics getStatistics() {
+  public Statistics<? extends Serializable> getStatistics() {
     return statistics;
   }
 
@@ -193,8 +204,10 @@ public class ChunkMetadata implements Accountable, IChunkMetadata { //Chunk元�
     this.deleteIntervalList = list;
   }
 
-  //参数为该Chunk所在TsFile对应的mods文件里属于该Chunk的某一条删除记录的起使时间和结束时间（即已经检查过offset和该Chunk的起使位置，要求该Chunk的起使位置<offset），此方法用于将该删除记录有序地放入deleteIntervalList,即该列表里的每个删除时间范围是从小到大放入的，因为pageReader里的isDeleted方法在判断该数据点是否在删除范围内时必须是排好序的。
-  public void insertIntoSortedDeletions(long startTime, long endTime) { //当此Chunk里的数据存在待删除的数据点时，则...  （所谓存在就是该Chunk的起使位置小于mods里该条删除记录的offset，因为offset记录的是删除当下文件的大小，即文件最后一个已flush的Chunk末尾位置。
+  // 参数为该Chunk所在TsFile对应的mods文件里属于该Chunk的某一条删除记录的起使时间和结束时间（即已经检查过offset和该Chunk的起使位置，要求该Chunk的起使位置<offset），此方法用于将该删除记录有序地放入deleteIntervalList,即该列表里的每个删除时间范围是从小到大放入的，因为pageReader里的isDeleted方法在判断该数据点是否在删除范围内时必须是排好序的。
+  public void insertIntoSortedDeletions(
+      long startTime, long endTime) { // 当此Chunk里的数据存在待删除的数据点时，则...
+    // （所谓存在就是该Chunk的起使位置小于mods里该条删除记录的offset，因为offset记录的是删除当下文件的大小，即文件最后一个已flush的Chunk末尾位置。
     List<TimeRange> resultInterval = new ArrayList<>();
     if (deleteIntervalList != null) {
       for (TimeRange interval : deleteIntervalList) {
@@ -239,16 +252,12 @@ public class ChunkMetadata implements Accountable, IChunkMetadata { //Chunk元�
     ChunkMetadata that = (ChunkMetadata) o;
     return offsetOfChunkHeader == that.offsetOfChunkHeader
         && version == that.version
-        && Objects.equals(measurementUid, that.measurementUid)
-        && tsDataType == that.tsDataType
-        && Objects.equals(deleteIntervalList, that.deleteIntervalList)
-        && Objects.equals(statistics, that.statistics);
+        && tsFilePrefixPath.equals(that.tsFilePrefixPath);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(
-        measurementUid, deleteIntervalList, tsDataType, statistics, version, offsetOfChunkHeader);
+    return Objects.hash(tsFilePrefixPath, version, offsetOfChunkHeader);
   }
 
   @Override
@@ -275,10 +284,12 @@ public class ChunkMetadata implements Accountable, IChunkMetadata { //Chunk元�
         + statistics.calculateRamSize();
   }
 
-  public static long calculateRamSize(String measurementId, TSDataType dataType) {  //计算该传感器Chunk对应的ChunkIndex占用的内存大小（原始固定大小+传感器ID名称字符串大小+数据类型对象大小）
-    return CHUNK_METADATA_FIXED_RAM_SIZE      //ChunkIndex原先的固定初始大小，应该是Statistics类对象（统计量）大小+Long类型对象（Chunk在ChunkFile的偏移量）大小
-        + RamUsageEstimator.sizeOf(measurementId) //计算measureID这个String类型的字符串占用的大小
-        + Statistics.getSizeByType(dataType);      //该数据类型TSDataType对象占用的固定大小
+  public static long calculateRamSize(
+      String measurementId,
+      TSDataType dataType) { // 计算该传感器Chunk对应的ChunkIndex占用的内存大小（原始固定大小+传感器ID名称字符串大小+数据类型对象大小）
+    return CHUNK_METADATA_FIXED_RAM_SIZE // ChunkIndex原先的固定初始大小，应该是Statistics类对象（统计量）大小+Long类型对象（Chunk在ChunkFile的偏移量）大小
+        + RamUsageEstimator.sizeOf(measurementId) // 计算measureID这个String类型的字符串占用的大小
+        + Statistics.getSizeByType(dataType); // 该数据类型TSDataType对象占用的固定大小
   }
 
   @Override
@@ -293,7 +304,8 @@ public class ChunkMetadata implements Accountable, IChunkMetadata { //Chunk元�
   }
 
   public void mergeChunkMetadata(ChunkMetadata chunkMetadata) {
-    this.statistics.mergeStatistics(chunkMetadata.getStatistics());
+    Statistics<? extends Serializable> statistics = chunkMetadata.getStatistics();
+    this.statistics.mergeStatistics(statistics);
     this.ramSize = calculateRamSize();
   }
 
@@ -321,6 +333,9 @@ public class ChunkMetadata implements Accountable, IChunkMetadata { //Chunk元�
 
   public void setFilePath(String filePath) {
     this.filePath = filePath;
+
+    // set tsFilePrefixPath
+    tsFilePrefixPath = FilePathUtils.getTsFilePrefixPath(filePath);
   }
 
   @Override

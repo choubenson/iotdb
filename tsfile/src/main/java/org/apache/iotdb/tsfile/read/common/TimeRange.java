@@ -30,7 +30,7 @@ import java.util.*;
  *
  * <p>Reference: http://www.java2s.com/Code/Java/Collections-Data-Structure/Anumericalinterval.htm
  */
-public class TimeRange implements Comparable<TimeRange> { //时间范围类，有最小值和最大值，并且记录了左右是开区间or闭区间
+public class TimeRange implements Comparable<TimeRange> { // 时间范围类，有最小值和最大值，并且记录了左右是开区间or闭区间
 
   /** The lower value */
   private long min = 0;
@@ -93,7 +93,7 @@ public class TimeRange implements Comparable<TimeRange> { //时间范围类，�
     return this.min <= min && this.max >= max;
   }
 
-  public boolean contains(long time) {  //判断指定的时间time是否在该时间范围内
+  public boolean contains(long time) { // 判断指定的时间time是否在该时间范围内
     return this.min <= time && time <= this.max;
   }
 

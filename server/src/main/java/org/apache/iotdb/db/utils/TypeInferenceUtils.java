@@ -65,9 +65,10 @@ public class TypeInferenceUtils {
   }
 
   /** Get predicted DataType of the given value */
-  public static TSDataType getPredictedDataType(Object value, boolean inferType) {  //根据给定的value，推断其数据类型
+  public static TSDataType getPredictedDataType(
+      Object value, boolean inferType) { // 根据给定的value，推断其数据类型
 
-    if (inferType) {  //如果传过来的value是String类型,则推断其具体是哪种数据类型
+    if (inferType) { // 如果传过来的value是String类型,则推断其具体是哪种数据类型
       String strValue = value.toString();
       if (isBoolean(strValue)) {
         return booleanStringInferType;
@@ -88,9 +89,9 @@ public class TypeInferenceUtils {
       } else {
         return TSDataType.TEXT;
       }
-    } else if (value instanceof Boolean) {  //如果传过来的value本身就是Boolean类型，则直接返回Boolean类型
+    } else if (value instanceof Boolean) { // 如果传过来的value本身就是Boolean类型，则直接返回Boolean类型
       return TSDataType.BOOLEAN;
-    } else if (value instanceof Integer) {//如果传过来的value本身就是Integer类型，则直接返回Integer类型
+    } else if (value instanceof Integer) { // 如果传过来的value本身就是Integer类型，则直接返回Integer类型
       return TSDataType.INT32;
     } else if (value instanceof Long) {
       return TSDataType.INT64;

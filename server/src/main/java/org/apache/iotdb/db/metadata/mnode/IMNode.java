@@ -18,7 +18,6 @@
  */
 package org.apache.iotdb.db.metadata.mnode;
 
-import org.apache.iotdb.db.exception.metadata.MetadataException;
 import org.apache.iotdb.db.metadata.PartialPath;
 import org.apache.iotdb.db.metadata.logfile.MLogWriter;
 import org.apache.iotdb.db.metadata.template.Template;
@@ -28,7 +27,7 @@ import java.io.Serializable;
 import java.util.Map;
 
 /** This interface defines a MNode's operation interfaces. */
-public interface IMNode extends Serializable {    //节点类
+public interface IMNode extends Serializable { // 节点类
 
   String getName();
 
@@ -56,8 +55,6 @@ public interface IMNode extends Serializable {    //节点类
 
   void replaceChild(String oldChildName, IMNode newChildNode);
 
-  IMNode getChildOfAlignedTimeseries(String name) throws MetadataException;
-
   Map<String, IMNode> getChildren();
 
   void setChildren(Map<String, IMNode> children);
@@ -77,6 +74,12 @@ public interface IMNode extends Serializable {    //节点类
   boolean isEntity();
 
   boolean isMeasurement();
+
+  IStorageGroupMNode getAsStorageGroupMNode();
+
+  IEntityMNode getAsEntityMNode();
+
+  IMeasurementMNode getAsMeasurementMNode();
 
   void serializeTo(MLogWriter logWriter) throws IOException;
 }

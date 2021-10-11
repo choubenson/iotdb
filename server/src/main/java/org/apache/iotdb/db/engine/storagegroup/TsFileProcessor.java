@@ -82,7 +82,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @SuppressWarnings("java:S1135") // ignore todos
-public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProcessor
+public class TsFileProcessor { // 每个TsFile对应着自己的一个TsFileProcessor
 
   /** logger fot this class */
   private static final Logger logger = LoggerFactory.getLogger(TsFileProcessor.class);
@@ -101,11 +101,15 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
   /** tsfile processor info for mem control */
   private TsFileProcessorInfo tsFileProcessorInfo;
 
-  /** sync this object in query() and asyncTryToFlush() */  //注意：它是个排队队列，因此flush的时候是对队列中第一个workMemtable进行flush，而加入的时候是往该队列的最后一个位置加入该待flush的workMemtable
-  private final ConcurrentLinkedDeque<IMemTable> flushingMemTables = new ConcurrentLinkedDeque<>(); //存放此TSFile文件的正在被flushing的workMemTable(如果数据量大，有可能几秒钟就flush一次workMemTable，因此要存入此队列中),他们在这个队列里进行排队等待被flush。注意：它存放的是该TsFile的待被flush的workMemtable
+  /** sync this object in query() and asyncTryToFlush() */
+  // 注意：它是个排队队列，因此flush的时候是对队列中第一个workMemtable进行flush，而加入的时候是往该队列的最后一个位置加入该待flush的workMemtable
+  private final ConcurrentLinkedDeque<IMemTable> flushingMemTables =
+      new ConcurrentLinkedDeque<>(); // 存放此TSFile文件的正在被flushing的workMemTable(如果数据量大，有可能几秒钟就flush一次workMemTable，因此要存入此队列中),他们在这个队列里进行排队等待被flush。注意：它存放的是该TsFile的待被flush的workMemtable
 
-  /** modification to memtable mapping *///modsToMemtable里存放了一个个workMemtable对应各自的删除操作，说明该workMemtable在待flush时有删除操作，并且还没把此删除操作写入到本地mods文件里
-  private List<Pair<Modification, IMemTable>> modsToMemtable = new ArrayList<>(); //该列表用于记录在进行删除操作时，当前TsFile的flushingMemTables列表若不为空，则说明当前TsFile存在待被or正在被flush的workMemtable，因此此时若有  存在正在or准备被flushing的在flushingMemTables列表里的workMemTables，对于这些正在or准备被flush的workMemTable里的数据不能直接删除掉，就只能把对他们的操作（Modification修改类对象）放进该列表里。
+  /** modification to memtable mapping */
+  // modsToMemtable里存放了一个个workMemtable对应各自的删除操作，说明该workMemtable在待flush时有删除操作，并且还没把此删除操作写入到本地mods文件里
+  private List<Pair<Modification, IMemTable>> modsToMemtable =
+      new ArrayList<>(); // 该列表用于记录在进行删除操作时，当前TsFile的flushingMemTables列表若不为空，则说明当前TsFile存在待被or正在被flush的workMemtable，因此此时若有  存在正在or准备被flushing的在flushingMemTables列表里的workMemTables，对于这些正在or准备被flush的workMemTable里的数据不能直接删除掉，就只能把对他们的操作（Modification修改类对象）放进该列表里。
 
   /** writer for restore tsfile and flushing */
   private RestorableTsFileIOWriter writer;
@@ -129,7 +133,11 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
   private volatile boolean shouldClose;
 
   /** working memtable */
-  private IMemTable workMemTable;   //每个TsFileProcessor有着属于自己的workMemTable，它存放了该TsFile的所有不同设备下的所有传感器Chunk的memTable（IWritableMemChunk类对象）
+  private IMemTable
+      workMemTable; // 每个TsFileProcessor有着属于自己的workMemTable，它存放了该TsFile的所有不同设备下的所有传感器Chunk的memTable（IWritableMemChunk类对象）
+
+  /** last flush time to flush the working memtable */
+  private long lastWorkMemtableFlushTime;
 
   /** this callback is called before the workMemtable is added into the flushingMemTables. */
   private final UpdateEndTimeCallBack updateLatestFlushTimeCallback;
@@ -198,25 +206,29 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
    *
    * @param insertRowPlan physical plan of insertion
    */
-  public void insert(InsertRowPlan insertRowPlan) throws WriteProcessException {//该方法做的事：（1）若当前TsFileProcessor的workMemTable是空，则创建一个（2）统计当前写入计划新增的内存占用，增加至TspInfo和SgInfo中（3）若系统配置是允许写前日志，则记录写前日志（4）写入workMemTable，即遍历该插入计划中每个待插入传感器的数值，往该传感器对应的memtable里的TVList写入待插入的数值,首先判断是否要对此TVList的values和timestamps列表，然后往该TVList的values和timestamps列表的某一数组里里插入对应的时间戳和数值（5）在插入操作后，要更新该TsFile对应TsFileResource对象里该设备数据的最大、最小时间戳
+  public void insert(InsertRowPlan insertRowPlan)
+      throws
+          WriteProcessException { // 该方法做的事：（1）若当前TsFileProcessor的workMemTable是空，则创建一个（2）统计当前写入计划新增的内存占用，增加至TspInfo和SgInfo中（3）若系统配置是允许写前日志，则记录写前日志（4）写入workMemTable，即遍历该插入计划中每个待插入传感器的数值，往该传感器对应的memtable里的TVList写入待插入的数值,首先判断是否要对此TVList的values和timestamps列表，然后往该TVList的values和timestamps列表的某一数组里里插入对应的时间戳和数值（5）在插入操作后，要更新该TsFile对应TsFileResource对象里该设备数据的最大、最小时间戳
 
-    if (workMemTable == null) {   //如果memtable是空
-      if (enableMemControl) {   //如果系统开启了内存控制，就无需对memtable的创建进行控制，可以再需要的时候创建一个然后在MemTableManager管理类里把memtable数量+1
-        workMemTable = new PrimitiveMemTable(enableMemControl); //新建一个PrimitiveMemTable的memtable
-        MemTableManager.getInstance().addMemtableNumber();  //在memtable管理类MemTableManager里把memtable数量+1
-      } else {  //若系统没有开启内存控制，就需要通过下面的方法查看是否还有内存可以创建memtable，若已存在的memtable已经大于系统设置的数量，则不行创建，该方法侧面实现了内存控制
+    if (workMemTable == null) { // 如果memtable是空
+      if (enableMemControl) { // 如果系统开启了内存控制，就无需对memtable的创建进行控制，可以再需要的时候创建一个然后在MemTableManager管理类里把memtable数量+1
+        workMemTable = new PrimitiveMemTable(enableMemControl); // 新建一个PrimitiveMemTable的memtable
+        MemTableManager.getInstance()
+            .addMemtableNumber(); // 在memtable管理类MemTableManager里把memtable数量+1
+      } else { // 若系统没有开启内存控制，就需要通过下面的方法查看是否还有内存可以创建memtable，若已存在的memtable已经大于系统设置的数量，则不行创建，该方法侧面实现了内存控制
         workMemTable = MemTableManager.getInstance().getAvailableMemTable(storageGroupName);
       }
     }
 
-    long[] memIncrements = null;  //存储此次insertRowPlan增加的内存占用
-    if (enableMemControl) { //若开启了内存控制，则
-      memIncrements = checkMemCostAndAddToTspInfo(insertRowPlan); //统计当前写入计划新增的内存占用，增加至TspInfo和SgInfo中
+    long[] memIncrements = null; // 存储此次insertRowPlan增加的内存占用
+    if (enableMemControl) { // 若开启了内存控制，则
+      memIncrements =
+          checkMemCostAndAddToTspInfo(insertRowPlan); // 统计当前写入计划新增的内存占用，增加至TspInfo和SgInfo中
     }
 
-    if (IoTDBDescriptor.getInstance().getConfig().isEnableWal()) {  //若系统配置是允许写前日志，则记录写前日志
+    if (IoTDBDescriptor.getInstance().getConfig().isEnableWal()) { // 若系统配置是允许写前日志，则记录写前日志
       try {
-        getLogNode().write(insertRowPlan);    //往对应的WAL日志节点写入该插入计划
+        getLogNode().write(insertRowPlan); // 往对应的WAL日志节点写入该插入计划
       } catch (Exception e) {
         if (enableMemControl && memIncrements != null) {
           rollbackMemoryInfo(memIncrements);
@@ -229,15 +241,16 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
       }
     }
 
-    workMemTable.insert(insertRowPlan); //写入workMemTable，即遍历该插入计划中每个待插入传感器的数值，往该传感器对应的memtable里的TVList写入待插入的数值,首先判断是否要对此TVList的values和timestamps列表，然后往该TVList的values和timestamps列表的某一数组里里插入对应的时间戳和数值
+    workMemTable.insert(
+        insertRowPlan); // 写入workMemTable，即遍历该插入计划中每个待插入传感器的数值，往该传感器对应的memtable里的TVList写入待插入的数值,首先判断是否要对此TVList的values和timestamps列表，然后往该TVList的values和timestamps列表的某一数组里里插入对应的时间戳和数值
 
-    //下面是插入workMemTable后要执行的操作
+    // 下面是插入workMemTable后要执行的操作
     // update start time of this memtable
-    tsFileResource.updateStartTime(   //每插入一条数据，就要更新该TsFile对应的TsFileResource里该设备对应的数据最小时间戳
+    tsFileResource.updateStartTime( // 每插入一条数据，就要更新该TsFile对应的TsFileResource里该设备对应的数据最小时间戳
         insertRowPlan.getPrefixPath().getFullPath(), insertRowPlan.getTime());
     // for sequence tsfile, we update the endTime only when the file is prepared to be closed.
     // for unsequence tsfile, we have to update the endTime for each insertion.
-    if (!sequence) {  //对于顺序TsFile，我们只要在该文件被封口前更新对应TsFileResource里该设备对应的数据最大时间戳；而对于乱序TsFile,则需要在每次插入后更新对应TsFileResource里该设备对应的数据最大时间戳
+    if (!sequence) { // 对于顺序TsFile，我们只要在该文件被封口前更新对应TsFileResource里该设备对应的数据最大时间戳；而对于乱序TsFile,则需要在每次插入后更新对应TsFileResource里该设备对应的数据最大时间戳
       tsFileResource.updateEndTime(
           insertRowPlan.getPrefixPath().getFullPath(), insertRowPlan.getTime());
     }
@@ -245,8 +258,9 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
   }
 
   /**
-   * insert batch data of insertTabletPlan into the workingMemtable The rows to be inserted are in
-   * the range [start, end)
+   * insert batch data of insertTabletPlan into the workingMemtable. The rows to be inserted are in
+   * the range [start, end). Null value in each column values will be replaced by the subsequent
+   * non-null value, e.g., {1, null, 3, null, 5} will be {1, 3, 5, null, 5}
    *
    * @param insertTabletPlan insert a tablet of a device
    * @param start start index of rows to be inserted in insertTabletPlan
@@ -319,53 +333,74 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
   }
 
   @SuppressWarnings("squid:S3776") // high Cognitive Complexity
-  private long[] checkMemCostAndAddToTspInfo(InsertRowPlan insertRowPlan)  //统计当前写入计划新增的内存占用，分别有如下三种类型的内存占用(memTableIncrement, chunkMetadataIncrement新Chunk增加的chunkIndex, textDataIncrement插入的字符串数值占用内存)，增加至TspInfo和SgInfo中
+  private long[] checkMemCostAndAddToTspInfo(
+      InsertRowPlan insertRowPlan) // 统计当前写入计划新增的内存占用，分别有如下三种类型的内存占用(memTableIncrement,
+      // chunkMetadataIncrement新Chunk增加的chunkIndex,
+      // textDataIncrement插入的字符串数值占用内存)，增加至TspInfo和SgInfo中
       throws WriteProcessException {
     // memory of increased PrimitiveArray and TEXT values, e.g., add a long[128], add 128*8
     long memTableIncrement = 0L;
     long textDataIncrement = 0L;
-    long chunkMetadataIncrement = 0L;     //存储此次插入行为导致ChunkIndex增加的内存大小
+    long chunkMetadataIncrement = 0L; // 存储此次插入行为导致ChunkIndex增加的内存大小
     String deviceId = insertRowPlan.getPrefixPath().getFullPath();
     int columnIndex = 0;
-    for (int i = 0; i < insertRowPlan.getMeasurementMNodes().length; i++) { //i要小于该insertRowPlan的传感器节点数量
+    for (int i = 0;
+        i < insertRowPlan.getMeasurementMNodes().length;
+        i++) { // i要小于该insertRowPlan的传感器节点数量
       // skip failed Measurements
       if (insertRowPlan.getDataTypes()[columnIndex] == null
           || insertRowPlan.getMeasurements()[i] == null) {
         columnIndex++;
         continue;
       }
-      if (workMemTable.checkIfChunkDoesNotExist(deviceId, insertRowPlan.getMeasurements()[i])) {  //检查该设备下的该传感器是否不存在IWritableMemChunk信息，若不存在IWritableMemChunk信息，则说明TsFile文件里不存在该设备的该传感器Chunk，因此要新建一个
+      if (workMemTable.checkIfChunkDoesNotExist(
+          deviceId,
+          insertRowPlan
+              .getMeasurements()[
+              i])) { // 检查该设备下的该传感器是否不存在IWritableMemChunk信息，若不存在IWritableMemChunk信息，则说明TsFile文件里不存在该设备的该传感器Chunk，因此要新建一个
         // ChunkMetadataIncrement
-        IMeasurementSchema schema = insertRowPlan.getMeasurementMNodes()[i].getSchema();  //获取该传感器节点的schema配置信息
-        if (schema.getType() == TSDataType.VECTOR) {    //若待插入的是多元序列vector的数据
+        IMeasurementSchema schema =
+            insertRowPlan.getMeasurementMNodes()[i].getSchema(); // 获取该传感器节点的schema配置信息
+        if (insertRowPlan.isAligned()) {
           chunkMetadataIncrement +=
-              schema.getValueTSDataTypeList().size()
+              schema.getSubMeasurementsTSDataTypeList().size()
                   * ChunkMetadata.calculateRamSize(
-                      schema.getValueMeasurementIdList().get(0),
-                      schema.getValueTSDataTypeList().get(0));
-          memTableIncrement += TVList.vectorTvListArrayMemSize(schema.getValueTSDataTypeList());
-        } else {    //若待插入的是一元序列的数据
-          chunkMetadataIncrement +=       //因为TsFile文件中新建Chunk就要新建对应的ChunkIndex,于是要计算此次插入行为导致该传感器Chunk对应的ChunkIndex增加的内存大小
-              ChunkMetadata.calculateRamSize(         //计算该新传感器Chunk对应的新ChunkIndex占用的内存大小（原始固定大小+传感器ID名称字符串大小+数据类型对象大小）
-                  insertRowPlan.getMeasurements()[i], insertRowPlan.getDataTypes()[columnIndex]);
-          memTableIncrement += TVList.tvListArrayMemSize(insertRowPlan.getDataTypes()[columnIndex]);    //memtable新增的内存大小+该插入计划的新的Chunk的IWritableMemChunk的TVList占用的内存大小
+                      schema.getSubMeasurementsList().get(0),
+                      schema.getSubMeasurementsTSDataTypeList().get(0));
+          memTableIncrement +=
+              TVList.vectorTvListArrayMemSize(schema.getSubMeasurementsTSDataTypeList());
+        } else {
+          chunkMetadataIncrement += // 因为TsFile文件中新建Chunk就要新建对应的ChunkIndex,于是要计算此次插入行为导致该传感器Chunk对应的ChunkIndex增加的内存大小
+              ChunkMetadata
+                  .calculateRamSize( // 计算该新传感器Chunk对应的新ChunkIndex占用的内存大小（原始固定大小+传感器ID名称字符串大小+数据类型对象大小）
+                      insertRowPlan.getMeasurements()[i],
+                      insertRowPlan.getDataTypes()[columnIndex]);
+          memTableIncrement +=
+              TVList.tvListArrayMemSize(
+                  insertRowPlan
+                      .getDataTypes()[
+                      columnIndex]); // memtable新增的内存大小+该插入计划的新的Chunk的IWritableMemChunk的TVList占用的内存大小
         }
-      } else {  //若该设备的该传感器存在IWritableMemChunk信息，即Chunk存在
+      } else { // 若该设备的该传感器存在IWritableMemChunk信息，即Chunk存在
         // here currentChunkPointNum >= 1
-        int currentChunkPointNum =      //此设备的此传感器的Chunk的IWritableMemChunk的TVList里存放数据点数量 //这里的workMemtable其实就是指的是每个传感器Chunk的WritableMemChunk，它有TVList对象用来存放数据点
+        int currentChunkPointNum = // 此设备的此传感器的Chunk的IWritableMemChunk的TVList里存放数据点数量
+            // //这里的workMemtable其实就是指的是每个传感器Chunk的WritableMemChunk，它有TVList对象用来存放数据点
             workMemTable.getCurrentChunkPointNum(deviceId, insertRowPlan.getMeasurements()[i]);
         memTableIncrement +=
-            (currentChunkPointNum % PrimitiveArrayManager.ARRAY_SIZE) == 0  //当传感器的Chunk的IWritableMemChunk的TVList里的数据点存满数组（到达系统规定的32个数据点）后，就要增加此TVList的数组占用的内存，否则不增加。
+            (currentChunkPointNum % PrimitiveArrayManager.ARRAY_SIZE)
+                    == 0 // 当传感器的Chunk的IWritableMemChunk的TVList里的数据点存满数组（到达系统规定的32个数据点）后，就要增加此TVList的数组占用的内存，否则不增加。
                 ? TVList.tvListArrayMemSize(insertRowPlan.getDataTypes()[columnIndex])
                 : 0;
       }
       // TEXT data mem size
       if (insertRowPlan.getDataTypes()[columnIndex] == TSDataType.TEXT) {
         textDataIncrement +=
-            MemUtils.getBinarySize((Binary) insertRowPlan.getValues()[columnIndex]);  //当插入的数据是Text字符串类型时，要额外计算该字符串占用的内存大小
+            MemUtils.getBinarySize(
+                (Binary)
+                    insertRowPlan.getValues()[columnIndex]); // 当插入的数据是Text字符串类型时，要额外计算该字符串占用的内存大小
       }
     }
-    updateMemoryInfo(memTableIncrement, chunkMetadataIncrement, textDataIncrement);   //更新相应的内存使用情况
+    updateMemoryInfo(memTableIncrement, chunkMetadataIncrement, textDataIncrement); // 更新相应的内存使用情况
     return new long[] {memTableIncrement, textDataIncrement, chunkMetadataIncrement};
   }
 
@@ -384,8 +419,8 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
       if (insertTabletPlan.isAligned()) {
         VectorMeasurementSchema vectorSchema =
             (VectorMeasurementSchema) insertTabletPlan.getMeasurementMNodes()[i].getSchema();
-        Object[] columns = new Object[vectorSchema.getValueMeasurementIdList().size()];
-        for (int j = 0; j < vectorSchema.getValueMeasurementIdList().size(); j++) {
+        Object[] columns = new Object[vectorSchema.getSubMeasurementsList().size()];
+        for (int j = 0; j < vectorSchema.getSubMeasurementsList().size(); j++) {
           columns[j] = insertTabletPlan.getColumns()[columnIndex++];
         }
         updateVectorMemCost(vectorSchema, deviceId, start, end, memIncrements, columns);
@@ -457,8 +492,8 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
       Object[] columns) {
     // memIncrements = [memTable, text, chunk metadata] respectively
 
-    List<String> measurementIds = vectorSchema.getValueMeasurementIdList();
-    List<TSDataType> dataTypes = vectorSchema.getValueTSDataTypeList();
+    List<String> measurementIds = vectorSchema.getSubMeasurementsList();
+    List<TSDataType> dataTypes = vectorSchema.getSubMeasurementsTSDataTypeList();
     if (workMemTable.checkIfChunkDoesNotExist(deviceId, vectorSchema.getMeasurementId())) {
       // ChunkMetadataIncrement
       memIncrements[2] +=
@@ -491,27 +526,29 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
     }
   }
 
-  private void updateMemoryInfo(    //更新内存使用信息
+  private void updateMemoryInfo( // 更新内存使用信息
       long memTableIncrement, long chunkMetadataIncrement, long textDataIncrement)
       throws WriteProcessException {
     memTableIncrement += textDataIncrement;
-    storageGroupInfo.addStorageGroupMemCost(memTableIncrement); //往存储组storageGroupInfo增加相应的新增内存
-    tsFileProcessorInfo.addTSPMemCost(chunkMetadataIncrement);  //往tsFileProcessorInfo增加鲜奶供应的ChunkIndex新增内存
-    if (storageGroupInfo.needToReportToSystem()) {    //判断StorageGroupInfo是否要向系统SystemInfo上报
-      try { //下面进行上报系统
+    storageGroupInfo.addStorageGroupMemCost(memTableIncrement); // 往存储组storageGroupInfo增加相应的新增内存
+    tsFileProcessorInfo.addTSPMemCost(
+        chunkMetadataIncrement); // 往tsFileProcessorInfo增加鲜奶供应的ChunkIndex新增内存
+    if (storageGroupInfo.needToReportToSystem()) { // 判断StorageGroupInfo是否要向系统SystemInfo上报
+      try { // 下面进行上报系统
         if (!SystemInfo.getInstance().reportStorageGroupStatus(storageGroupInfo, this)) {
-          StorageEngine.blockInsertionIfReject(this); //判断系统是否阻塞写入
+          StorageEngine.blockInsertionIfReject(this); // 判断系统是否阻塞写入
         }
-      } catch (WriteProcessRejectException e) {   //若所有的StorageGroup的内存占用和 >=系统分配的写入操作可使用内存，则抛异常
-        //恢复此次insert操作执行前的内存，即把此次操作新增的内存复原归零，当作此次操作没有执行
+      } catch (WriteProcessRejectException e) { // 若所有的StorageGroup的内存占用和 >=系统分配的写入操作可使用内存，则抛异常
+        // 恢复此次insert操作执行前的内存，即把此次操作新增的内存复原归零，当作此次操作没有执行
         storageGroupInfo.releaseStorageGroupMemCost(memTableIncrement);
         tsFileProcessorInfo.releaseTSPMemCost(chunkMetadataIncrement);
-        SystemInfo.getInstance().resetStorageGroupStatus(storageGroupInfo); //向系统SystemInfo重新汇报此StorageGroupInfo的内存使用情况
-        throw e;  //抛异常，不执行后续操作
+        SystemInfo.getInstance()
+            .resetStorageGroupStatus(storageGroupInfo); // 向系统SystemInfo重新汇报此StorageGroupInfo的内存使用情况
+        throw e; // 抛异常，不执行后续操作
       }
     }
-    workMemTable.addTVListRamCost(memTableIncrement); //往workMemTable的TVList占用内存增加新的内存使用
-    workMemTable.addTextDataSize(textDataIncrement);  //往workMemTable增加数据点的内存使用情况
+    workMemTable.addTVListRamCost(memTableIncrement); // 往workMemTable的TVList占用内存增加新的内存使用
+    workMemTable.addTextDataSize(textDataIncrement); // 往workMemTable增加数据点的内存使用情况
   }
 
   private void rollbackMemoryInfo(long[] memIncrements) {
@@ -533,27 +570,33 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
    *
    * <p>Delete data in both working MemTable and flushing MemTables.
    */
-  public void deleteDataInMemory(Deletion deletion, Set<PartialPath> devicePaths) {//根据指定的设备路径和删除操作信息，删除那些还在内存中的数据（包含存在各个传感器里未被flush的memtable的数据和正在被进行flush的memtable的数据）。注意：devicePaths确定了设备路径对象，而此时Deletion对象里的path时间序列路径的存储组是确定的，但设备路径还不确定，可能包含通配符*，因此可能有多个设备。eg:root.ln.*.*.*
+  public void deleteDataInMemory(
+      Deletion deletion,
+      Set<PartialPath>
+          devicePaths) { // 根据指定的设备路径和删除操作信息，删除那些还在内存中的数据（包含存在各个传感器里未被flush的memtable的数据和正在被进行flush的memtable的数据）。注意：devicePaths确定了设备路径对象，而此时Deletion对象里的path时间序列路径的存储组是确定的，但设备路径还不确定，可能包含通配符*，因此可能有多个设备。eg:root.ln.*.*.*
     flushQueryLock.writeLock().lock();
     if (logger.isDebugEnabled()) {
       logger.debug(
           FLUSH_QUERY_WRITE_LOCKED, storageGroupName, tsFileResource.getTsFile().getName());
     }
     try {
-      if (workMemTable != null) { //(1)删除还存在各个传感器里未被flush的memtable的数据： 若该TsFileProcessor的workMemTable不为空，则说明该TsFile存在还未被写入的数据，他们暂存在对应传感器的memtable的TVList内存中，需要从memtable的TVList中删除对应的数据
-        for (PartialPath device : devicePaths) {  //循环遍历设备路径对象
-          workMemTable.delete(   //根据通配路径originalPath下的指定设备，找到所有待删除的明确时间序列路径，依次遍历该设备下的待删除传感器进行删除内存中数据：(1) 若此传感器的内存memtable里的所有数据都要被删除掉，则直接从该workMemTable的memTableMap中把此传感器和对应的memtable直接删除掉（2）若此传感器内不是所有数据都要被删，则把该传感器的memtable对象里的TVList里对应时间范围里的数据删掉即可，该传感器的memtable仍然保存在对应TSFileProcessor的workMemTable的memTableMap中
-              deletion.getPath(), device, deletion.getStartTime(), deletion.getEndTime());
-          logger.info(
-              "[Deletion] Delete in-memory data with deletion path: {}, time:{}-{}.",
-              deletion.getPath(),
-              deletion.getStartTime(),
-              deletion.getEndTime());
+      if (workMemTable != null) { // (1)删除还存在各个传感器里未被flush的memtable的数据：
+        // 若该TsFileProcessor的workMemTable不为空，则说明该TsFile存在还未被写入的数据，他们暂存在对应传感器的memtable的TVList内存中，需要从memtable的TVList中删除对应的数据
+        for (PartialPath device : devicePaths) { // 循环遍历设备路径对象
+          workMemTable
+              .delete( // 根据通配路径originalPath下的指定设备，找到所有待删除的明确时间序列路径，依次遍历该设备下的待删除传感器进行删除内存中数据：(1)
+                  // 若此传感器的内存memtable里的所有数据都要被删除掉，则直接从该workMemTable的memTableMap中把此传感器和对应的memtable直接删除掉（2）若此传感器内不是所有数据都要被删，则把该传感器的memtable对象里的TVList里对应时间范围里的数据删掉即可，该传感器的memtable仍然保存在对应TSFileProcessor的workMemTable的memTableMap中
+                  deletion.getPath(), device, deletion.getStartTime(), deletion.getEndTime());
         }
       }
       // flushing memTables are immutable, only record this deletion in these memTables for query
-      if (!flushingMemTables.isEmpty()) { //(2) 若此TsFile文件对应的flushingMemTables队列不为空，说明存正在被or等待被flushing的workMemTable
-        modsToMemtable.add(new Pair<>(deletion, flushingMemTables.getLast())); //在进行删除操作时，队列里存在正在被or等待被flushing的workMemTables，对于这些待被flush的workMemTable里的数据不能直接删除掉，就只能把该删除操作（Deletion类对象）和flushingMemTables队列中最后一个workMemtable放进该列表里。
+      if (!flushingMemTables
+          .isEmpty()) { // (2) 若此TsFile文件对应的flushingMemTables队列不为空，说明存正在被or等待被flushing的workMemTable
+        modsToMemtable.add(
+            new Pair<>(
+                deletion,
+                flushingMemTables
+                    .getLast())); // 在进行删除操作时，队列里存在正在被or等待被flushing的workMemTables，对于这些待被flush的workMemTable里的数据不能直接删除掉，就只能把该删除操作（Deletion类对象）和flushingMemTables队列中最后一个workMemtable放进该列表里。
       }
     } finally {
       flushQueryLock.writeLock().unlock();
@@ -568,25 +611,28 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
     return tsFileResource;
   }
 
-  public boolean shouldFlush() {    //判断TsFileProcessor的workMemTable是否要flush
+  public boolean shouldFlush() { // 判断TsFileProcessor的workMemTable是否要flush
     if (workMemTable == null) {
       return false;
     }
-    if (workMemTable.shouldFlush()) {   //若该workMemTable的shouldFlush属性为true，则要flush
+    if (workMemTable.shouldFlush()) { // 若该workMemTable的shouldFlush属性为true，则要flush
       logger.info(
           "The memtable size {} of tsfile {} reaches the mem control threshold",
           workMemTable.memSize(),
           tsFileResource.getTsFile().getAbsolutePath());
       return true;
     }
-    if (!enableMemControl && workMemTable.memSize() >= getMemtableSizeThresholdBasedOnSeriesNum()) {//当系统没开启内存控制且workMemTable的内存占用量大于系统设置
+    if (!enableMemControl
+        && workMemTable.memSize()
+            >= getMemtableSizeThresholdBasedOnSeriesNum()) { // 当系统没开启内存控制且workMemTable的内存占用量大于系统设置
       logger.info(
           "The memtable size {} of tsfile {} reaches the threshold",
           workMemTable.memSize(),
           tsFileResource.getTsFile().getAbsolutePath());
       return true;
     }
-    if (workMemTable.reachTotalPointNumThreshold()) { //当该workMemTable所有数据点的数量(即该TsFile里每个传感器的memTable的数据点数量的总和)到达系统设置
+    if (workMemTable
+        .reachTotalPointNumThreshold()) { // 当该workMemTable所有数据点的数量(即该TsFile里每个传感器的memTable的数据点数量的总和)到达系统设置
       logger.info(
           "The avg series points num {} of tsfile {} reaches the threshold",
           workMemTable.getTotalPointsNum() / workMemTable.getSeriesNumber(),
@@ -600,8 +646,8 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
     return config.getMemtableSizeThreshold();
   }
 
-  public boolean shouldClose() {  //根据该TsFileProcessor的TsFile大小是否大于系统指定的大小，来判断是否需要关闭该文件
-    long fileSize = tsFileResource.getTsFileSize();//获取该Resource对应TsFile的文件大小
+  public boolean shouldClose() { // 根据该TsFileProcessor的TsFile大小是否大于系统指定的大小，来判断是否需要关闭该文件
+    long fileSize = tsFileResource.getTsFileSize(); // 获取该Resource对应TsFile的文件大小
     long fileSizeThreshold = sequence ? config.getSeqTsFileSize() : config.getUnSeqTsFileSize();
 
     if (fileSize >= fileSizeThreshold) {
@@ -611,7 +657,7 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
           fileSize,
           fileSizeThreshold);
     }
-    return fileSize >= fileSizeThreshold;   //当该TsFileProcessor的TsFile大小大于系统指定的大小，则返回需要关闭该文件，否则不关闭
+    return fileSize >= fileSizeThreshold; // 当该TsFileProcessor的TsFile大小大于系统指定的大小，则返回需要关闭该文件，否则不关闭
   }
 
   void syncClose() {
@@ -651,7 +697,8 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
   }
 
   /** async close one tsfile, register and close it by another thread */
-  void asyncClose() { //异步关闭该TsFileProcessor对应的TsFile文件，在关闭前需要判断该TsFileProcessor的workMemTable是否需要Flush，若要则进行Flush，然后我们要另起一个线程去关闭该TSFile文件。
+  void
+      asyncClose() { // 异步关闭该TsFileProcessor对应的TsFile文件，在关闭前需要判断该TsFileProcessor的workMemTable是否需要Flush，若要则进行Flush，然后我们要另起一个线程去关闭该TSFile文件。
     flushQueryLock.writeLock().lock();
     if (logger.isDebugEnabled()) {
       logger.debug(
@@ -660,7 +707,7 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
     try {
 
       if (logger.isInfoEnabled()) {
-        if (workMemTable != null) {//如果该TsFileProcessor的workMemTable不为空
+        if (workMemTable != null) { // 如果该TsFileProcessor的workMemTable不为空
           logger.info(
               "{}: flush a working memtable in async close tsfile {}, memtable size: {}, tsfile "
                   + "size: {}, plan index: [{}, {}]",
@@ -679,7 +726,8 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
         }
       }
 
-      if (shouldClose) {  //If shouldClose == true and its workMemTables are all flushed, then the flush thread will close this file.
+      if (shouldClose) { // If shouldClose == true and its workMemTables are all flushed, then the
+        // flush thread will close this file.
         return;
       }
       // when a flush thread serves this TsFileProcessor (because the processor is submitted by
@@ -772,7 +820,8 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
   }
 
   /** put the working memtable into flushing list and set the working memtable to null */
-  public void asyncFlush() {      //把该TSFile的workMemTable进行异步Flush，把该TSFile的workMemTable放入flushing list中，并把workMemTable清空为null
+  public void asyncFlush() { // 把该TSFile的workMemTable进行异步Flush，把该TSFile的workMemTable放入flushing
+    // list中，并把workMemTable清空为null
     flushQueryLock.writeLock().lock();
     if (logger.isDebugEnabled()) {
       logger.debug(
@@ -784,7 +833,7 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
       }
       logger.info(
           "Async flush a memtable to tsfile: {}", tsFileResource.getTsFile().getAbsolutePath());
-      addAMemtableIntoFlushingList(workMemTable); //把该TSFile的workMemTable放入flushing list中
+      addAMemtableIntoFlushingList(workMemTable); // 把该TSFile的workMemTable放入flushing list中
     } catch (Exception e) {
       logger.error(
           "{}: {} add a memtable into flushing list failed",
@@ -805,7 +854,8 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
    * queue, set the current working memtable as null and then register the tsfileProcessor into the
    * flushManager again.
    */
-  private void addAMemtableIntoFlushingList(IMemTable tobeFlushed) throws IOException { //该方法把传过来的workMemTable放入flushing队列中，并把其清空
+  private void addAMemtableIntoFlushingList(IMemTable tobeFlushed)
+      throws IOException { // 该方法把传过来的workMemTable放入flushing队列中，并把其清空
     if (!tobeFlushed.isSignalMemTable()
         && (!updateLatestFlushTimeCallback.call(this) || tobeFlushed.memSize() == 0)) {
       logger.warn(
@@ -820,10 +870,10 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
       flushListener.onFlushStart(tobeFlushed);
     }
 
-    if (enableMemControl) { //若开启了内存空值，则把此待被flush的workMemtable占用的数据内存大小加入系统相关设置里
+    if (enableMemControl) { // 若开启了内存空值，则把此待被flush的workMemtable占用的数据内存大小加入系统相关设置里
       SystemInfo.getInstance().addFlushingMemTableCost(tobeFlushed.getTVListsRamCost());
     }
-    flushingMemTables.addLast(tobeFlushed);//往flushingMemTables队列的最后加入此待被flush的workMemtable
+    flushingMemTables.addLast(tobeFlushed); // 往flushingMemTables队列的最后加入此待被flush的workMemtable
     if (logger.isDebugEnabled()) {
       logger.debug(
           "{}: {} Memtable (signal = {}) is added into the flushing Memtable, queue size = {}",
@@ -837,6 +887,7 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
       totalMemTableSize += tobeFlushed.memSize();
     }
     workMemTable = null;
+    lastWorkMemtableFlushTime = System.currentTimeMillis();
     FlushManager.getInstance().registerTsFileProcessor(this);
   }
 
@@ -904,7 +955,8 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
    * the flush manager pool
    */
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
-  public void flushOneMemTable() {  //把flushingMemTables队列中第一个workMemtable的数据flush到物理盘上，然后把该workMemtable从flushingMemTables队列中挪走
+  public void
+      flushOneMemTable() { // 把flushingMemTables队列中第一个workMemtable的数据flush到物理盘上，然后把该workMemtable从flushingMemTables队列中挪走
     IMemTable memTableToFlush = flushingMemTables.getFirst();
 
     // signal memtable only may appear when calling asyncClose()
@@ -955,13 +1007,17 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
 
     try {
       Iterator<Pair<Modification, IMemTable>> iterator = modsToMemtable.iterator();
-      while (iterator.hasNext()) {  //循环遍历先前对在内存中正在or待被flush的workMemtable存在对应的删除操作，
-        Pair<Modification, IMemTable> entry = iterator.next();  //获取的是数据结构为：（删除操作对象，此删除操作当下该TsFile的最新的待被flush的workMemtable）
-        if (entry.right.equals(memTableToFlush)) {  //若当前遍历的modsToMemtable里的该workMemtable正好就是待被flush的workMemtable，则把对应的删除操作记入对应的mods文件里
-          entry.left.setFileOffset(tsFileResource.getTsFileSize()); //此时记录的offset位置是flush此workMemtable后TsFile文件的长度
-          this.tsFileResource.getModFile().write(entry.left); //把对应的删除操作记入对应的mods文件里。这样一来，该删除操作就会
+      while (iterator.hasNext()) { // 循环遍历先前对在内存中正在or待被flush的workMemtable存在对应的删除操作，
+        Pair<Modification, IMemTable> entry =
+            iterator.next(); // 获取的是数据结构为：（删除操作对象，此删除操作当下该TsFile的最新的待被flush的workMemtable）
+        if (entry.right.equals(
+            memTableToFlush)) { // 若当前遍历的modsToMemtable里的该workMemtable正好就是待被flush的workMemtable，则把对应的删除操作记入对应的mods文件里
+          entry.left.setFileOffset(
+              tsFileResource.getTsFileSize()); // 此时记录的offset位置是flush此workMemtable后TsFile文件的长度
+          this.tsFileResource.getModFile().write(entry.left); // 把对应的删除操作记入对应的mods文件里。这样一来，该删除操作就会
           tsFileResource.getModFile().close();
-          iterator.remove();  //flush完此workMemtable并把其在待flush时存在的删除操作写入到mods文件后，就把该项从modsToMemtable列表中移除
+          iterator
+              .remove(); // flush完此workMemtable并把其在待flush时存在的删除操作写入到mods文件后，就把该项从modsToMemtable列表中移除
           logger.info(
               "[Deletion] Deletion with path: {}, time:{}-{} written when flush memtable",
               entry.left.getPath(),
@@ -1076,17 +1132,18 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
   }
 
   /** end file and write some meta */
-  private void endFile() throws IOException, TsFileProcessorException { //关闭该TsFile
+  private void endFile() throws IOException, TsFileProcessorException { // 关闭该TsFile
     logger.info("Start to end file {}", tsFileResource);
     long closeStartTime = System.currentTimeMillis();
-    tsFileResource.serialize();   //将TsFileResource对象序列化到本地.resource文件里
+    tsFileResource.serialize(); // 将TsFileResource对象序列化到本地.resource文件里
     writer.endFile();
     logger.info("Ended file {}", tsFileResource);
 
     // remove this processor from Closing list in StorageGroupProcessor,
     // mark the TsFileResource closed, no need writer anymore
     for (CloseFileListener closeFileListener : closeFileListeners) {
-      closeFileListener.onClosed(this); //调用关闭后的回调函数，该函数是Storage Group Processor的closeUnsealedTsFileProcessorCallBack函数，里面会调用TsFileResource的close方法
+      closeFileListener.onClosed(this); // 调用关闭后的回调函数，该函数是Storage Group
+      // Processor的closeUnsealedTsFileProcessorCallBack函数，里面会调用TsFileResource的close方法
     }
 
     if (enableMemControl) {
@@ -1120,7 +1177,7 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
    *
    * @return WAL log node
    */
-  public WriteLogNode getLogNode() {  //获取WAL Log的节点
+  public WriteLogNode getLogNode() { // 获取WAL Log的节点
     if (logNode == null) {
       logNode =
           MultiFileLogNodeManager.getInstance()
@@ -1158,12 +1215,16 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
   }
 
   /** get modifications from a memtable */
-  private List<Modification> getModificationsForMemtable(IMemTable memTable) {  //参数为在flushingMemtables队列中的某个待flush的workMemtable，获取此待flush的workMemtable所有的还未被处理的删除操作
+  private List<Modification> getModificationsForMemtable(
+      IMemTable
+          memTable) { // 参数为在flushingMemtables队列中的某个待flush的workMemtable，获取此待flush的workMemtable所有的还未被处理的删除操作
     List<Modification> modifications = new ArrayList<>();
-    boolean foundMemtable = false;  //该属性表明是否从modsToMemtable中找到给定的memTable
-    for (Pair<Modification, IMemTable> entry : modsToMemtable) {//遍历该列表，该列表存放了每个删除操作对应的一个workMemTable，这些删除操作都是对当下处在flushingMemTables列表中正在or准备被flushing的workMemtable,即删除操作的当下该TsFile存在待被flush的workMemTable
-      if (foundMemtable || entry.right.equals(memTable)) { //Todo:什么意思？ //若modsToMemtable里存在该workMemtable，就说明该workMemtable在待flush时有删除操作，并且还没把此删除操作写入到本地mods文件里
-        modifications.add(entry.left);  //往删除列表里加入此删除操作
+    boolean foundMemtable = false; // 该属性表明是否从modsToMemtable中找到给定的memTable
+    for (Pair<Modification, IMemTable> entry :
+        modsToMemtable) { // 遍历该列表，该列表存放了每个删除操作对应的一个workMemTable，这些删除操作都是对当下处在flushingMemTables列表中正在or准备被flushing的workMemtable,即删除操作的当下该TsFile存在待被flush的workMemTable
+      if (foundMemtable || entry.right.equals(memTable)) { // Todo:什么意思？
+        // //若modsToMemtable里存在该workMemtable，就说明该workMemtable在待flush时有删除操作，并且还没把此删除操作写入到本地mods文件里
+        modifications.add(entry.left); // 往删除列表里加入此删除操作
         foundMemtable = true; //
       }
     }
@@ -1176,24 +1237,35 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
    * @param memTable memtable
    * @param deviceId device id
    * @param measurement measurement name
-   * @param timeLowerBound time water mark  ,该参数表示允许的最小时间戳，小于该时间戳的数据就是超过了TTL的存活时间，就应该被删除
+   * @param timeLowerBound time water mark ,该参数表示允许的最小时间戳，小于该时间戳的数据就是超过了TTL的存活时间，就应该被删除
    */
-  private List<TimeRange> constructDeletionList(  //对指定的此TsFile中待flush的memtable和设备、传感器ID获取那些还未被写入到mods文件里的删除记录，将它们对应的删除时间范围进行排序合并后返回
+  private List<TimeRange>
+      constructDeletionList( // 对指定的此TsFile中待flush的memtable和设备、传感器ID获取那些还未被写入到mods文件里的删除记录，将它们对应的删除时间范围进行排序合并后返回
       IMemTable memTable, String deviceId, String measurement, long timeLowerBound)
-      throws MetadataException {
-    List<TimeRange> deletionList = new ArrayList<>();//待删除的时间范围列表
-    deletionList.add(new TimeRange(Long.MIN_VALUE, timeLowerBound));//首先把小于等于TTL存活期的时间范围加入待删除列表里，因为那些数据超过TTL存活期，应该被删除
-    for (Modification modification : getModificationsForMemtable(memTable)) {//参数为在flushingMemtables队列中的某个待flush的workMemtable，遍历此待flush的workMemtable所有的还未被处理的删除操作
+          throws MetadataException {
+    List<TimeRange> deletionList = new ArrayList<>(); // 待删除的时间范围列表
+    deletionList.add(
+        new TimeRange(
+            Long.MIN_VALUE, timeLowerBound)); // 首先把小于等于TTL存活期的时间范围加入待删除列表里，因为那些数据超过TTL存活期，应该被删除
+    for (Modification modification :
+        getModificationsForMemtable(
+            memTable)) { // 参数为在flushingMemtables队列中的某个待flush的workMemtable，遍历此待flush的workMemtable所有的还未被处理的删除操作
       if (modification instanceof Deletion) {
         Deletion deletion = (Deletion) modification;
-        if (deletion.getPath().matchFullPath(new PartialPath(deviceId, measurement))  //若此删除操作要删除的时间序列路径与给定的设备和传感器匹配，则
+        if (deletion
+                .getPath()
+                .matchFullPath(
+                    new PartialPath(deviceId, measurement)) // 若此删除操作要删除的时间序列路径与给定的设备和传感器匹配，则
             && deletion.getEndTime() > timeLowerBound) {
-          long lowerBound = Math.max(deletion.getStartTime(), timeLowerBound);  //从删除操作的起使时间和数据TTL允许的最小时间戳中选择较大的作当前删除操作的起使时间
-          deletionList.add(new TimeRange(lowerBound, deletion.getEndTime()));//把当前删除操作加入列表里
+          long lowerBound =
+              Math.max(
+                  deletion.getStartTime(),
+                  timeLowerBound); // 从删除操作的起使时间和数据TTL允许的最小时间戳中选择较大的作当前删除操作的起使时间
+          deletionList.add(new TimeRange(lowerBound, deletion.getEndTime())); // 把当前删除操作加入列表里
         }
       }
     }
-    return TimeRange.sortAndMerge(deletionList);  //将当前删除时间列表进行排序和合并
+    return TimeRange.sortAndMerge(deletionList); // 将当前删除时间列表进行排序和合并
   }
 
   /**
@@ -1205,34 +1277,42 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
    * @param measurementId measurements id
    */
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
-  public void query(  //此方法根据给定的设备和传感器等参数，创建一个只读的TsFileResource对象，并把它放入tsfileResourcesForQuery列表里，用作查询
-      String deviceId,    //此次查询操作里待查询的设备路径ID
-      String measurementId, //此次查询操作里待查询的传感器路径ID
-      IMeasurementSchema schema,  //传感器配置类对象
-      QueryContext context, //此次查询的环境类对象
-      List<TsFileResource> tsfileResourcesForQuery) //此次查询需要用到的TsFileResource列表，其实该列表只有一个元素，存放的就是此TsFileResource对应的要给
-      throws IOException, MetadataException {
+  public void
+      query( // 此方法根据给定的设备和传感器等参数，创建一个只读的TsFileResource对象，并把它放入tsfileResourcesForQuery列表里，用作查询
+          String deviceId, // 此次查询操作里待查询的设备路径ID
+          String measurementId, // 此次查询操作里待查询的传感器路径ID
+          IMeasurementSchema schema, // 传感器配置类对象
+          QueryContext context, // 此次查询的环境类对象
+          List<TsFileResource>
+              tsfileResourcesForQuery) // 此次查询需要用到的TsFileResource列表，其实该列表只有一个元素，存放的就是此TsFileResource对应的要给
+          throws IOException, MetadataException {
     if (logger.isDebugEnabled()) {
       logger.debug(
           "{}: {} get flushQueryLock and hotCompactionMergeLock read lock",
           storageGroupName,
           tsFileResource.getTsFile().getName());
     }
-    flushQueryLock.readLock().lock(); //加读锁
+    flushQueryLock.readLock().lock(); // 加读锁
     try {
-      List<ReadOnlyMemChunk> readOnlyMemChunks = new ArrayList<>(); //内存中的workMemtable快照列表，它是用作只读的
-      for (IMemTable flushingMemTable : flushingMemTables) {  //循环遍历该TsFileResource里flushingMemTables列表中的每个待被flush的workMemtable，并为它们每个创建各自的只读ReadOnlyMemChunk类对象，它们相当于workMemtable的快照
-        if (flushingMemTable.isSignalMemTable()) {//若该workMemtable是PrimitiveMemTable类对象，则为false
+      List<ReadOnlyMemChunk> readOnlyMemChunks = new ArrayList<>(); // 内存中的workMemtable快照列表，它是用作只读的
+      for (IMemTable flushingMemTable :
+          flushingMemTables) { // 循环遍历该TsFileResource里flushingMemTables列表中的每个待被flush的workMemtable，并为它们每个创建各自的只读ReadOnlyMemChunk类对象，它们相当于workMemtable的快照
+        if (flushingMemTable.isSignalMemTable()) { // 若该workMemtable是PrimitiveMemTable类对象，则为false
           continue;
         }
         List<TimeRange> deletionList =
-            constructDeletionList(//对指定的此TsFile中待flush的memtable和设备、传感器ID获取那些还未被写入到mods文件里的删除记录，将它们对应的删除时间范围进行排序合并后返回
+            constructDeletionList( // 对指定的此TsFile中待flush的memtable和设备、传感器ID获取那些还未被写入到mods文件里的删除记录，将它们对应的删除时间范围进行排序合并后返回
                 flushingMemTable, deviceId, measurementId, context.getQueryTimeLowerBound());
         ReadOnlyMemChunk memChunk =
-            flushingMemTable.query(   //根据给定的设备路径和传感器名，以及传感器配置类对象等属性获取该Chunk里排好序的TVList数据，并创建返回只读的内存Chunk类对象
-                deviceId, measurementId, schema, context.getQueryTimeLowerBound(), deletionList);
+            flushingMemTable
+                .query( // 根据给定的设备路径和传感器名，以及传感器配置类对象等属性获取该Chunk里排好序的TVList数据，并创建返回只读的内存Chunk类对象
+                    deviceId,
+                    measurementId,
+                    schema,
+                    context.getQueryTimeLowerBound(),
+                    deletionList);
         if (memChunk != null) {
-          readOnlyMemChunks.add(memChunk);  //往readOnlyMemChunks列表里加入非null的memChunk只读workMemtable对象
+          readOnlyMemChunks.add(memChunk); // 往readOnlyMemChunks列表里加入非null的memChunk只读workMemtable对象
         }
       }
       if (workMemTable != null) {
@@ -1244,19 +1324,19 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
         }
       }
 
-      ModificationFile modificationFile = tsFileResource.getModFile();  //获取此TsFile的mods文件类对象
+      ModificationFile modificationFile = tsFileResource.getModFile(); // 获取此TsFile的mods文件类对象
       List<Modification> modifications =
-          context.getPathModifications(  //从该TsFile的mods文件类对象里获取对该指定时间序列路径的所有删除操作，存入列表里
+          context.getPathModifications( // 从该TsFile的mods文件类对象里获取对该指定时间序列路径的所有删除操作，存入列表里
               modificationFile,
               new PartialPath(deviceId + IoTDBConstant.PATH_SEPARATOR + measurementId));
 
       List<IChunkMetadata> chunkMetadataList = new ArrayList<>();
-      if (schema instanceof VectorMeasurementSchema) {  //如果是vector
+      if (schema instanceof VectorMeasurementSchema) { // 如果是vector
         List<ChunkMetadata> timeChunkMetadataList =
             writer.getVisibleMetadataList(deviceId, measurementId, schema.getType());
         List<List<ChunkMetadata>> valueChunkMetadataList = new ArrayList<>();
-        List<String> valueMeasurementIdList = schema.getValueMeasurementIdList();
-        List<TSDataType> valueDataTypeList = schema.getValueTSDataTypeList();
+        List<String> valueMeasurementIdList = schema.getSubMeasurementsList();
+        List<TSDataType> valueDataTypeList = schema.getSubMeasurementsTSDataTypeList();
         for (int i = 0; i < valueMeasurementIdList.size(); i++) {
           valueChunkMetadataList.add(
               writer.getVisibleMetadataList(
@@ -1271,7 +1351,7 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
           chunkMetadataList.add(
               new VectorChunkMetadata(timeChunkMetadataList.get(i), valueChunkMetadata));
         }
-      } else {    //若不是vector
+      } else { // 若不是vector
         chunkMetadataList =
             new ArrayList<>(
                 writer.getVisibleMetadataList(deviceId, measurementId, schema.getType()));
@@ -1338,6 +1418,10 @@ public class TsFileProcessor {  //每个TsFile对应着自己的一个TsFileProc
   /** Return Long.MAX_VALUE if workMemTable is null */
   public long getWorkMemTableCreatedTime() {
     return workMemTable != null ? workMemTable.getCreatedTime() : Long.MAX_VALUE;
+  }
+
+  public long getLastWorkMemtableFlushTime() {
+    return lastWorkMemtableFlushTime;
   }
 
   public boolean isSequence() {

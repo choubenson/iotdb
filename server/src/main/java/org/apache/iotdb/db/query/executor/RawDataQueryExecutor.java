@@ -49,9 +49,9 @@ import java.util.Set;
 import static org.apache.iotdb.tsfile.read.query.executor.ExecutorWithTimeGenerator.markFilterdPaths;
 
 /** IoTDB query executor. */
-public class RawDataQueryExecutor { //原数据的查询执行器类
+public class RawDataQueryExecutor { // 原数据的查询执行器类
 
-  protected RawDataQueryPlan queryPlan; //原数据查询计划
+  protected RawDataQueryPlan queryPlan; // 原数据查询计划
 
   public RawDataQueryExecutor(RawDataQueryPlan queryPlan) {
     this.queryPlan = queryPlan;
@@ -60,7 +60,8 @@ public class RawDataQueryExecutor { //原数据的查询执行器类
   /** without filter or with global time filter. */
   public QueryDataSet executeWithoutValueFilter(QueryContext context)
       throws StorageEngineException, QueryProcessException {
-    QueryDataSet dataSet = needRedirect(context, false);//判断是否将该查询重定向到其他节点，只有在分布式的时候需要重定向，单机是不需要的，返回null
+    QueryDataSet dataSet =
+        needRedirect(context, false); // 判断是否将该查询重定向到其他节点，只有在分布式的时候需要重定向，单机是不需要的，返回null
     if (dataSet != null) {
       return dataSet;
     }
@@ -82,7 +83,8 @@ public class RawDataQueryExecutor { //原数据的查询执行器类
 
   public final QueryDataSet executeNonAlign(QueryContext context)
       throws StorageEngineException, QueryProcessException {
-    QueryDataSet dataSet = needRedirect(context, false);//判断是否将该查询重定向到其他节点，只有在分布式的时候需要重定向，单机是不需要的，返回null
+    QueryDataSet dataSet =
+        needRedirect(context, false); // 判断是否将该查询重定向到其他节点，只有在分布式的时候需要重定向，单机是不需要的，返回null
     if (dataSet != null) {
       return dataSet;
     }
@@ -96,20 +98,27 @@ public class RawDataQueryExecutor { //原数据的查询执行器类
 
   protected List<ManagedSeriesReader> initManagedSeriesReader(QueryContext context)
       throws StorageEngineException, QueryProcessException {
-    Filter timeFilter = null; //时间过滤器
-    if (queryPlan.getExpression() != null) {  //若查询计划的Expression表达式不为空，则该experssion一定是一元的globalTimeExpression，即有时间过滤器
-      timeFilter = ((GlobalTimeExpression) queryPlan.getExpression()).getFilter();  //获取该查询计划的GlobalTimeExpression一元表达式的过滤器，它是关于时间的过滤器，可能是一元或者二元过滤器。
+    Filter timeFilter = null; // 时间过滤器
+    if (queryPlan.getExpression()
+        != null) { // 若查询计划的Expression表达式不为空，则该experssion一定是一元的globalTimeExpression，即有时间过滤器
+      timeFilter =
+          ((GlobalTimeExpression) queryPlan.getExpression())
+              .getFilter(); // 获取该查询计划的GlobalTimeExpression一元表达式的过滤器，它是关于时间的过滤器，可能是一元或者二元过滤器。
     }
 
     List<ManagedSeriesReader> readersOfSelectedSeries = new ArrayList<>();
     List<StorageGroupProcessor> list =
-        StorageEngine.getInstance().mergeLock(queryPlan.getDeduplicatedPaths());//对给定查询相关的时间序列路径列表对应的各自存储组下的所有虚拟存储组加读锁，并返回这些所有虚拟存储组的StorageGroupProcessor
+        StorageEngine.getInstance()
+            .mergeLock(
+                queryPlan
+                    .getDeduplicatedPaths()); // 对给定查询相关的时间序列路径列表对应的各自存储组下的所有虚拟存储组加读锁，并返回这些所有虚拟存储组的StorageGroupProcessor
     try {
-      for (int i = 0; i < queryPlan.getDeduplicatedPaths().size(); i++) { //遍历此次查询的所有时间序列路径
-        PartialPath path = queryPlan.getDeduplicatedPaths().get(i); //此查询的序列路径的第i个时间序列路径对象
-        TSDataType dataType = queryPlan.getDeduplicatedDataTypes().get(i);  //获取该时间序列的数据类型
+      for (int i = 0; i < queryPlan.getDeduplicatedPaths().size(); i++) { // 遍历此次查询的所有时间序列路径
+        PartialPath path = queryPlan.getDeduplicatedPaths().get(i); // 此查询的序列路径的第i个时间序列路径对象
+        TSDataType dataType = queryPlan.getDeduplicatedDataTypes().get(i); // 获取该时间序列的数据类型
 
-        QueryDataSource queryDataSource =//根据给定此查询的某一时间序列路径和过滤器创建SingleSeriesExpression对象，根据该对象获取此次查询需要用到的所有顺序or乱序TsFileResource,并把它们往添加入查询文件管理类里，即添加此次查询ID对应需要用到的顺序和乱序TsFileResource,并创建返回QueryDataSource对象，该类对象存放了一次查询里对一条时间序列涉及到的所有顺序TsFileResource和乱序TsFileResource和数据TTL
+        QueryDataSource
+            queryDataSource = // 根据给定此查询的某一时间序列路径和过滤器创建SingleSeriesExpression对象，根据该对象获取此次查询需要用到的所有顺序or乱序TsFileResource,并把它们往添加入查询文件管理类里，即添加此次查询ID对应需要用到的顺序和乱序TsFileResource,并创建返回QueryDataSource对象，该类对象存放了一次查询里对一条时间序列涉及到的所有顺序TsFileResource和乱序TsFileResource和数据TTL
             QueryResourceManager.getInstance().getQueryDataSource(path, context, timeFilter);
         timeFilter = queryDataSource.updateFilterUsingTTL(timeFilter);
 
@@ -214,7 +223,9 @@ public class RawDataQueryExecutor { //原数据的查询执行器类
    * @param hasValueFilter if has value filter, we need to check timegenerator
    * @return dummyDataSet to avoid more cost, if null, no need
    */
-  protected QueryDataSet needRedirect(QueryContext context, boolean hasValueFilter) //判断是否将该查询重定向到其他节点，只有在分布式的时候需要重定向，单机是不需要的，返回null
+  protected QueryDataSet needRedirect(
+      QueryContext context,
+      boolean hasValueFilter) // 判断是否将该查询重定向到其他节点，只有在分布式的时候需要重定向，单机是不需要的，返回null
       throws StorageEngineException, QueryProcessException {
     return null;
   }

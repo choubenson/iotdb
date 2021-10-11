@@ -24,7 +24,8 @@ import org.apache.iotdb.db.metadata.PartialPath;
 import java.util.Objects;
 
 /** Deletion is a delete operation on a timeseries. */
-public class Deletion extends Modification {//删除的操作类，该类记录了删除的具体信息（包括时间序列路径，删除的开始时间和结束时间，修改的类型，修改的位置）
+public class Deletion
+    extends Modification { // 删除的操作类，该类记录了删除的具体信息（包括时间序列路径，删除的开始时间和结束时间，修改的类型，修改的位置）
 
   /** data within the interval [startTime, endTime] are to be deleted. */
   private long startTime;

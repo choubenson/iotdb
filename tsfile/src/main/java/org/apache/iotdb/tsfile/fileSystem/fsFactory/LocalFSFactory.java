@@ -91,7 +91,8 @@ public class LocalFSFactory implements FSFactory {
   }
 
   @Override
-  public BufferedInputStream getBufferedInputStream(String filePath) {  //读取该filePath指定路径的文件的内容，以缓存二进制流BufferedInputStream的形式返回
+  public BufferedInputStream getBufferedInputStream(
+      String filePath) { // 读取该filePath指定路径的文件的内容，以缓存二进制流BufferedInputStream的形式返回
     try {
       return new BufferedInputStream(new FileInputStream(filePath));
     } catch (IOException e) {

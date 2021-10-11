@@ -18,17 +18,12 @@
  */
 package org.apache.iotdb.db.metadata.mnode;
 
-import org.apache.iotdb.db.exception.metadata.AlignedTimeseriesException;
-import org.apache.iotdb.db.exception.metadata.MetadataException;
-import org.apache.iotdb.db.metadata.PartialPath;
 import org.apache.iotdb.db.metadata.logfile.MLogWriter;
 import org.apache.iotdb.db.metadata.template.Template;
-import org.apache.iotdb.db.metadata.utils.MetaUtils;
 import org.apache.iotdb.db.qp.physical.sys.MNodePlan;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * This class is the implementation of Metadata Node. One MNode instance represents one node in the
  * Metadata Tree
  */
-public class InternalMNode extends MNode {    //节点类，代表MetaTree上的任一节点
+public class InternalMNode extends MNode { // 节点类，代表MetaTree上的任一节点
 
   private static final long serialVersionUID = -770028375899514063L;
 
@@ -159,13 +154,13 @@ public class InternalMNode extends MNode {    //节点类，代表MetaTree上的
 
     if (newChildNode.isEntity() && oldChildNode.isEntity()) {
       Map<String, IMeasurementMNode> grandAliasChildren =
-          ((IEntityMNode) oldChildNode).getAliasChildren();
+          oldChildNode.getAsEntityMNode().getAliasChildren();
       if (!grandAliasChildren.isEmpty()) {
-        ((IEntityMNode) newChildNode).setAliasChildren(grandAliasChildren);
+        newChildNode.getAsEntityMNode().setAliasChildren(grandAliasChildren);
         grandAliasChildren.forEach(
             (grandAliasChildName, grandAliasChild) -> grandAliasChild.setParent(newChildNode));
       }
-      ((IEntityMNode) newChildNode).setUseTemplate(oldChildNode.isUseTemplate());
+      newChildNode.getAsEntityMNode().setUseTemplate(oldChildNode.isUseTemplate());
     }
 
     newChildNode.setSchemaTemplate(oldChildNode.getSchemaTemplate());
@@ -174,25 +169,6 @@ public class InternalMNode extends MNode {    //节点类，代表MetaTree上的
 
     this.deleteChild(oldChildName);
     this.addChild(newChildNode.getName(), newChildNode);
-  }
-
-  @Override
-  public IMNode getChildOfAlignedTimeseries(String name) throws MetadataException {
-    IMNode node = null;
-    // for aligned timeseries
-    List<String> measurementList = MetaUtils.getMeasurementsInPartialPath(new PartialPath(name));
-    for (String measurement : measurementList) {
-      IMNode nodeOfMeasurement = getChild(measurement);
-      if (node == null) {
-        node = nodeOfMeasurement;
-      } else {
-        if (node != nodeOfMeasurement) {
-          throw new AlignedTimeseriesException(
-              "Cannot get node of children in different aligned timeseries", name);
-        }
-      }
-    }
-    return node;
   }
 
   @Override

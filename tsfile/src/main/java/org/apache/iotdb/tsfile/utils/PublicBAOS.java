@@ -27,7 +27,8 @@ import java.io.OutputStream;
  * directly. Note that the size of byte array is large than actual size of valid contents, thus it's
  * used cooperating with <code>size()</code> or <code>capacity = size</code>
  */
-public class PublicBAOS extends ByteArrayOutputStream { //封装后的输出流类Output Stream，这个输出流（文件写入流）有buffer缓存(byte数组)
+public class PublicBAOS
+    extends ByteArrayOutputStream { // 封装后的输出流类Output Stream，这个输出流（文件写入流）有buffer缓存(byte数组)
 
   public PublicBAOS() {
     super();

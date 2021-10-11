@@ -25,7 +25,7 @@ import java.io.DataOutputStream;
 import java.nio.ByteBuffer;
 
 /** Filter is a top level filter abstraction. */
-public interface Filter { //过滤器基类
+public interface Filter { // 过滤器基类
 
   /**
    * To examine whether the statistics is satisfied with the filter.
@@ -48,7 +48,10 @@ public interface Filter { //过滤器基类
    * @param startTime start time of a page, series or device
    * @param endTime end time of a page, series or device
    */
-  boolean satisfyStartEndTime(long startTime, long endTime);  //判断给定的时间范围[startTime,endTime]否存在满足时间过滤器的时间点，比如：给定的时间范围是[0,10]，则它存在满足"<5",">3","=4"等等的过滤器，可是不满足">20"的过滤器
+  boolean satisfyStartEndTime(
+      long startTime,
+      long
+          endTime); // 判断给定的时间范围[startTime,endTime]否存在满足时间过滤器的时间点，比如：给定的时间范围是[0,10]，则它存在满足"<5",">3","=4"等等的过滤器，可是不满足">20"的过滤器
 
   /**
    * To examine whether the partition [startTime, endTime] is subsets of filter.

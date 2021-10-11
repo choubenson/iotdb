@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
-public interface TsFileOutput {     //TsFile写入的接口
+public interface TsFileOutput { // TsFile写入的接口
 
   /**
    * Writes <code>b.length</code> bytes from the specified byte array to this output at the current

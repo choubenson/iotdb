@@ -50,13 +50,14 @@ import org.apache.iotdb.tsfile.utils.BloomFilter;
 import org.apache.iotdb.tsfile.utils.Pair;
 import org.apache.iotdb.tsfile.utils.ReadWriteIOUtils;
 import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
-import org.apache.iotdb.tsfile.write.schema.MeasurementSchema;
+import org.apache.iotdb.tsfile.write.schema.UnaryMeasurementSchema;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -78,7 +79,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
-public class TsFileSequenceReader implements AutoCloseable {  //TsFile文件的顺序阅读器
+public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的顺序阅读器
 
   private static final Logger logger = LoggerFactory.getLogger(TsFileSequenceReader.class);
   private static final Logger resourceLogger = LoggerFactory.getLogger("FileMonitor");
@@ -92,7 +93,8 @@ public class TsFileSequenceReader implements AutoCloseable {  //TsFile文件的�
   private ByteBuffer markerBuffer = ByteBuffer.allocate(Byte.BYTES);
   protected TsFileMetadata tsFileMetaData;
   // device -> measurement -> TimeseriesMetadata
-  private Map<String, Map<String, TimeseriesMetadata>> cachedDeviceMetadata =     //存放某设备的某传感器的TimeseriesIndex
+  private Map<String, Map<String, TimeseriesMetadata>>
+      cachedDeviceMetadata = // 存放某设备的某传感器的TimeseriesIndex
       new ConcurrentHashMap<>();
   private static final ReadWriteLock cacheLock = new ReentrantReadWriteLock();
   private boolean cacheDeviceMetadata;
@@ -895,14 +897,17 @@ public class TsFileSequenceReader implements AutoCloseable {  //TsFile文件的�
     return readData(-1, header.getCompressedSize());
   }
 
-  public ByteBuffer readPage(PageHeader header, CompressionType type) throws IOException {//根据pageHeader和压缩类型，把该page的二进制流数据进行解压后的二进制流数据存入ByteBuffer缓存并返回
-    ByteBuffer buffer = readData(-1, header.getCompressedSize()); //从当前读指针位置开始，读取该page压缩后字节数量的数据到ByteBuffer缓存里
-    IUnCompressor unCompressor = IUnCompressor.getUnCompressor(type); //获取解压缩类对象
-    ByteBuffer uncompressedBuffer = ByteBuffer.allocate(header.getUncompressedSize());  //创建该page解压后字节数量大小的缓存
-    if (type == CompressionType.UNCOMPRESSED) { //若该page是未压缩的
+  public ByteBuffer readPage(PageHeader header, CompressionType type)
+      throws IOException { // 根据pageHeader和压缩类型，把该page的二进制流数据进行解压后的二进制流数据存入ByteBuffer缓存并返回
+    ByteBuffer buffer =
+        readData(-1, header.getCompressedSize()); // 从当前读指针位置开始，读取该page压缩后字节数量的数据到ByteBuffer缓存里
+    IUnCompressor unCompressor = IUnCompressor.getUnCompressor(type); // 获取解压缩类对象
+    ByteBuffer uncompressedBuffer =
+        ByteBuffer.allocate(header.getUncompressedSize()); // 创建该page解压后字节数量大小的缓存
+    if (type == CompressionType.UNCOMPRESSED) { // 若该page是未压缩的
       return buffer;
     } // FIXME if the buffer is not array-implemented.
-    unCompressor.uncompress(    //对该page的数据进行解压缩并存入uncompressedBuffer缓存里
+    unCompressor.uncompress( // 对该page的数据进行解压缩并存入uncompressedBuffer缓存里
         buffer.array(), buffer.position(), buffer.remaining(), uncompressedBuffer.array(), 0);
     return uncompressedBuffer;
   }
@@ -911,7 +916,7 @@ public class TsFileSequenceReader implements AutoCloseable {  //TsFile文件的�
    * read one byte from the input. <br>
    * this method is not thread safe
    */
-  public byte readMarker() throws IOException { //读取一个字节
+  public byte readMarker() throws IOException { // 读取一个字节
     markerBuffer.clear();
     if (ReadWriteIOUtils.readAsPossible(tsFileInput, markerBuffer) == 0) {
       throw new IOException("reach the end of the file.");
@@ -947,8 +952,9 @@ public class TsFileSequenceReader implements AutoCloseable {  //TsFile文件的�
    * @param size the size of data that want to read
    * @return data that been read.
    */
-  protected ByteBuffer readData(long position, int size) throws IOException { //从position位置开始，读取size个字节的数据到ByteBuffer缓存里
-    ByteBuffer buffer = ByteBuffer.allocate(size);  //指定缓存大小，并创建缓存
+  protected ByteBuffer readData(long position, int size)
+      throws IOException { // 从position位置开始，读取size个字节的数据到ByteBuffer缓存里
+    ByteBuffer buffer = ByteBuffer.allocate(size); // 指定缓存大小，并创建缓存
     if (position < 0) {
       if (ReadWriteIOUtils.readAsPossible(tsFileInput, buffer) != size) {
         throw new IOException("reach the end of the data");
@@ -1053,14 +1059,15 @@ public class TsFileSequenceReader implements AutoCloseable {  //TsFile文件的�
             ChunkHeader chunkHeader = this.readChunkHeader(marker);
             measurementID = chunkHeader.getMeasurementID();
             IMeasurementSchema measurementSchema =
-                new MeasurementSchema(
+                new UnaryMeasurementSchema(
                     measurementID,
                     chunkHeader.getDataType(),
                     chunkHeader.getEncodingType(),
                     chunkHeader.getCompressionType());
             measurementSchemaList.add(measurementSchema);
             dataType = chunkHeader.getDataType();
-            Statistics<?> chunkStatistics = Statistics.getStatsByType(dataType);
+            Statistics<? extends Serializable> chunkStatistics =
+                Statistics.getStatsByType(dataType);
             int dataSize = chunkHeader.getDataSize();
             if (((byte) (chunkHeader.getChunkType() & 0x3F)) == MetaMarker.CHUNK_HEADER) {
               while (dataSize > 0) {

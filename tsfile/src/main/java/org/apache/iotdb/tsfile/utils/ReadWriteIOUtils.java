@@ -496,13 +496,14 @@ public class ReadWriteIOUtils {
   }
 
   /** read a int var from inputStream. */
-  public static int readInt(InputStream inputStream) throws IOException {//从输入流中读取一个整数int变量（即读取四个字节的内容并把他们转为int型整数变量）
-    byte[] bytes = new byte[INT_LEN]; //读入缓存，为4个字节
-    int readLen = inputStream.read(bytes);  //将读入的内容放入换缓存里
-    if (readLen != INT_LEN) {//如果读的内容长度不为整数型长度4字节，则报错
+  public static int readInt(InputStream inputStream)
+      throws IOException { // 从输入流中读取一个整数int变量（即读取四个字节的内容并把他们转为int型整数变量）
+    byte[] bytes = new byte[INT_LEN]; // 读入缓存，为4个字节
+    int readLen = inputStream.read(bytes); // 将读入的内容放入换缓存里
+    if (readLen != INT_LEN) { // 如果读的内容长度不为整数型长度4字节，则报错
       throw new IOException(String.format(RETURN_ERROR, INT_LEN, readLen));
     }
-    return BytesUtils.bytesToInt(bytes);  //将读入的四字节内容转为int型整数
+    return BytesUtils.bytesToInt(bytes); // 将读入的四字节内容转为int型整数
   }
 
   /** read a int var from byteBuffer. */
@@ -539,7 +540,7 @@ public class ReadWriteIOUtils {
 
   /** read string from inputStream. */
   public static String readString(InputStream inputStream) throws IOException {
-    int strLength = readInt(inputStream); //读取四个字节的整数
+    int strLength = readInt(inputStream); // 读取四个字节的整数
     if (strLength <= 0) {
       return null;
     }

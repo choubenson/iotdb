@@ -25,7 +25,7 @@ import org.apache.iotdb.tsfile.write.writer.TsFileIOWriter;
 import java.io.IOException;
 
 /** IChunkWriter provides a list of writing methods for different value types. */
-public interface IChunkWriter { //Chunk写入类接口
+public interface IChunkWriter { // Chunk写入类接口
 
   /** write a time value pair. */
   void write(long time, int value, boolean isNull);

@@ -22,7 +22,8 @@ import org.apache.iotdb.tsfile.utils.TsPrimitiveType;
 
 import java.io.Serializable;
 
-public class TimeValuePair implements Serializable, Comparable<TimeValuePair> {   //该类存储时间和TsPrimitiveType类型的value
+public class TimeValuePair
+    implements Serializable, Comparable<TimeValuePair> { // 该类存储时间和TsPrimitiveType类型的value
 
   private long timestamp;
   private TsPrimitiveType value;

@@ -40,9 +40,17 @@ public class PrimitiveArrayManager {
 
   public static final int ARRAY_SIZE = CONFIG.getPrimitiveArraySize();
 
+  /**
+   * The actual used memory will be 50% larger than the statistic, so we need to limit the size of
+   * POOLED_ARRAYS_MEMORY_THRESHOLD, make it smaller than its actual allowed value.
+   */
+  private static final double AMPLIFICATION_FACTOR = 1.5;
+
   /** threshold total size of arrays for all data types */
   private static final double POOLED_ARRAYS_MEMORY_THRESHOLD =
-      CONFIG.getAllocateMemoryForWrite() * CONFIG.getBufferedArraysMemoryProportion();
+      CONFIG.getAllocateMemoryForWrite()
+          * CONFIG.getBufferedArraysMemoryProportion()
+          / AMPLIFICATION_FACTOR;
 
   /** TSDataType#serialize() -> ArrayDeque<Array>, VECTOR is ignored */
   private static final ArrayDeque[] POOLED_ARRAYS = new ArrayDeque[TSDataType.values().length - 1];
@@ -109,7 +117,8 @@ public class PrimitiveArrayManager {
    *
    * @return an array
    */
-  public static Object allocate(TSDataType dataType) {  //根据数据类型获得数组（就是普通的数组，如new Boolean[ARRAY_SIZE]）
+  public static Object allocate(
+      TSDataType dataType) { // 根据数据类型获得数组（就是普通的数组，如new Boolean[ARRAY_SIZE]）
     if (dataType.equals(TSDataType.VECTOR)) {
       throw new UnSupportedDataTypeException(TSDataType.VECTOR.name());
     }
@@ -171,7 +180,7 @@ public class PrimitiveArrayManager {
       int newLimit = (int) (limitBase * ratios[i]);
       LIMITS[i] = newLimit;
 
-      if (LOGGER.isInfoEnabled()) {
+      if (LOGGER.isInfoEnabled() && oldLimit != newLimit) {
         LOGGER.info(
             "limit of {} array deque size updated: {} -> {}",
             TSDataType.deserialize((byte) i).name(),
@@ -180,11 +189,16 @@ public class PrimitiveArrayManager {
       }
     }
 
+    long oldLimitUpdateThreshold = limitUpdateThreshold;
     // limitUpdateThreshold = ∑(LIMITS[i])
     limitUpdateThreshold = 0;
     for (int limit : LIMITS) {
       limitUpdateThreshold += limit;
     }
+    LOGGER.info(
+        "limitUpdateThreshold of PrimitiveArrayManager updated: {} -> {}",
+        oldLimitUpdateThreshold,
+        limitUpdateThreshold);
 
     for (AtomicLong allocationRequestCount : ALLOCATION_REQUEST_COUNTS) {
       allocationRequestCount.set(0);
@@ -193,11 +207,11 @@ public class PrimitiveArrayManager {
     TOTAL_ALLOCATION_REQUEST_COUNT.set(0);
   }
 
-  private static Object createPrimitiveArray(TSDataType dataType) { //根据数据类型创建数组
+  private static Object createPrimitiveArray(TSDataType dataType) { // 根据数据类型创建数组
     Object dataArray;
     switch (dataType) {
       case BOOLEAN:
-        dataArray = new boolean[ARRAY_SIZE];  //创建Boolean型数组
+        dataArray = new boolean[ARRAY_SIZE]; // 创建Boolean型数组
         break;
       case INT32:
         dataArray = new int[ARRAY_SIZE];
@@ -226,7 +240,7 @@ public class PrimitiveArrayManager {
    *
    * @param array data array to be released
    */
-  public static void release(Object array) {  //把array数组还给系统，系统会把其整理清空后继续添加进系统的可用数组列表中
+  public static void release(Object array) { // 把array数组还给系统，系统会把其整理清空后继续添加进系统的可用数组列表中
     int order;
     if (array instanceof boolean[]) {
       order = TSDataType.BOOLEAN.serialize();

@@ -29,13 +29,13 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
 /** Statistics for int type. */
-public class IntegerStatistics extends Statistics<Integer> {  //整数型statistics
+public class IntegerStatistics extends Statistics<Integer> { // 整数型statistics
 
-  private int minValue; //最小数据值
-  private int maxValue; //最大数据值
-  private int firstValue; //第一个数据值
-  private int lastValue;  //最后一个数据值
-  private long sumValue;  //所有的数据和
+  private int minValue; // 最小数据值
+  private int maxValue; // 最大数据值
+  private int firstValue; // 第一个数据值
+  private int lastValue; // 最后一个数据值
+  private long sumValue; // 所有的数据和
 
   static final int INTEGER_STATISTICS_FIXED_RAM_SIZE = 64;
 
@@ -153,7 +153,7 @@ public class IntegerStatistics extends Statistics<Integer> {  //整数型statist
   }
 
   @Override
-  protected void mergeStatisticsValue(Statistics stats) {
+  protected void mergeStatisticsValue(Statistics<Integer> stats) {
     IntegerStatistics intStats = (IntegerStatistics) stats;
     if (isEmpty) {
       initializeStats(

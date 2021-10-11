@@ -40,12 +40,17 @@ import java.util.Map;
  * i.e., Writing and querying operations must already have gotten writeLock and readLock
  * respectively.<br>
  */
-public interface IMemTable {  //用于存放那些还没被flush刷进TsFile文件里的数据点，可以理解为内存缓冲区。每个IMemtable存放着一个存储组下的所有时间序列待被写入的数据点。
+public
+interface IMemTable { // 用于存放那些还没被flush刷进TsFile文件里的数据点，可以理解为内存缓冲区。每个IMemtable存放着一个存储组下的所有时间序列待被写入的数据点。
 
   Map<String, Map<String, IWritableMemChunk>> getMemTableMap();
 
   void write(String deviceId, IMeasurementSchema schema, long insertTime, Object objectValue);
 
+  /**
+   * write data in the range [start, end). Null value in each column values will be replaced by the
+   * subsequent non-null value, e.g., {1, null, 3, null, 5} will be {1, 3, 5, null, 5}
+   */
   void write(InsertTabletPlan insertTabletPlan, int start, int end);
 
   /** @return the number of points */
@@ -82,7 +87,9 @@ public interface IMemTable {  //用于存放那些还没被flush刷进TsFile文�
   void insert(InsertRowPlan insertRowPlan);
 
   /**
-   * insert tablet into this memtable
+   * insert tablet into this memtable. The rows to be inserted are in the range [start, end). Null
+   * value in each column values will be replaced by the subsequent non-null value, e.g., {1, null,
+   * 3, null, 5} will be {1, 3, 5, null, 5}
    *
    * @param insertTabletPlan insertTabletPlan
    * @param start included

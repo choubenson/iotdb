@@ -32,6 +32,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
+
+import static org.apache.iotdb.db.conf.IoTDBConstant.MULTI_LEVEL_PATH_WILDCARD;
+import static org.apache.iotdb.db.conf.IoTDBConstant.ONE_LEVEL_PATH_WILDCARD;
 
 /**
  * A prefix path, suffix path or fullPath generated from SQL. Usually used in the IoTDB server
@@ -45,6 +49,7 @@ public class PartialPath extends Path implements Comparable<Path> {
   // alias of measurement, null pointer cannot be serialized in thrift so empty string is instead
   protected String measurementAlias = "";
 
+  public PartialPath() {}
   /**
    * Construct the PartialPath using a String, will split the given String into String[] E.g., path
    * = "root.sg.\"d.1\".\"s.1\"" nodes = {"root", "sg", "\"d.1\"", "\"s.1\""}
@@ -128,35 +133,74 @@ public class PartialPath extends Path implements Comparable<Path> {
    * @param prefixPath the prefix path used to replace current nodes
    * @return A new PartialPath with altered prefix
    */
-  public PartialPath alterPrefixPath(PartialPath prefixPath) {  //eg:prefixPath为root.In
-    String[] newNodes = Arrays.copyOf(nodes, Math.max(nodes.length, prefixPath.getNodeLength()));//复制一个当前PartialPath路径对象所包含的节点数组,eg:{"root","*","*","*","*"}
-    System.arraycopy(prefixPath.getNodes(), 0, newNodes, 0, prefixPath.getNodeLength());//将上面新的newNodes用传来的prefixPath替换掉最前面的几个节点,于是newNodes变成{"root","ln","*","*","*"}
+  public PartialPath alterPrefixPath(PartialPath prefixPath) { // eg:prefixPath为root.In
+    String[] newNodes =
+        Arrays.copyOf(
+            nodes,
+            Math.max(
+                nodes.length,
+                prefixPath
+                    .getNodeLength())); // 复制一个当前PartialPath路径对象所包含的节点数组,eg:{"root","*","*","*","*"}
+    System.arraycopy(
+        prefixPath.getNodes(),
+        0,
+        newNodes,
+        0,
+        prefixPath
+            .getNodeLength()); // 将上面新的newNodes用传来的prefixPath替换掉最前面的几个节点,于是newNodes变成{"root","ln","*","*","*"}
     return new PartialPath(newNodes);
   }
 
   /**
-   * Test if this PartialPath matches a full path. rPath is supposed to be a full timeseries path
-   * without wildcards. e.g. "root.sg.device.*" matches path "root.sg.device.s1" whereas it does not
-   * match "root.sg.device" and "root.sg.vehicle.s1"
+   * Test if this PartialPath matches a full path. This partialPath acts as a full path pattern.
+   * rPath is supposed to be a full timeseries path without wildcards. e.g. "root.sg.device.*"
+   * matches path "root.sg.device.s1" whereas it does not match "root.sg.device" and
+   * "root.sg.vehicle.s1"
    *
    * @param rPath a plain full path of a timeseries
    * @return true if a successful match, otherwise return false
    */
-  public boolean matchFullPath(PartialPath rPath) { //传过来的rPath是具体的路径对象，当前PartialPath对象（即this）是通配路径对象，该方法用来测试当前通配路径对象是否能匹配传过来的具体路径。如当前对象路径是root.ln.*.*.*，传过来的对象路径是root.ln.wf01.wt01.status，则说明匹配，返回真
-    String[] rNodes = rPath.getNodes();
-    if (rNodes.length < nodes.length) {
+  public boolean matchFullPath(
+      PartialPath
+          rPath) { // 传过来的rPath是具体的路径对象，当前PartialPath对象（即this）是通配路径对象，该方法用来测试当前通配路径对象是否能匹配传过来的具体路径。如当前对象路径是root.ln.*.*.*，传过来的对象路径是root.ln.wf01.wt01.status，则说明匹配，返回真
+    return matchFullPath(rPath.getNodes(), 0, 0, false);
+  }
+
+  private boolean matchFullPath(
+      String[] pathNodes, int pathIndex, int patternIndex, boolean multiLevelWild) {
+    if (pathIndex == pathNodes.length && patternIndex == nodes.length) {
+      return true;
+    } else if (patternIndex == nodes.length && multiLevelWild) {
+      return matchFullPath(pathNodes, pathIndex + 1, patternIndex, true);
+    } else if (pathIndex >= pathNodes.length || patternIndex >= nodes.length) {
       return false;
     }
-    for (int i = 0; i < nodes.length; i++) {
-      if (!nodes[i].equals(IoTDBConstant.PATH_WILDCARD) && !nodes[i].equals(rNodes[i])) {
-        return false;
+
+    String pathNode = pathNodes[pathIndex];
+    String patternNode = nodes[patternIndex];
+    boolean isMatch = false;
+    if (patternNode.equals(MULTI_LEVEL_PATH_WILDCARD)) {
+      isMatch = matchFullPath(pathNodes, pathIndex + 1, patternIndex + 1, true);
+    } else {
+      if (patternNode.contains(ONE_LEVEL_PATH_WILDCARD)) {
+        if (Pattern.matches(patternNode.replace("*", ".*"), pathNode)) {
+          isMatch = matchFullPath(pathNodes, pathIndex + 1, patternIndex + 1, false);
+        }
+      } else {
+        if (patternNode.equals(pathNode)) {
+          isMatch = matchFullPath(pathNodes, pathIndex + 1, patternIndex + 1, false);
+        }
+      }
+
+      if (!isMatch && multiLevelWild) {
+        isMatch = matchFullPath(pathNodes, pathIndex + 1, patternIndex, true);
       }
     }
-    return true;
+    return isMatch;
   }
 
   @Override
-  public String getFullPath() { //返回当前PartialPath对象的字符串全路径path
+  public String getFullPath() { // 返回当前PartialPath对象的字符串全路径path
     if (fullPath != null) {
       return fullPath;
     } else {
@@ -167,6 +211,15 @@ public class PartialPath extends Path implements Comparable<Path> {
       fullPath = s.toString();
       return fullPath;
     }
+  }
+
+  public PartialPath copy() {
+    PartialPath result = new PartialPath();
+    result.nodes = nodes;
+    result.fullPath = fullPath;
+    result.device = device;
+    result.measurementAlias = measurementAlias;
+    return result;
   }
 
   @Override
@@ -193,7 +246,7 @@ public class PartialPath extends Path implements Comparable<Path> {
   }
 
   @Override
-  public int hashCode() { //根据传过来的路径计算出其hash值
+  public int hashCode() { // 根据传过来的路径计算出其hash值
     return this.getFullPath().hashCode();
   }
 
@@ -304,14 +357,7 @@ public class PartialPath extends Path implements Comparable<Path> {
    * If the partialPath is VectorPartialPath and it has only one sub sensor, return the sub sensor's
    * full path. Otherwise, return the partialPath's fullPath
    */
-  public static String getExactFullPath(PartialPath partialPath) {
-    String fullPath = partialPath.getFullPath();
-    if (partialPath instanceof VectorPartialPath) {
-      VectorPartialPath vectorPartialPath = (VectorPartialPath) partialPath;
-      if (vectorPartialPath.getSubSensorsPathList().size() == 1) {
-        fullPath = vectorPartialPath.getSubSensorsPathList().get(0).getFullPath();
-      }
-    }
-    return fullPath;
+  public String getExactFullPath() {
+    return getFullPath();
   }
 }

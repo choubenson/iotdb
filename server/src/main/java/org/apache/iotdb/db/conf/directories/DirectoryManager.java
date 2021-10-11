@@ -34,17 +34,17 @@ import java.util.Arrays;
 import java.util.List;
 
 /** The main class of multiple directories. Used to allocate folders to data files. */
-public class DirectoryManager {   //该类用于管理目录文件夹下的文件，如创建文件、获取文件的路径等。
+public class DirectoryManager { // 该类用于管理目录文件夹下的文件，如创建文件、获取文件的路径等。
 
   private static final Logger logger = LoggerFactory.getLogger(DirectoryManager.class);
 
-  private List<String> sequenceFileFolders; //该系统所有顺序文件的目录路径列表，目前是只有一个元素即"data/data/sequence"
-  private List<String> unsequenceFileFolders; //该系统所有乱序文件的目录路径列表，目前是只有一个元素即"data/data/unsequence"
+  private List<String> sequenceFileFolders; // 该系统所有顺序文件的目录路径列表，目前是只有一个元素即"data/data/sequence"
+  private List<String> unsequenceFileFolders; // 该系统所有乱序文件的目录路径列表，目前是只有一个元素即"data/data/unsequence"
   private DirectoryStrategy sequenceStrategy;
   private DirectoryStrategy unsequenceStrategy;
 
   private DirectoryManager() {
-    sequenceFileFolders =     //顺序文件句柄
+    sequenceFileFolders = // 顺序文件句柄
         new ArrayList<>(Arrays.asList(IoTDBDescriptor.getInstance().getConfig().getDataDirs()));
     for (int i = 0; i < sequenceFileFolders.size(); i++) {
       sequenceFileFolders.set(
@@ -119,7 +119,7 @@ public class DirectoryManager {   //该类用于管理目录文件夹下的文�
     return DirectoriesHolder.INSTANCE;
   }
 
-  private void mkDataDirs(List<String> folders) {   //创建本地文件夹
+  private void mkDataDirs(List<String> folders) { // 创建本地文件夹
     for (String folder : folders) {
       File file = FSFactoryProducer.getFSFactory().getFile(folder);
       if (file.mkdirs()) {

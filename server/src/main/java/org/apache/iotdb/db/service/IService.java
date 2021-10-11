@@ -21,18 +21,18 @@ package org.apache.iotdb.db.service;
 import org.apache.iotdb.db.exception.ShutdownException;
 import org.apache.iotdb.db.exception.StartupException;
 
-public interface IService { //服务类对象
+public interface IService { // 服务类对象
 
   /** Start current service. */
-  void start() throws StartupException; //启动该服务
+  void start() throws StartupException; // 启动该服务
 
   /**
    * Stop current service. If current service uses thread or thread pool, current service should
    * guarantee to putBack thread or thread pool.
    */
-  void stop();  //停止该服务，如果该服务有自己的线程池，则应该把该服务线程丢尽对应的池里
+  void stop(); // 停止该服务，如果该服务有自己的线程池，则应该把该服务线程丢尽对应的池里
 
-  default void waitAndStop(long milliseconds) {     //在milliseconds时间后停止该服务
+  default void waitAndStop(long milliseconds) { // 在milliseconds时间后停止该服务
     stop();
   }
 

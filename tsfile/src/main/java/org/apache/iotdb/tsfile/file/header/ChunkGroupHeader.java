@@ -31,9 +31,9 @@ import java.io.OutputStream;
 
 public class ChunkGroupHeader {
 
-  private static final byte MARKER = MetaMarker.CHUNK_GROUP_HEADER;   //ChunkGroupMarker
+  private static final byte MARKER = MetaMarker.CHUNK_GROUP_HEADER; // ChunkGroupMarker
 
-  private final String deviceID;    //当前ChunkGroup的设备ID
+  private final String deviceID; // 当前ChunkGroup的设备ID
 
   // this field does not need to be serialized.
   private int serializedSize; //
@@ -101,10 +101,11 @@ public class ChunkGroupHeader {
    * @return length
    * @throws IOException IOException
    */
-  public int serializeTo(OutputStream outputStream) throws IOException {//向写入流写入ChunkGroup的marker（为0）和设备ID，返回写入的字节数
+  public int serializeTo(OutputStream outputStream)
+      throws IOException { // 向写入流写入ChunkGroup的marker（为0）和设备ID，返回写入的字节数
     int length = 0;
-    length += ReadWriteIOUtils.write(MARKER, outputStream); //写入ChunkGroup的marker,为0，返回写入的字节数
-    length += ReadWriteIOUtils.writeVar(deviceID, outputStream);  //向写入流写入设备ID，返回写入的字节数
+    length += ReadWriteIOUtils.write(MARKER, outputStream); // 写入ChunkGroup的marker,为0，返回写入的字节数
+    length += ReadWriteIOUtils.writeVar(deviceID, outputStream); // 向写入流写入设备ID，返回写入的字节数
     return length;
   }
 

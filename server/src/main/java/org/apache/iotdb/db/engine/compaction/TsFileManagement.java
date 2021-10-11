@@ -53,11 +53,12 @@ import static org.apache.iotdb.db.engine.merge.task.MergeTask.MERGE_SUFFIX;
 import static org.apache.iotdb.db.engine.storagegroup.StorageGroupProcessor.MERGING_MODIFICATION_FILE_NAME;
 import static org.apache.iotdb.tsfile.common.constant.TsFileConstant.TSFILE_SUFFIX;
 
-public abstract class TsFileManagement {    //TsFile文件管理类，这个类负责管理该存储组下所有的顺序和乱序TsFile，可以对该存储组下的TSFile进行相关的管理操作，如加读写锁等
+public abstract
+class TsFileManagement { // TsFile文件管理类，这个类负责管理该存储组下所有的顺序和乱序TsFile，可以对该存储组下的TSFile进行相关的管理操作，如加读写锁等
 
   private static final Logger logger = LoggerFactory.getLogger(TsFileManagement.class);
-  protected String storageGroupName;  //该TsFile文件管理类所属的存储组StorageGroup名称
-  protected String storageGroupDir;//该TsFile文件管理类所属的虚拟存储组VirtualStorageGroup文件夹路径
+  protected String storageGroupName; // 该TsFile文件管理类所属的存储组StorageGroup名称
+  protected String storageGroupDir; // 该TsFile文件管理类所属的虚拟存储组VirtualStorageGroup文件夹路径
 
   /** Serialize queries, delete resource files, compaction cleanup files */
   private final ReadWriteLock compactionMergeLock = new ReentrantReadWriteLock();
@@ -68,7 +69,8 @@ public abstract class TsFileManagement {    //TsFile文件管理类，这个类�
    * This is the modification file of the result of the current merge. Because the merged file may
    * be invisible at this moment, without this, deletion/update during merge could be lost.
    */
-  public ModificationFile mergingModification;//在对TsFile进行合并期间，所有对该TsFile进行修改（删除）的操作都会先往此修改文件里写。（因为合并过程会删除该TsFile的mods文件）
+  public ModificationFile
+      mergingModification; // 在对TsFile进行合并期间，所有对该TsFile进行修改（删除）的操作都会先往此修改文件里写。（因为合并过程会删除该TsFile的mods文件）
 
   private long mergeStartTime;
 
@@ -96,7 +98,7 @@ public abstract class TsFileManagement {    //TsFile文件管理类，这个类�
   public abstract List<TsFileResource> getTsFileList(boolean sequence);
 
   /** get the TsFile list in sequence by time partition */
-  public abstract List<TsFileResource> getTsFileListByTimePartition(  //根据对应时间分区获取TsFileResource列表
+  public abstract List<TsFileResource> getTsFileListByTimePartition( // 根据对应时间分区获取TsFileResource列表
       boolean sequence, long timePartition);
 
   /** get the TsFile list iterator in sequence */

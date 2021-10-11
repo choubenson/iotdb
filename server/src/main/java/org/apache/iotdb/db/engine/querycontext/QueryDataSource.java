@@ -30,7 +30,7 @@ import java.util.List;
  * The QueryDataSource contains all the seq and unseq TsFileResources for one timeseries in one
  * query
  */
-public class QueryDataSource {  //该类存放了一次查询里对一条时间序列涉及到的所有顺序TsFileResource和乱序TsFileResource，以及数据TTL
+public class QueryDataSource { // 该类存放了一次查询里对一条时间序列涉及到的所有顺序TsFileResource和乱序TsFileResource，以及数据TTL
 
   private List<TsFileResource> seqResources;
   private List<TsFileResource> unseqResources;

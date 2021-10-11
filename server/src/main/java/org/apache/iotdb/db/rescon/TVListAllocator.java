@@ -35,7 +35,8 @@ import java.util.Queue;
 
 public class TVListAllocator implements TVListAllocatorMBean, IService {
 
-  private Map<TSDataType, Queue<TVList>> tvListCache = new EnumMap<>(TSDataType.class); //为每个数据类型分配了可用的TVList，因此数据结构是（数据类型，可用TVList队列）
+  private Map<TSDataType, Queue<TVList>> tvListCache =
+      new EnumMap<>(TSDataType.class); // 为每个数据类型分配了可用的TVList，因此数据结构是（数据类型，可用TVList队列）
   private String mbeanName =
       String.format(
           "%s:%s=%s", IoTDBConstant.IOTDB_PACKAGE, IoTDBConstant.JMX_TYPE, getID().getJmxName());
@@ -50,9 +51,11 @@ public class TVListAllocator implements TVListAllocatorMBean, IService {
     private InstanceHolder() {}
   }
 
-  public synchronized TVList allocate(TSDataType dataType) {  //根据数据类型返回一个新的TVList对象
-    Queue<TVList> tvLists = tvListCache.computeIfAbsent(dataType, k -> new ArrayDeque<>());   //根据数据类型从tvListCache中获取对应的可用TVList队列
-    TVList list = tvLists.poll(); //获取可用TVList队列中的第一个TVList,并把其从可用TVList队列中移除
+  public synchronized TVList allocate(TSDataType dataType) { // 根据数据类型返回一个新的TVList对象
+    Queue<TVList> tvLists =
+        tvListCache.computeIfAbsent(
+            dataType, k -> new ArrayDeque<>()); // 根据数据类型从tvListCache中获取对应的可用TVList队列
+    TVList list = tvLists.poll(); // 获取可用TVList队列中的第一个TVList,并把其从可用TVList队列中移除
     return list != null ? list : TVList.newList(dataType);
   }
 

@@ -25,6 +25,7 @@ import org.apache.iotdb.db.exception.query.LogicalOptimizeException;
 import org.apache.iotdb.db.exception.query.QueryProcessException;
 import org.apache.iotdb.db.index.common.IndexType;
 import org.apache.iotdb.db.metadata.PartialPath;
+import org.apache.iotdb.db.metadata.VectorPartialPath;
 import org.apache.iotdb.db.qp.constant.SQLConstant;
 import org.apache.iotdb.db.qp.logical.Operator;
 import org.apache.iotdb.db.qp.physical.PhysicalPlan;
@@ -40,6 +41,7 @@ import org.apache.iotdb.db.query.expression.ResultColumn;
 import org.apache.iotdb.db.query.expression.unary.FunctionExpression;
 import org.apache.iotdb.db.query.expression.unary.TimeSeriesOperand;
 import org.apache.iotdb.db.service.IoTDB;
+import org.apache.iotdb.tsfile.common.constant.TsFileConstant;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import org.apache.iotdb.tsfile.read.expression.IExpression;
 
@@ -148,21 +150,8 @@ public class QueryOperator extends Operator {
   }
 
   public void check() throws LogicalOperatorException {
-    if (isAlignByDevice()) {
-      if (selectComponent.hasTimeSeriesGeneratingFunction()) {
-        throw new LogicalOperatorException(
-            "ALIGN BY DEVICE clause is not supported in UDF queries.");
-      }
-
-      for (PartialPath path : selectComponent.getPaths()) {
-        String device = path.getDevice();
-        if (!device.isEmpty()) {
-          throw new LogicalOperatorException(
-              "The paths of the SELECT clause can only be single level. In other words, "
-                  + "the paths of the SELECT clause can only be measurements or STAR, without DOT."
-                  + " For more details please refer to the SQL document.");
-        }
-      }
+    if (isAlignByDevice() && selectComponent.hasTimeSeriesGeneratingFunction()) {
+      throw new LogicalOperatorException("ALIGN BY DEVICE clause is not supported in UDF queries.");
     }
   }
 
@@ -226,7 +215,6 @@ public class QueryOperator extends Operator {
     List<PartialPath> devices = removeStarsInDeviceWithUnique(prefixPaths);
     List<ResultColumn> resultColumns = selectComponent.getResultColumns();
     List<String> aggregationFuncs = selectComponent.getAggregationFunctions();
-
     // to record result measurement columns
     List<String> measurements = new ArrayList<>();
     Map<String, MeasurementInfo> measurementInfoMap = new HashMap<>();
@@ -253,21 +241,23 @@ public class QueryOperator extends Operator {
         try {
           // remove stars in SELECT to get actual paths
           List<PartialPath> actualPaths = getMatchedTimeseries(fullPath);
+          if (suffixPath.getNodes().length > 1
+              && (actualPaths.isEmpty() || !(actualPaths.get(0) instanceof VectorPartialPath))) {
+            throw new QueryProcessException(AlignByDevicePlan.MEASUREMENT_ERROR_MESSAGE);
+          }
           if (resultColumn.hasAlias() && actualPaths.size() >= 2) {
             throw new QueryProcessException(
-                String.format(
-                    "alias %s can only be matched with one time series", resultColumn.getAlias()));
+                String.format(AlignByDevicePlan.ALIAS_ERROR_MESSAGE, resultColumn.getAlias()));
           }
-
           if (actualPaths.isEmpty()) {
-            String nonExistMeasurement = getMeasurementName(fullPath.getMeasurement(), aggregation);
+            String nonExistMeasurement = getMeasurementName(fullPath, aggregation);
             if (measurementSetOfGivenSuffix.add(nonExistMeasurement)) {
               measurementInfoMap.putIfAbsent(
                   nonExistMeasurement, new MeasurementInfo(MeasurementType.NonExist));
             }
           } else {
             for (PartialPath path : actualPaths) {
-              String measurementName = getMeasurementName(path.getMeasurement(), aggregation);
+              String measurementName = getMeasurementName(path, aggregation);
               TSDataType measurementDataType = IoTDB.metaManager.getSeriesType(path);
               TSDataType columnDataType = getAggregationType(aggregation);
               columnDataType = columnDataType == null ? measurementDataType : columnDataType;
@@ -312,9 +302,9 @@ public class QueryOperator extends Operator {
       measurements.addAll(measurementSetOfGivenSuffix);
     }
 
-    convertSpecialClauseValues(alignByDevicePlan, measurements);
+    List<String> trimMeasurements = convertSpecialClauseValues(alignByDevicePlan, measurements);
     // assigns to alignByDevicePlan
-    alignByDevicePlan.setMeasurements(measurements);
+    alignByDevicePlan.setMeasurements(trimMeasurements);
     alignByDevicePlan.setMeasurementInfoMap(measurementInfoMap);
     alignByDevicePlan.setDevices(devices);
     alignByDevicePlan.setPaths(paths);
@@ -338,15 +328,16 @@ public class QueryOperator extends Operator {
     }
   }
 
-  private void convertSpecialClauseValues(QueryPlan queryPlan, List<String> measurements)
+  private List<String> convertSpecialClauseValues(QueryPlan queryPlan, List<String> measurements)
       throws QueryProcessException {
     convertSpecialClauseValues(queryPlan);
     // sLimit trim on the measurementColumnList
     if (specialClauseComponent.hasSlimit()) {
       int seriesSLimit = specialClauseComponent.getSeriesLimit();
       int seriesOffset = specialClauseComponent.getSeriesOffset();
-      slimitTrimColumn(measurements, seriesSLimit, seriesOffset);
+      return slimitTrimColumn(measurements, seriesSLimit, seriesOffset);
     }
+    return measurements;
   }
 
   private List<PartialPath> removeStarsInDeviceWithUnique(List<PartialPath> paths)
@@ -371,7 +362,16 @@ public class QueryOperator extends Operator {
         : (((FunctionExpression) expression).getPaths().get(0));
   }
 
-  private String getMeasurementName(String initialMeasurement, String aggregation) {
+  /**
+   * If path is a vectorPartialPath, we return its measurementId + subMeasurement as the final
+   * measurement. e.g. path: root.sg.d1.vector1[s1], return "vector1.s1".
+   */
+  private String getMeasurementName(PartialPath path, String aggregation) {
+    String initialMeasurement = path.getMeasurement();
+    if (path instanceof VectorPartialPath) {
+      String subMeasurement = ((VectorPartialPath) path).getSubSensor(0);
+      initialMeasurement += TsFileConstant.PATH_SEPARATOR + subMeasurement;
+    }
     if (aggregation != null) {
       initialMeasurement = aggregation + "(" + initialMeasurement + ")";
     }
@@ -446,6 +446,10 @@ public class QueryOperator extends Operator {
     FunctionOperator basicOperator;
     if (operator instanceof InOperator) {
       basicOperator = (InOperator) operator;
+    } else if (operator instanceof LikeOperator) {
+      basicOperator = (LikeOperator) operator;
+    } else if (operator instanceof RegexpOperator) {
+      basicOperator = (RegexpOperator) operator;
     } else {
       basicOperator = (BasicFunctionOperator) operator;
     }
@@ -468,7 +472,7 @@ public class QueryOperator extends Operator {
   }
 
   protected Set<PartialPath> getMatchedDevices(PartialPath path) throws MetadataException {
-    return IoTDB.metaManager.getDevices(path);
+    return IoTDB.metaManager.getMatchedDevices(path);
   }
 
   protected List<PartialPath> getMatchedTimeseries(PartialPath path) throws MetadataException {

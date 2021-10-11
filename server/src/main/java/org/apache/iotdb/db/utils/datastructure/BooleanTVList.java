@@ -22,6 +22,7 @@ import org.apache.iotdb.db.rescon.PrimitiveArrayManager;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSEncoding;
 import org.apache.iotdb.tsfile.read.TimeValuePair;
+import org.apache.iotdb.tsfile.utils.BitMap;
 import org.apache.iotdb.tsfile.utils.TsPrimitiveType;
 
 import java.util.ArrayList;
@@ -31,7 +32,9 @@ import static org.apache.iotdb.db.rescon.PrimitiveArrayManager.ARRAY_SIZE;
 
 public class BooleanTVList extends TVList {
 
-  private List<boolean[]> values; //存放了一个个boolean类型数组的列表
+  // list of primitive array, add 1 when expanded -> boolean primitive array
+  // index relation: arrayIndex -> elementIndex
+  private List<boolean[]> values; // 存放了一个个boolean类型数组的列表
 
   private boolean[][] sortedValues;
 
@@ -43,15 +46,21 @@ public class BooleanTVList extends TVList {
   }
 
   @Override
-  public void putBoolean(long timestamp, boolean value) { //首先判断是否要对此TVList的values和timestamps列表，然后往该BooleanTVList的values和timestamps列表的某一数组里里插入对应的时间戳和数值
-    checkExpansion();//检查是否需要扩容，即判断该TVList的values和timestamps列表是否需要扩容，每次扩容都是分别新增一个ARRAY_SIZE数量的数组，放入values列表和timestamps列表中
-    int arrayIndex = size / ARRAY_SIZE;   //计算当前values和timestamps列表里的数组索引，即要往values和timestamps列表中哪个数组插入数据
-    int elementIndex = size % ARRAY_SIZE; //元素索引，即插入具体数组的哪个位置
-    minTime = Math.min(minTime, timestamp); //记录此TVList的最小时间戳
+  public void putBoolean(
+      long timestamp,
+      boolean
+          value) { // 首先判断是否要对此TVList的values和timestamps列表，然后往该BooleanTVList的values和timestamps列表的某一数组里里插入对应的时间戳和数值
+    checkExpansion(); // 检查是否需要扩容，即判断该TVList的values和timestamps列表是否需要扩容，每次扩容都是分别新增一个ARRAY_SIZE数量的数组，放入values列表和timestamps列表中
+    int arrayIndex =
+        size / ARRAY_SIZE; // 计算当前values和timestamps列表里的数组索引，即要往values和timestamps列表中哪个数组插入数据
+    int elementIndex = size % ARRAY_SIZE; // 元素索引，即插入具体数组的哪个位置
+    minTime = Math.min(minTime, timestamp); // 记录此TVList的最小时间戳
     timestamps.get(arrayIndex)[elementIndex] = timestamp;
     values.get(arrayIndex)[elementIndex] = value;
-    size++; //数据点数量+1
-    if (sorted && size > 1 && timestamp < getTime(size - 2)) {//若原先该TVList是顺序的，且此次插入的时间戳小于上一个数据点的时间戳，则此TVList为乱序的
+    size++; // 数据点数量+1
+    if (sorted
+        && size > 1
+        && timestamp < getTime(size - 2)) { // 若原先该TVList是顺序的，且此次插入的时间戳小于上一个数据点的时间戳，则此TVList为乱序的
       sorted = false;
     }
   }
@@ -66,12 +75,12 @@ public class BooleanTVList extends TVList {
     return values.get(arrayIndex)[elementIndex];
   }
 
-  protected void set(int index, long timestamp, boolean value) {//将此TVList第index个位置换成新的值
+  protected void set(int index, long timestamp, boolean value) { // 将此TVList第index个位置换成新的值
     if (index >= size) {
       throw new ArrayIndexOutOfBoundsException(index);
     }
-    int arrayIndex = index / ARRAY_SIZE;  //计算数组索引，即是第几个数组
-    int elementIndex = index % ARRAY_SIZE;  //计算元素索引，即是数组里第几个元素
+    int arrayIndex = index / ARRAY_SIZE; // 计算数组索引，即是第几个数组
+    int elementIndex = index % ARRAY_SIZE; // 计算元素索引，即是数组里第几个元素
     timestamps.get(arrayIndex)[elementIndex] = timestamp;
     values.get(arrayIndex)[elementIndex] = value;
   }
@@ -134,9 +143,10 @@ public class BooleanTVList extends TVList {
   }
 
   @Override
-  protected void set(int src, int dest) {//该方法用来重置此TVList，把原先TVList中第src个元素的时间戳和数值放到此TVList第dest个位置
-    long srcT = getTime(src); //根据给定的src索引获取对应的时间戳
-    boolean srcV = getBoolean(src);//根据给定的src索引获取对应的数值
+  protected void set(
+      int src, int dest) { // 该方法用来重置此TVList，把原先TVList中第src个元素的时间戳和数值放到此TVList第dest个位置
+    long srcT = getTime(src); // 根据给定的src索引获取对应的时间戳
+    boolean srcV = getBoolean(src); // 根据给定的src索引获取对应的数值
     set(dest, srcT, srcV);
   }
 
@@ -160,8 +170,9 @@ public class BooleanTVList extends TVList {
   }
 
   @Override
-  protected void expandValues() {//对此TVList进行扩容，每次扩容都是新增一个ARRAY_SIZE数量的数组，放入values列表中
-    values.add((boolean[]) getPrimitiveArraysByType(TSDataType.BOOLEAN)); //往values列表里增加下一个新的boolean数值数组
+  protected void expandValues() { // 对此TVList进行扩容，每次扩容都是新增一个ARRAY_SIZE数量的数组，放入values列表中
+    values.add(
+        (boolean[]) getPrimitiveArraysByType(TSDataType.BOOLEAN)); // 往values列表里增加下一个新的boolean数值数组
   }
 
   @Override
@@ -189,16 +200,32 @@ public class BooleanTVList extends TVList {
   }
 
   @Override
-  protected void releaseLastValueArray() {//释放该TVList的最后一个数值数组
-    PrimitiveArrayManager.release(values.remove(values.size() - 1));//首先从该TVList的数值数组列表中移除最后一个数值数组，并把它还给系统，系统会把其整理清空后继续添加进系统的可用数组列表中
+  protected void releaseLastValueArray() { // 释放该TVList的最后一个数值数组
+    PrimitiveArrayManager.release(
+        values.remove(
+            values.size() - 1)); // 首先从该TVList的数值数组列表中移除最后一个数值数组，并把它还给系统，系统会把其整理清空后继续添加进系统的可用数组列表中
   }
 
   @Override
-  public void putBooleans(long[] time, boolean[] value, int start, int end) {
+  public void putBooleans(long[] time, boolean[] value, BitMap bitMap, int start, int end) {
     checkExpansion();
-    int idx = start;
 
-    updateMinTimeAndSorted(time, start, end);
+    int idx = start;
+    // constraint: time.length + timeIdxOffset == value.length
+    int timeIdxOffset = 0;
+    if (bitMap != null && !bitMap.isAllUnmarked()) {
+      // time array is a reference, should clone necessary time values
+      long[] clonedTime = new long[end - start];
+      System.arraycopy(time, start, clonedTime, 0, end - start);
+      time = clonedTime;
+      timeIdxOffset = start;
+      // drop null at the end of value array
+      int nullCnt =
+          dropNullValThenUpdateMinTimeAndSorted(time, value, bitMap, start, end, timeIdxOffset);
+      end -= nullCnt;
+    } else {
+      updateMinTimeAndSorted(time, start, end);
+    }
 
     while (idx < end) {
       int inputRemaining = end - idx;
@@ -207,20 +234,52 @@ public class BooleanTVList extends TVList {
       int internalRemaining = ARRAY_SIZE - elementIdx;
       if (internalRemaining >= inputRemaining) {
         // the remaining inputs can fit the last array, copy all remaining inputs into last array
-        System.arraycopy(time, idx, timestamps.get(arrayIdx), elementIdx, inputRemaining);
+        System.arraycopy(
+            time, idx - timeIdxOffset, timestamps.get(arrayIdx), elementIdx, inputRemaining);
         System.arraycopy(value, idx, values.get(arrayIdx), elementIdx, inputRemaining);
         size += inputRemaining;
         break;
       } else {
         // the remaining inputs cannot fit the last array, fill the last array and create a new
         // one and enter the next loop
-        System.arraycopy(time, idx, timestamps.get(arrayIdx), elementIdx, internalRemaining);
+        System.arraycopy(
+            time, idx - timeIdxOffset, timestamps.get(arrayIdx), elementIdx, internalRemaining);
         System.arraycopy(value, idx, values.get(arrayIdx), elementIdx, internalRemaining);
         idx += internalRemaining;
         size += internalRemaining;
         checkExpansion();
       }
     }
+  }
+
+  // move null values to the end of time array and value array, then return number of null values
+  int dropNullValThenUpdateMinTimeAndSorted(
+      long[] time, boolean[] values, BitMap bitMap, int start, int end, int tIdxOffset) {
+    long inPutMinTime = Long.MAX_VALUE;
+    boolean inputSorted = true;
+
+    int nullCnt = 0;
+    for (int vIdx = start; vIdx < end; vIdx++) {
+      if (bitMap.isMarked(vIdx)) {
+        nullCnt++;
+        continue;
+      }
+      // move value ahead to replace null
+      int tIdx = vIdx - tIdxOffset;
+      if (nullCnt != 0) {
+        time[tIdx - nullCnt] = time[tIdx];
+        values[vIdx - nullCnt] = values[vIdx];
+      }
+      // update minTime and sorted
+      tIdx = tIdx - nullCnt;
+      inPutMinTime = Math.min(inPutMinTime, time[tIdx]);
+      if (inputSorted && tIdx > 0 && time[tIdx - 1] > time[tIdx]) {
+        inputSorted = false;
+      }
+    }
+    minTime = Math.min(inPutMinTime, minTime);
+    sorted = sorted && inputSorted && (size == 0 || inPutMinTime >= getTime(size - 1));
+    return nullCnt;
   }
 
   @Override

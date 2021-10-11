@@ -19,7 +19,7 @@
 package org.apache.iotdb.db.engine.storagegroup;
 
 /** The TsFileProcessorInfo records the memory cost of this TsFileProcessor. */
-public class TsFileProcessorInfo {  //该类维护一个TsFileProcessor的内存占用，任何内存变动都需要向StorageGroupInfo汇报
+public class TsFileProcessorInfo { // 该类维护一个TsFileProcessor的内存占用，任何内存变动都需要向StorageGroupInfo汇报
 
   /** Once tspInfo updated, report to storageGroupInfo that this TSP belongs to. */
   private StorageGroupInfo storageGroupInfo;

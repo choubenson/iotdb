@@ -40,11 +40,12 @@ public class SystemInfo {
   private static final IoTDBConfig config = IoTDBDescriptor.getInstance().getConfig();
   private static final Logger logger = LoggerFactory.getLogger(SystemInfo.class);
 
-  private long totalStorageGroupMemCost = 0L;     //所有StorageGroup占用的内存空间总和
+  private long totalStorageGroupMemCost = 0L; // 所有StorageGroup占用的内存空间总和
   private volatile boolean rejected = false;
 
-  private static long memorySizeForWrite = config.getAllocateMemoryForWrite();  //系统分配给写入操作可用的内存大小
-  private Map<StorageGroupInfo, Long> reportedStorageGroupMemCostMap = new HashMap<>(); //记录每个StorageGroupInfo占用的系统内存
+  private static long memorySizeForWrite = config.getAllocateMemoryForWrite(); // 系统分配给写入操作可用的内存大小
+  private Map<StorageGroupInfo, Long> reportedStorageGroupMemCostMap =
+      new HashMap<>(); // 记录每个StorageGroupInfo占用的系统内存
 
   private long flushingMemTablesCost = 0L;
 
@@ -62,13 +63,14 @@ public class SystemInfo {
    * @param storageGroupInfo storage group
    * @throws WriteProcessRejectException
    */
-  public synchronized boolean reportStorageGroupStatus(//向系统汇报该StorageGroup当前使用的内存大小，判断是否许flush memtable和设置reject阻塞写入
+  public synchronized boolean
+      reportStorageGroupStatus( // 向系统汇报该StorageGroup当前使用的内存大小，判断是否许flush memtable和设置reject阻塞写入
       StorageGroupInfo storageGroupInfo, TsFileProcessor tsFileProcessor)
-      throws WriteProcessRejectException {
-    long delta =          //该storageGroupInfo较上次新增的内存大小
+          throws WriteProcessRejectException {
+    long delta = // 该storageGroupInfo较上次新增的内存大小
         storageGroupInfo.getMemCost()
             - reportedStorageGroupMemCostMap.getOrDefault(storageGroupInfo, 0L);
-    totalStorageGroupMemCost += delta;  //更新所有StorageGroup占用的总内存大小
+    totalStorageGroupMemCost += delta; // 更新所有StorageGroup占用的总内存大小
     if (logger.isDebugEnabled()) {
       logger.debug(
           "Report Storage Group Status to the system. "
@@ -76,29 +78,37 @@ public class SystemInfo {
           delta,
           totalStorageGroupMemCost);
     }
-    reportedStorageGroupMemCostMap.put(storageGroupInfo, storageGroupInfo.getMemCost());  //更新此storageGroupInfo占用的内存空间大小
-    storageGroupInfo.setLastReportedSize(storageGroupInfo.getMemCost());//更新此storageGroupInfo占用的上一次占用内存空间大小，供下次torageGroupInfo内存大小更新比较使用
-    if (totalStorageGroupMemCost < FLUSH_THERSHOLD) {//如果 SystemInfo 内存占用 < 总写入内存 * flush_proportion，返回 true
+    reportedStorageGroupMemCostMap.put(
+        storageGroupInfo, storageGroupInfo.getMemCost()); // 更新此storageGroupInfo占用的内存空间大小
+    storageGroupInfo.setLastReportedSize(
+        storageGroupInfo
+            .getMemCost()); // 更新此storageGroupInfo占用的上一次占用内存空间大小，供下次torageGroupInfo内存大小更新比较使用
+    if (totalStorageGroupMemCost
+        < FLUSH_THERSHOLD) { // 如果 SystemInfo 内存占用 < 总写入内存 * flush_proportion，返回 true
       return true;
     } else if (totalStorageGroupMemCost >= FLUSH_THERSHOLD
-        && totalStorageGroupMemCost < REJECT_THERSHOLD) {//如果 总写入内存 * flush_proportion ≤ SystemInfo 内存占用 < 总写入内存 * reject_proportion, 执行选择Memtable提交flush流程，返回 true
+        && totalStorageGroupMemCost
+            < REJECT_THERSHOLD) { // 如果 总写入内存 * flush_proportion ≤ SystemInfo 内存占用 < 总写入内存 *
+      // reject_proportion, 执行选择Memtable提交flush流程，返回 true
       logger.debug(
           "The total storage group mem costs are too large, call for flushing. "
               + "Current sg cost is {}",
           totalStorageGroupMemCost);
-      chooseMemTablesToMarkFlush(tsFileProcessor);//选择该TsFile中的几个传感器Chunk的Memtable提交flush流程
+      chooseMemTablesToMarkFlush(tsFileProcessor); // 选择该TsFile中的几个传感器Chunk的Memtable提交flush流程
       return true;
-    } else {//如果 总写入内存 * reject_proportion ≤ SystemInfo 内存占用, SystemInfo 置为 reject 状态， 执行 选择Memtable提交flush流程
+    } else { // 如果 总写入内存 * reject_proportion ≤ SystemInfo 内存占用, SystemInfo 置为 reject 状态， 执行
+      // 选择Memtable提交flush流程
       logger.info(
           "Change system to reject status. Triggered by: logical SG ({}), mem cost delta ({}), totalSgMemCost ({}).",
           storageGroupInfo.getStorageGroupProcessor().getLogicalStorageGroupName(),
           delta,
           totalStorageGroupMemCost);
       rejected = true;
-      if (chooseMemTablesToMarkFlush(tsFileProcessor)) {  //选择该TsFile中的几个传感器Chunk的Memtable提交flush流程
-        if (totalStorageGroupMemCost < memorySizeForWrite) {//(1)	如果 所有的StorageGroup的内存占用和 < 系统分配的写入操作可使用内存，则返回 true
+      if (chooseMemTablesToMarkFlush(tsFileProcessor)) { // 选择该TsFile中的几个传感器Chunk的Memtable提交flush流程
+        if (totalStorageGroupMemCost
+            < memorySizeForWrite) { // (1)	如果 所有的StorageGroup的内存占用和 < 系统分配的写入操作可使用内存，则返回 true
           return true;
-        } else {//(2)如果所有的StorageGroup的内存占用和 >=系统分配的写入操作可使用内存，直接抛 写入Reject 异常
+        } else { // (2)如果所有的StorageGroup的内存占用和 >=系统分配的写入操作可使用内存，直接抛 写入Reject 异常
           throw new WriteProcessRejectException(
               "Total Storage Group MemCost "
                   + totalStorageGroupMemCost
@@ -117,7 +127,10 @@ public class SystemInfo {
    *
    * @param storageGroupInfo storage group
    */
-  public synchronized void resetStorageGroupStatus(StorageGroupInfo storageGroupInfo) { //向系统SystemInfo重新汇报此StorageGroupInfo的内存使用情况，他会在该StorageGroup flush,close或插入失败时调用
+  public synchronized void resetStorageGroupStatus(
+      StorageGroupInfo
+          storageGroupInfo) { // 向系统SystemInfo重新汇报此StorageGroupInfo的内存使用情况，他会在该StorageGroup
+    // flush,close或插入失败时调用
     long delta = 0;
 
     if (reportedStorageGroupMemCostMap.containsKey(storageGroupInfo)) {
@@ -179,7 +192,8 @@ public class SystemInfo {
    * the top K TSPs as to be flushed, so that after flushing the K TSPs, the memory cost should be
    * less than FLUSH_THRESHOLD
    */
-  private boolean chooseMemTablesToMarkFlush(TsFileProcessor currentTsFileProcessor) {//选择该TsFile中的几个传感器Chunk的Memtable提交flush流程
+  private boolean chooseMemTablesToMarkFlush(
+      TsFileProcessor currentTsFileProcessor) { // 选择该TsFile中的几个传感器Chunk的Memtable提交flush流程
     // If invoke flush by replaying logs, do not flush now!
     if (reportedStorageGroupMemCostMap.size() == 0) {
       return false;

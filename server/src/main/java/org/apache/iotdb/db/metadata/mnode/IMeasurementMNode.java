@@ -19,19 +19,17 @@
 package org.apache.iotdb.db.metadata.mnode;
 
 import org.apache.iotdb.db.engine.trigger.executor.TriggerExecutor;
+import org.apache.iotdb.db.metadata.lastCache.container.ILastCacheContainer;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
-import org.apache.iotdb.tsfile.read.TimeValuePair;
 import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
 
 /** This interface defines a MeasurementMNode's operation interfaces. */
-public interface IMeasurementMNode extends IMNode { //传感器节点类
+public interface IMeasurementMNode extends IMNode { // 传感器节点类
 
   @Override
   IEntityMNode getParent();
 
   IMeasurementSchema getSchema();
-
-  void setSchema(IMeasurementSchema schema);
 
   TSDataType getDataType(String measurementId);
 
@@ -49,10 +47,15 @@ public interface IMeasurementMNode extends IMNode { //传感器节点类
 
   void setTriggerExecutor(TriggerExecutor triggerExecutor);
 
-  TimeValuePair getCachedLast();
+  ILastCacheContainer getLastCacheContainer();
 
-  void updateCachedLast(
-      TimeValuePair timeValuePair, boolean highPriorityUpdate, Long latestFlushedTime);
+  void setLastCacheContainer(ILastCacheContainer lastCacheContainer);
 
-  void resetCache();
+  boolean isUnaryMeasurement();
+
+  boolean isMultiMeasurement();
+
+  UnaryMeasurementMNode getAsUnaryMeasurementMNode();
+
+  MultiMeasurementMNode getAsMultiMeasurementMNode();
 }

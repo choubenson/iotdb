@@ -53,7 +53,8 @@ import static org.apache.iotdb.db.conf.IoTDBConstant.TIME;
 /** LogicalGenerator. */
 public class LogicalGenerator {
 
-  public static Operator generate(String sql, ZoneId zoneId) throws ParseCancellationException {  //生成逻辑计划
+  public static Operator generate(String sql, ZoneId zoneId)
+      throws ParseCancellationException { // 生成逻辑计划
     IoTDBSqlVisitor ioTDBSqlVisitor = new IoTDBSqlVisitor();
     ioTDBSqlVisitor.setZoneId(zoneId);
     CharStream charStream1 = CharStreams.fromString(sql);

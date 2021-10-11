@@ -22,10 +22,13 @@ package org.apache.iotdb.db.engine.storagegroup.timeindex;
 import org.apache.iotdb.db.engine.StorageEngine;
 import org.apache.iotdb.db.exception.PartitionViolationException;
 import org.apache.iotdb.db.rescon.CachedStringPool;
-import org.apache.iotdb.db.utils.FilePathUtils;
 import org.apache.iotdb.db.utils.SerializeUtils;
+import org.apache.iotdb.tsfile.utils.FilePathUtils;
 import org.apache.iotdb.tsfile.utils.RamUsageEstimator;
 import org.apache.iotdb.tsfile.utils.ReadWriteIOUtils;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,22 +42,30 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class DeviceTimeIndex implements ITimeIndex {
 
+  private static final Logger logger = LoggerFactory.getLogger(DeviceTimeIndex.class);
+
   public static final int INIT_ARRAY_SIZE = 64;
 
   protected static final Map<String, String> cachedDevicePool =
       CachedStringPool.getInstance().getCachedPool();
 
   /** start times array. */
-  protected long[] startTimes;  //存储着该TsFileResource文件里每个设备对应的startTime开始时间，即每个设备下数据的最小时间戳
+  protected long[] startTimes; // 存储着该TsFileResource文件里每个设备对应的startTime开始时间，即每个设备下数据的最小时间戳
 
   /**
    * end times array. The values in this array are Long.MIN_VALUE if it's an unsealed sequence
    * tsfile
    */
-  protected long[] endTimes;//存储着该TsFileResource文件里每个设备对应的endTime结束时间，即每个设备下数据的最大时间戳
+  protected long[] endTimes; // 存储着该TsFileResource文件里每个设备对应的endTime结束时间，即每个设备下数据的最大时间戳
+
+  /** min start time */
+  private long minStartTime = Long.MAX_VALUE;
+
+  /** max end time */
+  private long maxEndTime = Long.MIN_VALUE;
 
   /** device -> index of start times array and end times array */
-  protected Map<String, Integer> deviceToIndex; //存储着设备名和对应开始结束时间数组的索引下标，（设备ID，数组索引）
+  protected Map<String, Integer> deviceToIndex; // 存储着设备名和对应开始结束时间数组的索引下标，（设备ID，数组索引）
 
   public DeviceTimeIndex() {
     this.deviceToIndex = new ConcurrentHashMap<>();
@@ -96,13 +107,15 @@ public class DeviceTimeIndex implements ITimeIndex {
   @Override
   public DeviceTimeIndex deserialize(InputStream inputStream) throws IOException {
     int deviceNum = ReadWriteIOUtils.readInt(inputStream);
-    Map<String, Integer> deviceMap = new ConcurrentHashMap<>();
-    long[] startTimesArray = new long[deviceNum];
-    long[] endTimesArray = new long[deviceNum];
+
+    startTimes = new long[deviceNum];
+    endTimes = new long[deviceNum];
 
     for (int i = 0; i < deviceNum; i++) {
-      startTimesArray[i] = ReadWriteIOUtils.readLong(inputStream);
-      endTimesArray[i] = ReadWriteIOUtils.readLong(inputStream);
+      startTimes[i] = ReadWriteIOUtils.readLong(inputStream);
+      endTimes[i] = ReadWriteIOUtils.readLong(inputStream);
+      minStartTime = Math.min(minStartTime, startTimes[i]);
+      maxEndTime = Math.max(maxEndTime, endTimes[i]);
     }
 
     for (int i = 0; i < deviceNum; i++) {
@@ -111,21 +124,22 @@ public class DeviceTimeIndex implements ITimeIndex {
       // use the deviceId from memory instead of the deviceId read from disk
       String cachedPath = cachedDevicePool.computeIfAbsent(path, k -> k);
       int index = ReadWriteIOUtils.readInt(inputStream);
-      deviceMap.put(cachedPath, index);
+      deviceToIndex.put(cachedPath, index);
     }
-    return new DeviceTimeIndex(deviceMap, startTimesArray, endTimesArray);
+    return this;
   }
 
   @Override
   public DeviceTimeIndex deserialize(ByteBuffer buffer) {
     int deviceNum = buffer.getInt();
-    Map<String, Integer> deviceMap = new ConcurrentHashMap<>(deviceNum);
-    long[] startTimesArray = new long[deviceNum];
-    long[] endTimesArray = new long[deviceNum];
+    startTimes = new long[deviceNum];
+    endTimes = new long[deviceNum];
 
     for (int i = 0; i < deviceNum; i++) {
-      startTimesArray[i] = buffer.getLong();
-      endTimesArray[i] = buffer.getLong();
+      startTimes[i] = buffer.getLong();
+      endTimes[i] = buffer.getLong();
+      minStartTime = Math.min(minStartTime, startTimes[i]);
+      maxEndTime = Math.max(maxEndTime, endTimes[i]);
     }
 
     for (int i = 0; i < deviceNum; i++) {
@@ -134,9 +148,9 @@ public class DeviceTimeIndex implements ITimeIndex {
       // use the deviceId from memory instead of the deviceId read from disk
       String cachedPath = cachedDevicePool.computeIfAbsent(path, k -> k);
       int index = buffer.getInt();
-      deviceMap.put(cachedPath, index);
+      deviceToIndex.put(cachedPath, index);
     }
-    return new DeviceTimeIndex(deviceMap, startTimesArray, endTimesArray);
+    return this;
   }
 
   @Override
@@ -167,7 +181,8 @@ public class DeviceTimeIndex implements ITimeIndex {
     }
     for (long endTime : endTimes) {
       // the file cannot be deleted if any device still lives
-      if (endTime >= ttlLowerBound) {   //endTime>=currentTime-ttl, endTime-currentTime>=-ttl,currentTime-endTime<=ttl
+      if (endTime >= ttlLowerBound) { // endTime>=currentTime-ttl,
+        // endTime-currentTime>=-ttl,currentTime-endTime<=ttl
         return true;
       }
     }
@@ -263,6 +278,7 @@ public class DeviceTimeIndex implements ITimeIndex {
       int index = getDeviceIndex(deviceId);
       startTimes[index] = time;
     }
+    minStartTime = Math.min(minStartTime, time);
   }
 
   @Override
@@ -272,18 +288,21 @@ public class DeviceTimeIndex implements ITimeIndex {
       int index = getDeviceIndex(deviceId);
       endTimes[index] = time;
     }
+    maxEndTime = Math.max(maxEndTime, time);
   }
 
   @Override
   public void putStartTime(String deviceId, long time) {
     int index = getDeviceIndex(deviceId);
     startTimes[index] = time;
+    minStartTime = Math.min(minStartTime, time);
   }
 
   @Override
   public void putEndTime(String deviceId, long time) {
     int index = getDeviceIndex(deviceId);
     endTimes[index] = time;
+    maxEndTime = Math.max(maxEndTime, time);
   }
 
   @Override
@@ -303,7 +322,29 @@ public class DeviceTimeIndex implements ITimeIndex {
   }
 
   @Override
-  public boolean checkDeviceIdExist(String deviceId) {    //判断此TsFile文件里是否有包含此设备的数据
-    return deviceToIndex.containsKey(deviceId);   //只要检查TsFileResource对象是否有此设备的相关索引
+  public boolean checkDeviceIdExist(String deviceId) { // 判断此TsFile文件里是否有包含此设备的数据
+    return deviceToIndex.containsKey(deviceId); // 只要检查TsFileResource对象是否有此设备的相关索引
+  }
+
+  @Override
+  public long getMinStartTime() {
+    return minStartTime;
+  }
+
+  @Override
+  public long getMaxEndTime() {
+    return maxEndTime;
+  }
+
+  @Override
+  public int compareDegradePriority(ITimeIndex timeIndex) {
+    if (timeIndex instanceof DeviceTimeIndex) {
+      return Long.compare(getMinStartTime(), timeIndex.getMinStartTime());
+    } else if (timeIndex instanceof FileTimeIndex) {
+      return -1;
+    } else {
+      logger.error("Wrong timeIndex type {}", timeIndex.getClass().getName());
+      throw new RuntimeException("Wrong timeIndex type " + timeIndex.getClass().getName());
+    }
   }
 }

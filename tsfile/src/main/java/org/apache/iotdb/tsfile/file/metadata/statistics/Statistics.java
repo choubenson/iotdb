@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
@@ -43,7 +44,7 @@ import java.util.Objects;
  * For the statistics in the Unseq file TimeSeriesMetadata, only firstValue, lastValue, startTime
  * and endTime can be used.</br>
  */
-public abstract class Statistics<T> { //统计量
+public abstract class Statistics<T extends Serializable> { // 统计量
 
   private static final Logger LOG = LoggerFactory.getLogger(Statistics.class);
   /**
@@ -52,7 +53,7 @@ public abstract class Statistics<T> { //统计量
   protected boolean isEmpty = true;
 
   /** number of time-value points */
-  private int count = 0;  //数据点数量
+  private int count = 0; // 数据点数量
 
   private long startTime = Long.MAX_VALUE;
   private long endTime = Long.MIN_VALUE;
@@ -63,7 +64,7 @@ public abstract class Statistics<T> { //统计量
    * @param type - data type
    * @return Statistics
    */
-  public static Statistics getStatsByType(TSDataType type) {
+  public static Statistics<? extends Serializable> getStatsByType(TSDataType type) {
     switch (type) {
       case INT32:
         return new IntegerStatistics();
@@ -115,7 +116,8 @@ public abstract class Statistics<T> { //统计量
 
   public abstract int getStatsSize();
 
-  public int serialize(OutputStream outputStream) throws IOException {  //将该statistics统计量的相关属性序列化存入该输出流outputStream的缓存数组里
+  public int serialize(OutputStream outputStream)
+      throws IOException { // 将该statistics统计量的相关属性序列化存入该输出流outputStream的缓存数组里
     int byteLen = 0;
     byteLen += ReadWriteForEncodingUtils.writeUnsignedVarInt(count, outputStream);
     byteLen += ReadWriteIOUtils.write(startTime, outputStream);
@@ -171,7 +173,8 @@ public abstract class Statistics<T> { //统计量
    *
    * @throws StatisticsClassException cannot merge statistics
    */
-  public void mergeStatistics(Statistics stats) {
+  @SuppressWarnings("unchecked")
+  public void mergeStatistics(Statistics<? extends Serializable> stats) {
     if (this.getClass() == stats.getClass()) {
       if (stats.startTime < this.startTime) {
         this.startTime = stats.startTime;
@@ -181,14 +184,14 @@ public abstract class Statistics<T> { //统计量
       }
       // must be sure no overlap between two statistics
       this.count += stats.count;
-      mergeStatisticsValue(stats);
+      mergeStatisticsValue((Statistics<T>) stats);
       isEmpty = false;
     } else {
-      String thisClass = this.getClass().toString();
-      String statsClass = stats.getClass().toString();
+      Class<?> thisClass = this.getClass();
+      Class<?> statsClass = stats.getClass();
       LOG.warn("Statistics classes mismatched,no merge: {} v.s. {}", thisClass, statsClass);
 
-      throw new StatisticsClassException(this.getClass(), stats.getClass());
+      throw new StatisticsClassException(thisClass, statsClass);
     }
   }
 
@@ -198,8 +201,8 @@ public abstract class Statistics<T> { //统计量
   }
 
   public void update(long time, int value) {
-    update(time); //更新时间戳相关统计量
-    updateStats(value); //更新数据值相关统计量
+    update(time); // 更新时间戳相关统计量
+    updateStats(value); // 更新数据值相关统计量
   }
 
   public void update(long time, long value) {
@@ -222,7 +225,7 @@ public abstract class Statistics<T> { //统计量
     updateStats(value);
   }
 
-  public void update(long time) {   //根据给定的时间戳，更新相应的开始时间戳和结束时间戳
+  public void update(long time) { // 根据给定的时间戳，更新相应的开始时间戳和结束时间戳
     if (time < startTime) {
       startTime = time;
     }
@@ -272,7 +275,7 @@ public abstract class Statistics<T> { //统计量
     count += batchSize;
   }
 
-  protected abstract void mergeStatisticsValue(Statistics stats);
+  protected abstract void mergeStatisticsValue(Statistics<T> stats);
 
   public boolean isEmpty() {
     return isEmpty;
@@ -341,9 +344,9 @@ public abstract class Statistics<T> { //统计量
     throw new UnsupportedOperationException();
   }
 
-  public static Statistics deserialize(InputStream inputStream, TSDataType dataType)
-      throws IOException {
-    Statistics statistics = getStatsByType(dataType);
+  public static Statistics<? extends Serializable> deserialize(
+      InputStream inputStream, TSDataType dataType) throws IOException {
+    Statistics<? extends Serializable> statistics = getStatsByType(dataType);
     statistics.setCount(ReadWriteForEncodingUtils.readUnsignedVarInt(inputStream));
     statistics.setStartTime(ReadWriteIOUtils.readLong(inputStream));
     statistics.setEndTime(ReadWriteIOUtils.readLong(inputStream));
@@ -352,8 +355,9 @@ public abstract class Statistics<T> { //统计量
     return statistics;
   }
 
-  public static Statistics deserialize(ByteBuffer buffer, TSDataType dataType) {
-    Statistics statistics = getStatsByType(dataType);
+  public static Statistics<? extends Serializable> deserialize(
+      ByteBuffer buffer, TSDataType dataType) {
+    Statistics<? extends Serializable> statistics = getStatsByType(dataType);
     statistics.setCount(ReadWriteForEncodingUtils.readUnsignedVarInt(buffer));
     statistics.setStartTime(ReadWriteIOUtils.readLong(buffer));
     statistics.setEndTime(ReadWriteIOUtils.readLong(buffer));

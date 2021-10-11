@@ -23,7 +23,7 @@ import org.apache.iotdb.db.qp.physical.sys.StorageGroupMNodePlan;
 
 import java.io.IOException;
 
-public class StorageGroupMNode extends InternalMNode implements IStorageGroupMNode {  //存储组节点类
+public class StorageGroupMNode extends InternalMNode implements IStorageGroupMNode { // 存储组节点类
 
   private static final long serialVersionUID = 7999036474525817732L;
 
@@ -31,7 +31,7 @@ public class StorageGroupMNode extends InternalMNode implements IStorageGroupMNo
    * when the data file in a storage group is older than dataTTL, it is considered invalid and will
    * be eventually deleted.
    */
-  private long dataTTL;   //存储组的TTL属性
+  private long dataTTL; // 存储组的TTL属性
 
   public StorageGroupMNode(IMNode parent, String name, long dataTTL) {
     super(parent, name);

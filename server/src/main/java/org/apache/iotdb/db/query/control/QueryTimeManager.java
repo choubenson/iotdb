@@ -16,14 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.iotdb.db.query.control;
 
 import org.apache.iotdb.db.concurrent.IoTDBThreadPoolFactory;
-import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
 import org.apache.iotdb.db.exception.query.QueryTimeoutRuntimeException;
-import org.apache.iotdb.db.qp.physical.PhysicalPlan;
-import org.apache.iotdb.db.qp.physical.sys.ShowQueryProcesslistPlan;
+import org.apache.iotdb.db.query.context.QueryContext;
 import org.apache.iotdb.db.service.IService;
 import org.apache.iotdb.db.service.ServiceType;
 
@@ -41,62 +40,68 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * This class is used to monitor the executing time of each query. Once one is over the threshold,
  * it will be killed and return the time out exception.
  */
-public class QueryTimeManager implements IService { //查询操作的时间管理类，该类用于监控管理查询操作的时间，一旦某次查询时间操作了临界值，该查询线程任务就会被停止，然后抛出异常
+public class QueryTimeManager
+    implements IService { // 查询操作的时间管理类，该类用于监控管理查询操作的时间，一旦某次查询时间操作了临界值，该查询线程任务就会被停止，然后抛出异常
 
   private static final Logger logger = LoggerFactory.getLogger(QueryTimeManager.class);
-  private final IoTDBConfig config = IoTDBDescriptor.getInstance().getConfig();
 
-  /**
-   * the key of queryInfoMap is the query id and the value of queryInfoMap is the start time, the
-   * statement of this query.
-   */
-  private Map<Long, QueryInfo> queryInfoMap;  //存放了每个查询ID对应的查询信息类对象
+  private Map<Long, QueryContext> queryContextMap; // 存放了每个查询ID对应的查询信息类对象
 
   private ScheduledExecutorService executorService;
 
-  private Map<Long, ScheduledFuture<?>> queryScheduledTaskMap;  //存放了每个查询ID对应的执行情况类对象
+  private Map<Long, ScheduledFuture<?>> queryScheduledTaskMap; // 存放了每个查询ID对应的执行情况类对象
 
   private QueryTimeManager() {
-    queryInfoMap = new ConcurrentHashMap<>();
+    queryContextMap = new ConcurrentHashMap<>();
     queryScheduledTaskMap = new ConcurrentHashMap<>();
     executorService = IoTDBThreadPoolFactory.newScheduledThreadPool(1, "query-time-manager");
   }
 
-  public void registerQuery(long queryId, long startTime, String sql, long timeout) { //往该查询时间管理器注册一次查询操作，让该管理类监控并管理此次查询操作服务的执行时间，若查过临界值则会被停止。最后把该次查询ID和对应的结果放入queryScheduledTaskMap里
-    final long finalTimeout = timeout == 0 ? config.getQueryTimeoutThreshold() : timeout; //获取此查询设定的超时时间
-    queryInfoMap.put(queryId, new QueryInfo(startTime, sql));     //往map里放入此次查询ID对应的查询信息类对象
-    // submit a scheduled task to judge whether query is still running after timeout
-    ScheduledFuture<?> scheduledFuture =
-        executorService.schedule(   //该executorService执行的任务是当此查询ID的查询服务时间太久了就会kill停止指定ID的查询，然后返回一个可以用于取消或检查运行状态的Future对象。
-            () -> {
-              killQuery(queryId); //关闭某查询，将其对应的查询信息类的中断属性设置为true
-              logger.warn(
-                  String.format("Query is time out (%dms) with queryId %d", finalTimeout, queryId));
-            },
-            finalTimeout,
-            TimeUnit.MILLISECONDS);
-    queryScheduledTaskMap.put(queryId, scheduledFuture);//往map里放入此查询ID的执行情况
+  public void registerQuery(
+      QueryContext
+          context) { // 往该查询时间管理器注册一次查询操作，让该管理类监控并管理此次查询操作服务的执行时间，若查过临界值则会被停止。最后把该次查询ID和对应的结果放入queryScheduledTaskMap里
+    queryContextMap.put(context.getQueryId(), context); // 往map里放入此次查询ID对应的查询信息类对象
+    // Use the default configuration of server if a negative timeout
+    if (context.getTimeout() < 0) {
+      context.setTimeout(IoTDBDescriptor.getInstance().getConfig().getQueryTimeoutThreshold());
+    }
+    if (context.getTimeout() != 0) {
+      // submit a scheduled task to judge whether query is still running after timeout
+      ScheduledFuture<?>
+          scheduledFuture = // 该executorService执行的任务是当此查询ID的查询服务时间太久了就会kill停止指定ID的查询，然后返回一个可以用于取消或检查运行状态的Future对象。
+          executorService.schedule(
+                  () -> {
+                    killQuery(context.getQueryId()); // 关闭某查询，将其对应的查询信息类的中断属性设置为true
+                    logger.warn(
+                        String.format(
+                            "Query is time out (%dms) with queryId %d",
+                            context.getTimeout(), context.getQueryId()));
+                  },
+                  context.getTimeout(),
+                  TimeUnit.MILLISECONDS);
+      queryScheduledTaskMap.put(
+          context.getQueryId(), scheduledFuture); // 根据查询ID获取其对应的查询信息类对象，并设置中断属性为true。
+    }
   }
 
-  public void registerQuery(  //注册查询:往该查询时间管理器注册一次查询操作，让该管理类监控并管理此次查询操作服务的执行时间，若查过临界值则会被停止。最后把该次查询ID和对应的结果放入queryScheduledTaskMap里
-      long queryId, long startTime, String sql, long timeout, PhysicalPlan plan) {
-    if (plan instanceof ShowQueryProcesslistPlan) {
+  public void killQuery(long queryId) {
+    if (queryContextMap.get(queryId) == null) {
       return;
     }
-    registerQuery(queryId, startTime, sql, timeout); //往该查询时间管理器注册一次查询操作，让该管理类监控并管理此次查询操作服务的执行时间，若查过临界值则会被停止。最后把该次查询ID和对应的结果放入queryScheduledTaskMap里
+    queryContextMap.get(queryId).setInterrupted(true);
   }
 
-  public void killQuery(long queryId) { //关闭某查询，将其对应的查询信息类的中断属性设置为true
-    if (queryInfoMap.get(queryId) == null) {
-      return;
-    }
-    queryInfoMap.get(queryId).setInterrupted(true); //根据查询ID获取其对应的查询信息类对象，并设置中断属性为true。
-  }
-
-  public AtomicBoolean unRegisterQuery(long queryId) {
+  /**
+   * UnRegister query when query quits because of getting enough data or timeout. If getting enough
+   * data, we only remove the timeout task. If the query is full quit because of timeout or
+   * EndQuery(), we remove them all.
+   *
+   * @param fullQuit True if timeout or endQuery()
+   */
+  public AtomicBoolean unRegisterQuery(long queryId, boolean fullQuit) {
     // This is used to make sure the QueryTimeoutRuntimeException is thrown once
     AtomicBoolean successRemoved = new AtomicBoolean(false);
-    queryInfoMap.computeIfPresent(
+    queryContextMap.computeIfPresent(
         queryId,
         (k, v) -> {
           successRemoved.set(true);
@@ -106,27 +111,44 @@ public class QueryTimeManager implements IService { //查询操作的时间管�
           }
           SessionTimeoutManager.getInstance()
               .refresh(SessionManager.getInstance().getSessionIdByQueryId(queryId));
-          return null;
+          return fullQuit ? null : v;
         });
     return successRemoved;
   }
 
-  public AtomicBoolean unRegisterQuery(long queryId, PhysicalPlan plan) {
-    return plan instanceof ShowQueryProcesslistPlan ? null : unRegisterQuery(queryId);
-  }
-
-  public static void checkQueryAlive(long queryId) {
-    QueryInfo queryInfo = getInstance().queryInfoMap.get(queryId);
-    if (queryInfo != null && queryInfo.isInterrupted()) {
-      if (getInstance().unRegisterQuery(queryId).get()) {
-        throw new QueryTimeoutRuntimeException(
-            QueryTimeoutRuntimeException.TIMEOUT_EXCEPTION_MESSAGE);
+  /**
+   * Check given query is alive or not. We only throw the queryTimeoutRunTimeException once. If the
+   * runTimeException is thrown in main thread, it will quit directly while the return value will be
+   * used to ask sub query threads to quit. Else if it's thrown in one sub thread, other sub threads
+   * will quit by reading the return value, and main thread will catch and throw the same exception
+   * by reading the ExceptionBatchData.
+   *
+   * @return True if alive.
+   */
+  public static boolean checkQueryAlive(long queryId) {
+    QueryContext queryContext = getInstance().getQueryContext(queryId);
+    if (queryContext == null) {
+      return false;
+    } else if (queryContext.isInterrupted()) {
+      if (getInstance().unRegisterQuery(queryId, true).get()) {
+        throw new QueryTimeoutRuntimeException();
       }
+      return false;
     }
+    return true;
   }
 
-  public Map<Long, QueryInfo> getQueryInfoMap() {
-    return queryInfoMap;
+  public Map<Long, QueryContext> getQueryContextMap() {
+    return queryContextMap;
+  }
+
+  public void clear() {
+    queryContextMap.clear();
+    queryScheduledTaskMap.clear();
+  }
+
+  public QueryContext getQueryContext(long queryId) {
+    return queryContextMap.get(queryId);
   }
 
   public static QueryTimeManager getInstance() {
@@ -156,47 +178,5 @@ public class QueryTimeManager implements IService { //查询操作的时间管�
     private static final QueryTimeManager INSTANCE = new QueryTimeManager();
 
     private QueryTimeManagerHelper() {}
-  }
-
-  public class QueryInfo {    //查询信息类，存储了该查询的开始时间和sql
-
-    /**
-     * To reduce the cost of memory, we only keep the a certain size statement. For statement whose
-     * length is over this, we keep its head and tail.
-     */
-    private static final int MAX_STATEMENT_LENGTH = 64;
-
-    private final long startTime; //开始时间
-    private final String statement; //sql
-
-    private volatile boolean isInterrupted = false; //当前查询是否被中断，默认否
-
-    public QueryInfo(long startTime, String statement) {
-      this.startTime = startTime;
-      if (statement.length() <= 64) {
-        this.statement = statement;
-      } else {//若sql长度超过64字节，则用...替代中间字符串
-        this.statement =
-            statement.substring(0, MAX_STATEMENT_LENGTH / 2)
-                + "..."
-                + statement.substring(statement.length() - MAX_STATEMENT_LENGTH / 2);
-      }
-    }
-
-    public long getStartTime() {
-      return startTime;
-    }
-
-    public String getStatement() {
-      return statement;
-    }
-
-    public void setInterrupted(boolean interrupted) {
-      isInterrupted = interrupted;
-    }
-
-    public boolean isInterrupted() {
-      return isInterrupted;
-    }
   }
 }

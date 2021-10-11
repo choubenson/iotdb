@@ -20,7 +20,6 @@
 package org.apache.iotdb.db.query.executor;
 
 import org.apache.iotdb.db.exception.StorageEngineException;
-import org.apache.iotdb.db.exception.metadata.MetadataException;
 import org.apache.iotdb.db.exception.query.QueryProcessException;
 import org.apache.iotdb.db.metadata.PartialPath;
 import org.apache.iotdb.db.qp.physical.crud.AggregationPlan;
@@ -37,11 +36,8 @@ import org.apache.iotdb.db.query.dataset.groupby.GroupByFillDataSet;
 import org.apache.iotdb.db.query.dataset.groupby.GroupByTimeDataSet;
 import org.apache.iotdb.db.query.dataset.groupby.GroupByWithValueFilterDataSet;
 import org.apache.iotdb.db.query.dataset.groupby.GroupByWithoutValueFilterDataSet;
-import org.apache.iotdb.db.query.executor.fill.IFill;
-import org.apache.iotdb.db.service.IoTDB;
 import org.apache.iotdb.db.utils.TimeValuePairUtils;
 import org.apache.iotdb.tsfile.exception.filter.QueryFilterOptimizationException;
-import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import org.apache.iotdb.tsfile.read.expression.ExpressionType;
 import org.apache.iotdb.tsfile.read.expression.IExpression;
 import org.apache.iotdb.tsfile.read.expression.impl.BinaryExpression;
@@ -59,7 +55,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Query entrance class of IoTDB query process. All query clause will be transformed to physical
@@ -71,9 +66,15 @@ public class QueryRouter implements IQueryRouter {
 
   @Override
   public QueryDataSet rawDataQuery(RawDataQueryPlan queryPlan, QueryContext context)
-      throws StorageEngineException, QueryProcessException {  //根据查询计划和查询环境进行原始数据查询
-    IExpression expression = queryPlan.getExpression(); //获取此次查询计划的表达式，即此查询的where子句后的内容，比如"select .. from .. where time>1000 or time<300"，则该查询的表达式就是"time>1000 || time<300"的，它是GlobalTimeExpression的，且过滤器是orFilter，而orFilter又是继承一个二元过滤器BinaryFilter，二元过滤器的左右操作过滤器又是个时间过滤器TimeFilter对象
-    List<PartialPath> deduplicatedPaths = queryPlan.getDeduplicatedPaths(); //获取此查询包含的所有时间序列路径，如"select * from root.*.*.*"可能就会包含多条时间序列路径
+      throws StorageEngineException, QueryProcessException { // 根据查询计划和查询环境进行原始数据查询
+    IExpression expression =
+        queryPlan
+            .getExpression(); // 获取此次查询计划的表达式，即此查询的where子句后的内容，比如"select .. from .. where time>1000
+    // or time<300"，则该查询的表达式就是"time>1000 ||
+    // time<300"的，它是GlobalTimeExpression的，且过滤器是orFilter，而orFilter又是继承一个二元过滤器BinaryFilter，二元过滤器的左右操作过滤器又是个时间过滤器TimeFilter对象
+    List<PartialPath> deduplicatedPaths =
+        queryPlan
+            .getDeduplicatedPaths(); // 获取此查询包含的所有时间序列路径，如"select * from root.*.*.*"可能就会包含多条时间序列路径
 
     IExpression optimizedExpression;
     try {
@@ -81,42 +82,48 @@ public class QueryRouter implements IQueryRouter {
           expression == null
               ? null
               : ExpressionOptimizer.getInstance()
-                  .optimize(expression, new ArrayList<>(deduplicatedPaths));//对表达式进行优化：若是一元表达式（GlobalTimeExpression和SingleSeriesExpression）则不优化，若是二元表达式（AndExpression等等），则进行相关合并等优化操作
+                  .optimize(
+                      expression,
+                      new ArrayList<>(
+                          deduplicatedPaths)); // 对表达式进行优化：若是一元表达式（GlobalTimeExpression和SingleSeriesExpression）则不优化，若是二元表达式（AndExpression等等），则进行相关合并等优化操作
     } catch (QueryFilterOptimizationException e) {
       throw new StorageEngineException(e.getMessage());
     }
-    queryPlan.setExpression(optimizedExpression); //对查询计划设置优化后的expression表达式
+    queryPlan.setExpression(optimizedExpression); // 对查询计划设置优化后的expression表达式
 
-    RawDataQueryExecutor rawDataQueryExecutor = getRawDataQueryExecutor(queryPlan);  //根据原数据查询计划创建并获取一个新的原数据查询执行器对象
+    RawDataQueryExecutor rawDataQueryExecutor =
+        getRawDataQueryExecutor(queryPlan); // 根据原数据查询计划创建并获取一个新的原数据查询执行器对象
 
-    if (!queryPlan.isAlignByTime()) {//如果该查询不是disable align的，则
+    if (!queryPlan.isAlignByTime()) { // 如果该查询不是disable align的，则
       return rawDataQueryExecutor.executeNonAlign(context);
     }
 
-    if (optimizedExpression != null //如果优化后的expression不为空（只要该查询的expression不为空，优化后的Expression就不为空）且优化后表达式类型不为GlobalTime，则
+    if (optimizedExpression
+            != null // 如果优化后的expression不为空（只要该查询的expression不为空，优化后的Expression就不为空）且优化后表达式类型不为GlobalTime，则
         && optimizedExpression.getType() != ExpressionType.GLOBAL_TIME) {
-      try {
-        queryPlan.transformPaths(IoTDB.metaManager);
-      } catch (MetadataException e) {
-        throw new QueryProcessException(e);
-      }
       return rawDataQueryExecutor.executeWithValueFilter(context);
     } else if (optimizedExpression != null
-        && optimizedExpression.getType() == ExpressionType.GLOBAL_TIME) {//如果优化后的expression不为空且优化后表达式类型为GlobalTime，则
-      Filter timeFilter = ((GlobalTimeExpression) queryPlan.getExpression()).getFilter();//获取此次查询GlobalTime一元表达式的过滤器，可能是一元时间过滤器或者一个二元过滤器（AndFilter或者OrFilter），它包含了左右两个时间过滤器
-      TimeValuePairUtils.Intervals intervals = TimeValuePairUtils.extractTimeInterval(timeFilter);//根据该一元或者二元包含时间的过滤器，获取具体的时间范围。eg:若此查询的时间范围是（100，500），则此时间范围列表会存放两个元素，分别是上限101和下限499
-      if (intervals.isEmpty()) {  //如果时间范围列表为空，则说明此查询where子句里没有时间范围限制。
+        && optimizedExpression.getType()
+            == ExpressionType.GLOBAL_TIME) { // 如果优化后的expression不为空且优化后表达式类型为GlobalTime，则
+      Filter timeFilter =
+          ((GlobalTimeExpression) queryPlan.getExpression())
+              .getFilter(); // 获取此次查询GlobalTime一元表达式的过滤器，可能是一元时间过滤器或者一个二元过滤器（AndFilter或者OrFilter），它包含了左右两个时间过滤器
+      TimeValuePairUtils.Intervals intervals =
+          TimeValuePairUtils.extractTimeInterval(
+              timeFilter); // 根据该一元或者二元包含时间的过滤器，获取具体的时间范围。eg:若此查询的时间范围是（100，500），则此时间范围列表会存放两个元素，分别是上限101和下限499
+      if (intervals.isEmpty()) { // 如果时间范围列表为空，则说明此查询where子句里没有时间范围限制。
         logger.warn("The interval of the filter {} is empty.", timeFilter);
-        return new EmptyDataSet();//返回空数据集
+        return new EmptyDataSet(); // 返回空数据集
       }
     }
 
     // Currently, we only group the vector partial paths for raw query without value filter
     queryPlan.transformToVector();
-    return rawDataQueryExecutor.executeWithoutValueFilter(context); //目前查询条件只能是时间相关的，不能有数值相关的。
+    return rawDataQueryExecutor.executeWithoutValueFilter(context); // 目前查询条件只能是时间相关的，不能有数值相关的。
   }
 
-  protected RawDataQueryExecutor getRawDataQueryExecutor(RawDataQueryPlan queryPlan) {  //根据原数据查询计划创建并获取一个新的原数据查询执行器对象
+  protected RawDataQueryExecutor getRawDataQueryExecutor(
+      RawDataQueryPlan queryPlan) { // 根据原数据查询计划创建并获取一个新的原数据查询执行器对象
     return new RawDataQueryExecutor(queryPlan);
   }
 
@@ -149,22 +156,23 @@ public class QueryRouter implements IQueryRouter {
 
     aggregationPlan.setExpression(optimizedExpression);
 
-    AggregationExecutor engineExecutor = getAggregationExecutor(aggregationPlan);
+    AggregationExecutor engineExecutor = getAggregationExecutor(context, aggregationPlan);
 
     QueryDataSet dataSet = null;
 
     if (optimizedExpression != null
         && optimizedExpression.getType() != ExpressionType.GLOBAL_TIME) {
-      dataSet = engineExecutor.executeWithValueFilter(context, aggregationPlan);
+      dataSet = engineExecutor.executeWithValueFilter(aggregationPlan);
     } else {
-      dataSet = engineExecutor.executeWithoutValueFilter(context, aggregationPlan);
+      dataSet = engineExecutor.executeWithoutValueFilter(aggregationPlan);
     }
 
     return dataSet;
   }
 
-  protected AggregationExecutor getAggregationExecutor(AggregationPlan aggregationPlan) {
-    return new AggregationExecutor(aggregationPlan);
+  protected AggregationExecutor getAggregationExecutor(
+      QueryContext context, AggregationPlan aggregationPlan) {
+    return new AggregationExecutor(context, aggregationPlan);
   }
 
   @Override
@@ -250,22 +258,12 @@ public class QueryRouter implements IQueryRouter {
   @Override
   public QueryDataSet fill(FillQueryPlan fillQueryPlan, QueryContext context)
       throws StorageEngineException, QueryProcessException, IOException {
-    List<PartialPath> fillPaths = fillQueryPlan.getDeduplicatedPaths();
-    List<TSDataType> dataTypes = fillQueryPlan.getDeduplicatedDataTypes();
-    long queryTime = fillQueryPlan.getQueryTime();
-    Map<TSDataType, IFill> fillType = fillQueryPlan.getFillType();
-
-    FillQueryExecutor fillQueryExecutor =
-        getFillExecutor(fillPaths, dataTypes, queryTime, fillType);
-    return fillQueryExecutor.execute(context, fillQueryPlan);
+    FillQueryExecutor fillQueryExecutor = getFillExecutor(fillQueryPlan);
+    return fillQueryExecutor.execute(context);
   }
 
-  protected FillQueryExecutor getFillExecutor(
-      List<PartialPath> fillPaths,
-      List<TSDataType> dataTypes,
-      long queryTime,
-      Map<TSDataType, IFill> fillType) {
-    return new FillQueryExecutor(fillPaths, dataTypes, queryTime, fillType);
+  protected FillQueryExecutor getFillExecutor(FillQueryPlan plan) {
+    return new FillQueryExecutor(plan);
   }
 
   @Override

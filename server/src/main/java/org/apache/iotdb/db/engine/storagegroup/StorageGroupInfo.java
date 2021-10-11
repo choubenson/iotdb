@@ -81,7 +81,8 @@ public class StorageGroupInfo {
     return reportedTsps;
   }
 
-  public boolean needToReportToSystem() { //如果StorageGroupInfo此次内存使用较上次使用的增量超过系统设定的阈值（storage_group_size_report_threshold=16M），则需要上报给系统SystemInfo
+  public boolean
+      needToReportToSystem() { // 如果StorageGroupInfo此次内存使用较上次使用的增量超过系统设定的阈值（storage_group_size_report_threshold=16M），则需要上报给系统SystemInfo
     return memoryCost.get() - lastReportedSize.get() > storageGroupSizeReportThreshold;
   }
 

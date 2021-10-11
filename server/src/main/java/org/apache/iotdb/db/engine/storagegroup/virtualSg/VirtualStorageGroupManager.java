@@ -45,23 +45,25 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class VirtualStorageGroupManager { //虚拟存储组管理类
-  //每个真实的存储组StorageGroup会对应一个虚拟存储组管理类VirtualStorageGroupManager，用来管理该存储组下的一个个虚拟存储组。该类里会有虚拟存储组分割器VirtualPartitioner类对象用来根据该存储组下的不同deviceId的哈希值来分割出一个个虚拟存储组。
+public class VirtualStorageGroupManager { // 虚拟存储组管理类
+  // 每个真实的存储组StorageGroup会对应一个虚拟存储组管理类VirtualStorageGroupManager，用来管理该存储组下的一个个虚拟存储组。该类里会有虚拟存储组分割器VirtualPartitioner类对象用来根据该存储组下的不同deviceId的哈希值来分割出一个个虚拟存储组。
 
   /** logger of this class */
   private static final Logger logger = LoggerFactory.getLogger(VirtualStorageGroupManager.class);
 
   /** virtual storage group partitioner */
-  VirtualPartitioner partitioner = HashVirtualPartitioner.getInstance();  //虚拟存储组分割器
+  VirtualPartitioner partitioner = HashVirtualPartitioner.getInstance(); // 虚拟存储组分割器
 
   /** all virtual storage group processor */
-  StorageGroupProcessor[] virtualStorageGroupProcessor; //存放了该存储组下的所有虚拟存储组对应的StorageGroupProcessor
+  StorageGroupProcessor[] virtualStorageGroupProcessor; // 存放了该存储组下的所有虚拟存储组对应的StorageGroupProcessor
 
   /**
    * recover status of each virtual storage group processor, null if this logical storage group is
    * new created
    */
   private AtomicBoolean[] isVsgReady;
+
+  private AtomicBoolean isSettling = new AtomicBoolean();
 
   /** value of root.stats."root.sg".TOTAL_POINTS */
   private long monitorSeriesValue;
@@ -106,11 +108,29 @@ public class VirtualStorageGroupManager { //虚拟存储组管理类
     }
   }
 
-  /** push check memtable flush interval down to all sg */
-  public void timedFlushMemTable() {
+  /** push check sequence memtable flush interval down to all sg */
+  public void timedFlushSeqMemTable() {
     for (StorageGroupProcessor storageGroupProcessor : virtualStorageGroupProcessor) {
       if (storageGroupProcessor != null) {
-        storageGroupProcessor.timedFlushMemTable();
+        storageGroupProcessor.timedFlushSeqMemTable();
+      }
+    }
+  }
+
+  /** push check unsequence memtable flush interval down to all sg */
+  public void timedFlushUnseqMemTable() {
+    for (StorageGroupProcessor storageGroupProcessor : virtualStorageGroupProcessor) {
+      if (storageGroupProcessor != null) {
+        storageGroupProcessor.timedFlushUnseqMemTable();
+      }
+    }
+  }
+
+  /** push check TsFileProcessor close interval down to all sg */
+  public void timedCloseTsFileProcessor() {
+    for (StorageGroupProcessor storageGroupProcessor : virtualStorageGroupProcessor) {
+      if (storageGroupProcessor != null) {
+        storageGroupProcessor.timedCloseTsFileProcessor();
       }
     }
   }
@@ -123,23 +143,26 @@ public class VirtualStorageGroupManager { //虚拟存储组管理类
    */
   @SuppressWarnings("java:S2445")
   // actually storageGroupMNode is a unique object on the mtree, synchronize it is reasonable
-  public StorageGroupProcessor getProcessor( //根据设备ID计算其属于该真实存储组下的哪个虚拟存储组，并返回该虚拟存储组的StorageGroupProcessor
+  public StorageGroupProcessor
+      getProcessor( // 根据设备ID计算其属于该真实存储组下的哪个虚拟存储组，并返回该虚拟存储组的StorageGroupProcessor
       PartialPath partialPath, IStorageGroupMNode storageGroupMNode)
-      throws StorageGroupProcessorException, StorageEngineException {
-    int loc = partitioner.deviceToVirtualStorageGroupId(partialPath); //根据设备ID路径获得虚拟存储组ID
+          throws StorageGroupProcessorException, StorageEngineException {
+    int loc = partitioner.deviceToVirtualStorageGroupId(partialPath); // 根据设备ID路径获得虚拟存储组ID
 
-    StorageGroupProcessor processor = virtualStorageGroupProcessor[loc];//根据虚拟存储组ID获得对应的虚拟存储组的StorageGroupProcessor
+    StorageGroupProcessor processor =
+        virtualStorageGroupProcessor[loc]; // 根据虚拟存储组ID获得对应的虚拟存储组的StorageGroupProcessor
     if (processor == null) {
       // if finish recover
       if (isVsgReady[loc].get()) {
         synchronized (storageGroupMNode) {
           processor = virtualStorageGroupProcessor[loc];
-          if (processor == null) {    //如果虚拟存储组ID获得对应的虚拟存储组的StorageGroupProcessor为空
-            processor =            //根据存储组路径对象、节点类对象和其下的某一虚拟存储组ID来创建该虚拟存储组的StorageGroupProcessor
+          if (processor == null) { // 如果虚拟存储组ID获得对应的虚拟存储组的StorageGroupProcessor为空
+            processor = // 根据存储组路径对象、节点类对象和其下的某一虚拟存储组ID来创建该虚拟存储组的StorageGroupProcessor
                 StorageEngine.getInstance()
                     .buildNewStorageGroupProcessor(
                         storageGroupMNode.getPartialPath(), storageGroupMNode, String.valueOf(loc));
-            virtualStorageGroupProcessor[loc] = processor;  //将此虚拟存储组ID的新建的StorageGroupProcessor放入virtualStorageGroupProcessor里
+            virtualStorageGroupProcessor[loc] =
+                processor; // 将此虚拟存储组ID的新建的StorageGroupProcessor放入virtualStorageGroupProcessor里
           }
         }
       } else {
@@ -282,19 +305,32 @@ public class VirtualStorageGroupManager { //虚拟存储组管理类
   }
 
   /** push delete operation down to all virtual storage group processors */
-  public void delete(PartialPath path, long startTime, long endTime, long planIndex)
-      throws IOException {  //此时已经确定了该时间序列的存储组，可是由于设备路径可能还处于未知（即是通配符，如path：root.ln.*.*.*）,因此不能确定具体的虚拟存储组，必须要遍历该存储组下的所有虚拟存储器
-    for (StorageGroupProcessor storageGroupProcessor : virtualStorageGroupProcessor) {//遍历该真实存储组下的每个虚拟存储组对应的StorageGroupProcessor
+  public void delete(
+      PartialPath path,
+      long startTime,
+      long endTime,
+      long planIndex,
+      TimePartitionFilter timePartitionFilter)
+      throws
+          IOException { // 此时已经确定了该时间序列的存储组，可是由于设备路径可能还处于未知（即是通配符，如path：root.ln.*.*.*）,因此不能确定具体的虚拟存储组，必须要遍历该存储组下的所有虚拟存储器
+    for (StorageGroupProcessor storageGroupProcessor :
+        virtualStorageGroupProcessor) { // 遍历该真实存储组下的每个虚拟存储组对应的StorageGroupProcessor
       if (storageGroupProcessor != null) {
-        storageGroupProcessor.delete(path, startTime, endTime, planIndex);  //利用虚拟存储组的storageGroupProcessor去执行删除操作
+        storageGroupProcessor.delete(
+            path,
+            startTime,
+            endTime,
+            planIndex,
+            timePartitionFilter); // 利用虚拟存储组的storageGroupProcessor去执行删除操作
       }
     }
   }
 
   /** push countUpgradeFiles operation down to all virtual storage group processors */
-  public int countUpgradeFiles() {//使用该存储组的虚拟存储组管理类进行计算该存储组下待升级的TSFile文件数量
+  public int countUpgradeFiles() { // 使用该存储组的虚拟存储组管理类进行计算该存储组下待升级的TSFile文件数量
     int totalUpgradeFileNum = 0;
-    for (StorageGroupProcessor storageGroupProcessor : virtualStorageGroupProcessor) {  //遍历使用该存储下的每个虚拟存储组计算对应的待升级的TSFile文件数量
+    for (StorageGroupProcessor storageGroupProcessor :
+        virtualStorageGroupProcessor) { // 遍历使用该存储下的每个虚拟存储组计算对应的待升级的TSFile文件数量
       if (storageGroupProcessor != null) {
         totalUpgradeFileNum += storageGroupProcessor.countUpgradeFiles();
       }
@@ -304,10 +340,23 @@ public class VirtualStorageGroupManager { //虚拟存储组管理类
   }
 
   /** push upgradeAll operation down to all virtual storage group processors */
-  public void upgradeAll() {//使用该存储组的虚拟存储组管理器进行升级文件
-    for (StorageGroupProcessor storageGroupProcessor : virtualStorageGroupProcessor) {//使用该存储组下的每个虚拟存储组的StorageGroupProcessor对象进行升级文件
+  public void upgradeAll() { // 使用该存储组的虚拟存储组管理器进行升级文件
+    for (StorageGroupProcessor storageGroupProcessor :
+        virtualStorageGroupProcessor) { // 使用该存储组下的每个虚拟存储组的StorageGroupProcessor对象进行升级文件
       if (storageGroupProcessor != null) {
         storageGroupProcessor.upgrade();
+      }
+    }
+  }
+
+  public void getResourcesToBeSettled(
+      List<TsFileResource> seqResourcesToBeSettled,
+      List<TsFileResource> unseqResourcesToBeSettled,
+      List<String> tsFilePaths) {
+    for (StorageGroupProcessor storageGroupProcessor : virtualStorageGroupProcessor) {
+      if (storageGroupProcessor != null) {
+        storageGroupProcessor.addSettleFilesToList(
+            seqResourcesToBeSettled, unseqResourcesToBeSettled, tsFilePaths);
       }
     }
   }
@@ -423,5 +472,13 @@ public class VirtualStorageGroupManager { //虚拟存储组管理类
   /** only for test */
   public void reset() {
     Arrays.fill(virtualStorageGroupProcessor, null);
+  }
+
+  public void setSettling(boolean settling) {
+    isSettling.set(settling);
+  }
+
+  public AtomicBoolean getIsSettling() {
+    return isSettling;
   }
 }

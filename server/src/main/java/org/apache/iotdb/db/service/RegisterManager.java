@@ -29,10 +29,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class RegisterManager {    //服务注册管理类，用于管理服务的注册并运行和注销并停止运行
+public class RegisterManager { // 服务注册管理类，用于管理服务的注册并运行和注销并停止运行
 
   private static final Logger logger = LoggerFactory.getLogger(RegisterManager.class);
-  private List<IService> iServices;       //存放了该IOTDB在运行的所有服务
+  private List<IService> iServices; // 存放了该IOTDB在运行的所有服务
   private static long deregisterTimeOut = 10_000L;
 
   public RegisterManager() {
@@ -40,30 +40,30 @@ public class RegisterManager {    //服务注册管理类，用于管理服务�
   }
 
   /** register service. */
-  public void register(IService service) throws StartupException {  //往该管理类里注册新的服务，并运行该新的服务
-    for (IService s : iServices) {  //循环遍历判断该服务是否已经注册过
+  public void register(IService service) throws StartupException { // 往该管理类里注册新的服务，并运行该新的服务
+    for (IService s : iServices) { // 循环遍历判断该服务是否已经注册过
       if (s.getID() == service.getID()) {
         logger.debug("{} has already been registered. skip", service.getID().getName());
         return;
       }
     }
-    iServices.add(service); //若没注册过，说明是一个新的服务，则把它加进服务列表中
-    service.start();  //启动该服务
+    iServices.add(service); // 若没注册过，说明是一个新的服务，则把它加进服务列表中
+    service.start(); // 启动该服务
   }
 
   /** stop all service and clear iService list. */
-  public void deregisterAll() { //停止所有的服务，并清空服务列表
+  public void deregisterAll() { // 停止所有的服务，并清空服务列表
     // we stop JMXServer at last
-    Collections.reverse(iServices); //反转服务列表里的元素
+    Collections.reverse(iServices); // 反转服务列表里的元素
     for (IService service : iServices) {
       try {
-        service.waitAndStop(deregisterTimeOut);//在milliseconds时间后停止该服务
+        service.waitAndStop(deregisterTimeOut); // 在milliseconds时间后停止该服务
         logger.debug("{} deregistered", service.getID());
       } catch (Exception e) {
         logger.error("Failed to stop {} because:", service.getID().getName(), e);
       }
     }
-    iServices.clear();  //清空服务列表
+    iServices.clear(); // 清空服务列表
     logger.info("deregister all service.");
   }
 

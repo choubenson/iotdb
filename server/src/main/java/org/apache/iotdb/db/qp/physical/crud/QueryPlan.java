@@ -33,10 +33,11 @@ import java.util.Map;
 
 public abstract class QueryPlan extends PhysicalPlan {
 
-  protected List<ResultColumn> resultColumns = null;  //该列表存放了此次查询结果的所有列对象
+  protected List<ResultColumn> resultColumns = null; // 该列表存放了此次查询结果的所有列对象
   protected List<PartialPath> paths = null;
   protected List<TSDataType> dataTypes = null;
-  private boolean alignByTime = true;//Todo:???啥意思？ // for disable align sql，如果查询是disable align的，则该属性为true
+  private boolean alignByTime =
+      true; // Todo:???啥意思？ // for disable align sql，如果查询是disable align的，则该属性为true
 
   private int rowLimit = 0;
   private int rowOffset = 0;
@@ -44,8 +45,6 @@ public abstract class QueryPlan extends PhysicalPlan {
   private boolean ascending = true;
 
   private Map<String, Integer> pathToIndex = new HashMap<>();
-
-  private Map<String, Integer> vectorPathToIndex = new HashMap<>();
 
   private boolean enableRedirect = false;
 
@@ -134,7 +133,7 @@ public abstract class QueryPlan extends PhysicalPlan {
 
   public String getColumnForReaderFromPath(PartialPath path, int pathIndex) {
     ResultColumn resultColumn = resultColumns.get(pathIndex);
-    return resultColumn.hasAlias() ? resultColumn.getAlias() : path.getFullPath();
+    return resultColumn.hasAlias() ? resultColumn.getAlias() : path.getExactFullPath();
   }
 
   public String getColumnForDisplay(String columnForReader, int pathIndex)
@@ -148,14 +147,6 @@ public abstract class QueryPlan extends PhysicalPlan {
 
   public void setEnableRedirect(boolean enableRedirect) {
     this.enableRedirect = enableRedirect;
-  }
-
-  public Map<String, Integer> getVectorPathToIndex() {
-    return vectorPathToIndex;
-  }
-
-  public void setVectorPathToIndex(Map<String, Integer> vectorPathToIndex) {
-    this.vectorPathToIndex = vectorPathToIndex;
   }
 
   public List<ResultColumn> getResultColumns() {

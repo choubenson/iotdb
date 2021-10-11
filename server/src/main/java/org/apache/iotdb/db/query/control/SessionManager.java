@@ -50,7 +50,8 @@ public class SessionManager {
   // (sessionId -> Set(statementId))
   private final Map<Long, Set<Long>> sessionIdToStatementId = new ConcurrentHashMap<>();
   // (statementId -> Set(queryId))
-  private final Map<Long, Set<Long>> statementIdToQueryId = new ConcurrentHashMap<>();  //存放了每个statement（即sql语句）对应的查询集合，即多个查询可能都会用到同一条sql
+  private final Map<Long, Set<Long>> statementIdToQueryId =
+      new ConcurrentHashMap<>(); // 存放了每个statement（即sql语句）对应的查询集合，即多个查询可能都会用到同一条sql
   // (queryId -> QueryDataSet)
   private final Map<Long, QueryDataSet> queryIdToDataSet = new ConcurrentHashMap<>();
 
@@ -138,16 +139,17 @@ public class SessionManager {
     }
   }
 
-  public long requestQueryId(Long statementId, boolean isDataQuery) {//根据statementId注册一个新的查询，并获得该查询ID
-    long queryId = requestQueryId(isDataQuery); //注册查询，并获得对应的查询ID
-    statementIdToQueryId      //若statementIdToQueryId不存在此statementId，则新建一个set放入，该set包含一个元素为此queryID。若statementIdToQueryId已经存在此statementId，则不执行。
+  public long requestQueryId(
+      Long statementId, boolean isDataQuery) { // 根据statementId注册一个新的查询，并获得该查询ID
+    long queryId = requestQueryId(isDataQuery); // 注册查询，并获得对应的查询ID
+    statementIdToQueryId // 若statementIdToQueryId不存在此statementId，则新建一个set放入，该set包含一个元素为此queryID。若statementIdToQueryId已经存在此statementId，则不执行。
         .computeIfAbsent(statementId, k -> new CopyOnWriteArraySet<>())
         .add(queryId);
     return queryId;
   }
 
-  public long requestQueryId(boolean isDataQuery) { //注册查询，并获得对应的查询ID
-    return QueryResourceManager.getInstance().assignQueryId(isDataQuery); //注册该查询，并获得对应的查询ID
+  public long requestQueryId(boolean isDataQuery) { // 注册查询，并获得对应的查询ID
+    return QueryResourceManager.getInstance().assignQueryId(isDataQuery); // 注册该查询，并获得对应的查询ID
   }
 
   public void releaseQueryResource(long queryId) throws StorageEngineException {

@@ -116,13 +116,13 @@ public class TimeValuePairUtils {
     }
   }
 
-  public static Intervals extractTimeInterval(Filter filter) {//根据该一元或者二元包含时间的过滤器，获取具体的时间范围
-    if (filter == null) { //如果此时间的一元或二元过滤器是null，说明没有时间范围限制，则返回时间范围是所有范围
+  public static Intervals extractTimeInterval(Filter filter) { // 根据该一元或者二元包含时间的过滤器，获取具体的时间范围
+    if (filter == null) { // 如果此时间的一元或二元过滤器是null，说明没有时间范围限制，则返回时间范围是所有范围
       return Intervals.ALL_INTERVAL;
     }
     // and, or, not, value, time, group by
     // eq, neq, gt, gteq, lt, lteq, in
-    if (filter instanceof AndFilter) {//若是AndFilter过滤器，则
+    if (filter instanceof AndFilter) { // 若是AndFilter过滤器，则
       AndFilter andFilter = ((AndFilter) filter);
       Intervals leftIntervals = extractTimeInterval(andFilter.getLeft());
       Intervals rightIntervals = extractTimeInterval(andFilter.getRight());
@@ -173,7 +173,9 @@ public class TimeValuePairUtils {
   }
 
   /** All intervals are closed. */
-  public static class Intervals extends ArrayList<Long> { //间隔类，如时间间隔，它继承了ArrayList类，是一个ArrayList。它通过arrayList依次存放了一个时间间隔的下限和上限
+  public static class Intervals
+      extends ArrayList<
+          Long> { // 间隔类，如时间间隔，它继承了ArrayList类，是一个ArrayList。它通过arrayList依次存放了一个时间间隔的下限和上限
 
     static final Intervals ALL_INTERVAL = new Intervals(Long.MIN_VALUE, Long.MAX_VALUE);
 
@@ -206,7 +208,7 @@ public class TimeValuePairUtils {
       set(index * 2 + 1, ub);
     }
 
-    public void addInterval(long lowerBound, long upperBound) {//先往此ArrayList里放入下限，再放入上限
+    public void addInterval(long lowerBound, long upperBound) { // 先往此ArrayList里放入下限，再放入上限
       add(lowerBound);
       add(upperBound);
     }

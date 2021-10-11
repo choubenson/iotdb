@@ -66,8 +66,9 @@ public class PlainEncoder extends Encoder {
   }
 
   @Override
-  public void encode(long value, ByteArrayOutputStream out) {   //对value进行编码后，写入ByteArrayOutputStream的buffer缓存
-    for (int i = 7; i >= 0; i--) {  //long类型是8个字节，依次对每个字节进行编码并写入ByteArrayOutputStream的buffer缓存
+  public void encode(
+      long value, ByteArrayOutputStream out) { // 对value进行编码后，写入ByteArrayOutputStream的buffer缓存
+    for (int i = 7; i >= 0; i--) { // long类型是8个字节，依次对每个字节进行编码并写入ByteArrayOutputStream的buffer缓存
       out.write((byte) (((value) >> (i * 8)) & 0xFF));
     }
   }

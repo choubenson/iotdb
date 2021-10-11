@@ -53,8 +53,10 @@ public class IoTDB implements IoTDBMBean {
   private static final Logger logger = LoggerFactory.getLogger(IoTDB.class);
   private final String mbeanName =
       String.format("%s:%s=%s", IoTDBConstant.IOTDB_PACKAGE, IoTDBConstant.JMX_TYPE, "IoTDB");
-  private RegisterManager registerManager = new RegisterManager();//创建服务注册管理类
-  public static MManager metaManager = MManager.getInstance();  //创建元数据管理类
+
+  private RegisterManager registerManager = new RegisterManager(); // 创建服务注册管理类
+  public static MManager metaManager = MManager.getInstance(); // 创建元数据管理类
+  private static boolean clusterMode = false;
 
   public static IoTDB getInstance() {
     return IoTDBHolder.INSTANCE;
@@ -72,6 +74,14 @@ public class IoTDB implements IoTDBMBean {
 
   public static void setMetaManager(MManager metaManager) {
     IoTDB.metaManager = metaManager;
+  }
+
+  public static void setClusterMode() {
+    IoTDB.clusterMode = true;
+  }
+
+  public static boolean isClusterMode() {
+    return IoTDB.clusterMode;
   }
 
   public void active() {
@@ -95,14 +105,18 @@ public class IoTDB implements IoTDBMBean {
     logger.info("{} has started.", IoTDBConstant.GLOBAL_DB_NAME);
   }
 
-  private void setUp() throws StartupException {  //IOTDB系统运行前，做一些setUp工作
+  private void setUp() throws StartupException { // IOTDB系统运行前，做一些setUp工作
     logger.info("Setting up IoTDB...");
 
-    Runtime.getRuntime().addShutdownHook(new IoTDBShutdownHook());//所谓 shutdown hook 就是已经初始化但尚未开始执行的线程对象。这些线程对象在Runtime 注册后，如果JVM要停止前，这些 shutdown hook线程便开始执行。也就是在你的程序结束前，shutdown hook线程开始执行一些操作
+    Runtime.getRuntime()
+        .addShutdownHook(
+            new IoTDBShutdownHook()); // 所谓 shutdown hook 就是已经初始化但尚未开始执行的线程对象。这些线程对象在Runtime
+    // 注册后，如果JVM要停止前，这些 shutdown hook线程便开始执行。也就是在你的程序结束前，shutdown
+    // hook线程开始执行一些操作
     setUncaughtExceptionHandler();
     logger.info("recover the schema...");
-    initMManager();//初始化IOTDB系统的元数据管理类对象
-    //下面是开始注册该系统相关的一系列服务
+    initMManager(); // 初始化IOTDB系统的元数据管理类对象
+    // 下面是开始注册该系统相关的一系列服务
     registerManager.register(JMXService.getInstance());
     registerManager.register(FlushManager.getInstance());
     registerManager.register(MultiFileLogNodeManager.getInstance());
@@ -146,7 +160,9 @@ public class IoTDB implements IoTDBMBean {
     // Warn: registMonitor() method should be called after systemDataRecovery()
     registerManager.register(StatMonitor.getInstance());
     registerManager.register(SyncServerManager.getInstance());
-    registerManager.register(UpgradeSevice.getINSTANCE());    //注册系统的“版本升级服务”
+
+    registerManager.register(UpgradeSevice.getINSTANCE());
+    registerManager.register(SettleService.getINSTANCE());
 
     logger.info("Congratulation, IoTDB is set up successfully. Now, enjoy yourself!");
   }
@@ -158,9 +174,9 @@ public class IoTDB implements IoTDBMBean {
     logger.info("IoTDB is deactivated.");
   }
 
-  private void initMManager() {//初始化IOTDB系统的元数据管理类对象
+  private void initMManager() { // 初始化IOTDB系统的元数据管理类对象
     long time = System.currentTimeMillis();
-    IoTDB.metaManager.init();//初始化元数据管理类对象
+    IoTDB.metaManager.init(); // 初始化元数据管理类对象
     long end = System.currentTimeMillis() - time;
     logger.info("spend {}ms to recover schema.", end);
     logger.info(

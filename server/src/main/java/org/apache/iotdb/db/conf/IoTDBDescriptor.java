@@ -19,14 +19,15 @@
 package org.apache.iotdb.db.conf;
 
 import org.apache.iotdb.db.conf.directories.DirectoryManager;
+import org.apache.iotdb.db.engine.StorageEngine;
 import org.apache.iotdb.db.engine.compaction.CompactionStrategy;
 import org.apache.iotdb.db.exception.query.QueryProcessException;
 import org.apache.iotdb.db.qp.utils.DatetimeUtils;
-import org.apache.iotdb.db.utils.FilePathUtils;
 import org.apache.iotdb.tsfile.common.conf.TSFileDescriptor;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSEncoding;
 import org.apache.iotdb.tsfile.fileSystem.FSType;
+import org.apache.iotdb.tsfile.utils.FilePathUtils;
 
 import com.google.common.net.InetAddresses;
 import org.slf4j.Logger;
@@ -49,7 +50,7 @@ public class IoTDBDescriptor {
   private final IoTDBConfig conf = new IoTDBConfig();
 
   protected IoTDBDescriptor() {
-    loadProps();  //加载系统属性等参数配置
+    loadProps(); // 加载系统属性等参数配置
   }
 
   public static IoTDBDescriptor getInstance() {
@@ -65,7 +66,7 @@ public class IoTDBDescriptor {
    *
    * @return url object if location exit, otherwise null.
    */
-  public URL getPropsUrl() {  //获取系统参数文件的路径对象，如（system.property等）
+  public URL getPropsUrl() { // 获取系统参数文件的路径对象，如（system.property等）
     // Check if a config-directory was specified first.
     String urlString = System.getProperty(IoTDBConstant.IOTDB_CONF, null);
     // If it wasn't, check if a home directory was provided (This usually contains a config)
@@ -109,8 +110,8 @@ public class IoTDBDescriptor {
 
   /** load an property file and set TsfileDBConfig variables. */
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
-  private void loadProps() {  //加载系统属性等参数配置，把这些配置
-    URL url = getPropsUrl();    //获取本地系统参数文件的路径对象
+  private void loadProps() { // 加载系统属性等参数配置，把这些配置
+    URL url = getPropsUrl(); // 获取本地系统参数文件的路径对象
     if (url == null) {
       logger.warn("Couldn't load the configuration from any of the known sources.");
       return;
@@ -173,6 +174,12 @@ public class IoTDBDescriptor {
               properties.getProperty(
                   "buffered_arrays_memory_proportion",
                   Double.toString(conf.getBufferedArraysMemoryProportion()))));
+
+      conf.setTimeIndexMemoryProportion(
+          Double.parseDouble(
+              properties.getProperty(
+                  "time_index_memory_proportion",
+                  Double.toString(conf.getTimeIndexMemoryProportion()))));
 
       conf.setFlushProportion(
           Double.parseDouble(
@@ -277,34 +284,6 @@ public class IoTDBDescriptor {
                   .trim());
       if (memTableSizeThreshold > 0) {
         conf.setMemtableSizeThreshold(memTableSizeThreshold);
-      }
-
-      conf.setEnableTimedFlushUnseqMemtable(
-          Boolean.parseBoolean(
-              properties.getProperty(
-                  "enable_timed_flush_unseq_memtable",
-                  Boolean.toString(conf.isEnableTimedFlushUnseqMemtable()))));
-
-      long unseqMemTableFlushInterval =
-          Long.parseLong(
-              properties
-                  .getProperty(
-                      "unseq_memtable_flush_interval_in_ms",
-                      Long.toString(conf.getUnseqMemtableFlushInterval()))
-                  .trim());
-      if (unseqMemTableFlushInterval > 0) {
-        conf.setUnseqMemtableFlushInterval(unseqMemTableFlushInterval);
-      }
-
-      long unseqMemTableFlushCheckInterval =
-          Long.parseLong(
-              properties
-                  .getProperty(
-                      "unseq_memtable_flush_check_interval_in_ms",
-                      Long.toString(conf.getUnseqMemtableFlushCheckInterval()))
-                  .trim());
-      if (unseqMemTableFlushCheckInterval > 0) {
-        conf.setUnseqMemtableFlushCheckInterval(unseqMemTableFlushCheckInterval);
       }
 
       conf.setAvgSeriesPointNumberThreshold(
@@ -491,7 +470,7 @@ public class IoTDBDescriptor {
           Integer.parseInt(
               properties.getProperty(
                   "external_sort_threshold", Integer.toString(conf.getExternalSortThreshold()))));
-      conf.setUpgradeThreadNum(   //获取系统配置的升级线程数量
+      conf.setUpgradeThreadNum( // 获取系统配置的升级线程数量
           Integer.parseInt(
               properties.getProperty(
                   "upgrade_thread_num", Integer.toString(conf.getUpgradeThreadNum()))));
@@ -640,6 +619,13 @@ public class IoTDBDescriptor {
           Long.parseLong(
               properties.getProperty("default_ttl", String.valueOf(conf.getDefaultTTL()))));
 
+      // the num of memtables in each storage group
+      conf.setConcurrentWritingTimePartition(
+          Integer.parseInt(
+              properties.getProperty(
+                  "concurrent_writing_time_partition",
+                  String.valueOf(conf.getConcurrentWritingTimePartition()))));
+
       conf.setTimeIndexLevel(
           properties.getProperty("time_index_level", String.valueOf(conf.getTimeIndexLevel())));
 
@@ -653,6 +639,13 @@ public class IoTDBDescriptor {
           Integer.parseInt(
               properties.getProperty(
                   "tag_attribute_total_size", String.valueOf(conf.getTagAttributeTotalSize()))));
+
+      conf.setTagAttributeFlushInterval(
+          Integer.parseInt(
+              properties.getProperty(
+                  "tag_attribute_flush_interval",
+                  String.valueOf(conf.getTagAttributeFlushInterval()))));
+
       conf.setPrimitiveArraySize(
           (Integer.parseInt(
               properties.getProperty(
@@ -809,6 +802,9 @@ public class IoTDBDescriptor {
           .setKerberosPrincipal(
               properties.getProperty("kerberos_principal", conf.getKerberosPrincipal()));
       TSFileDescriptor.getInstance().getConfig().setBatchSize(conf.getBatchSize());
+
+      // timed flush memtable, timed close tsfile
+      loadTimedService(properties);
 
       // set tsfile-format config
       loadTsFileProps(properties);
@@ -974,12 +970,6 @@ public class IoTDBDescriptor {
                         TSFileDescriptor.getInstance().getConfig().getMaxNumberOfPointsInPage()))));
     TSFileDescriptor.getInstance()
         .getConfig()
-        .setTimeSeriesDataType(
-            properties.getProperty(
-                "time_series_data_type",
-                TSFileDescriptor.getInstance().getConfig().getTimeSeriesDataType()));
-    TSFileDescriptor.getInstance()
-        .getConfig()
         .setMaxStringLength(
             Integer.parseInt(
                 properties.getProperty(
@@ -1028,6 +1018,92 @@ public class IoTDBDescriptor {
                         TSFileDescriptor.getInstance().getConfig().getMaxDegreeOfIndexNode()))));
   }
 
+  // timed flush memtable, timed close tsfile
+  private void loadTimedService(Properties properties) {
+    conf.setEnableTimedFlushSeqMemtable(
+        Boolean.parseBoolean(
+            properties.getProperty(
+                "enable_timed_flush_seq_memtable",
+                Boolean.toString(conf.isEnableTimedFlushSeqMemtable()))));
+
+    long seqMemTableFlushInterval =
+        Long.parseLong(
+            properties
+                .getProperty(
+                    "seq_memtable_flush_interval_in_ms",
+                    Long.toString(conf.getSeqMemtableFlushInterval()))
+                .trim());
+    if (seqMemTableFlushInterval > 0) {
+      conf.setSeqMemtableFlushInterval(seqMemTableFlushInterval);
+    }
+
+    long seqMemTableFlushCheckInterval =
+        Long.parseLong(
+            properties
+                .getProperty(
+                    "seq_memtable_flush_check_interval_in_ms",
+                    Long.toString(conf.getSeqMemtableFlushCheckInterval()))
+                .trim());
+    if (seqMemTableFlushCheckInterval > 0) {
+      conf.setSeqMemtableFlushCheckInterval(seqMemTableFlushCheckInterval);
+    }
+
+    conf.setEnableTimedFlushUnseqMemtable(
+        Boolean.parseBoolean(
+            properties.getProperty(
+                "enable_timed_flush_unseq_memtable",
+                Boolean.toString(conf.isEnableTimedFlushUnseqMemtable()))));
+
+    long unseqMemTableFlushInterval =
+        Long.parseLong(
+            properties
+                .getProperty(
+                    "unseq_memtable_flush_interval_in_ms",
+                    Long.toString(conf.getUnseqMemtableFlushInterval()))
+                .trim());
+    if (unseqMemTableFlushInterval > 0) {
+      conf.setUnseqMemtableFlushInterval(unseqMemTableFlushInterval);
+    }
+
+    long unseqMemTableFlushCheckInterval =
+        Long.parseLong(
+            properties
+                .getProperty(
+                    "unseq_memtable_flush_check_interval_in_ms",
+                    Long.toString(conf.getUnseqMemtableFlushCheckInterval()))
+                .trim());
+    if (unseqMemTableFlushCheckInterval > 0) {
+      conf.setUnseqMemtableFlushCheckInterval(unseqMemTableFlushCheckInterval);
+    }
+
+    conf.setEnableTimedCloseTsFile(
+        Boolean.parseBoolean(
+            properties.getProperty(
+                "enable_timed_close_tsfile", Boolean.toString(conf.isEnableTimedCloseTsFile()))));
+
+    long closeTsFileIntervalAfterFlushing =
+        Long.parseLong(
+            properties
+                .getProperty(
+                    "close_tsfile_interval_after_flushing_in_ms",
+                    Long.toString(conf.getCloseTsFileIntervalAfterFlushing()))
+                .trim());
+    if (closeTsFileIntervalAfterFlushing > 0) {
+      conf.setCloseTsFileIntervalAfterFlushing(closeTsFileIntervalAfterFlushing);
+    }
+
+    long closeTsFileCheckInterval =
+        Long.parseLong(
+            properties
+                .getProperty(
+                    "close_tsfile_check_interval_in_ms",
+                    Long.toString(conf.getCloseTsFileCheckInterval()))
+                .trim());
+    if (closeTsFileCheckInterval > 0) {
+      conf.setCloseTsFileCheckInterval(closeTsFileCheckInterval);
+    }
+  }
+
   public void loadHotModifiedProps(Properties properties) throws QueryProcessException {
     try {
       // update data dirs
@@ -1046,6 +1122,10 @@ public class IoTDBDescriptor {
 
       // update WAL conf
       loadWALProps(properties);
+
+      // update timed flush & close conf
+      loadTimedService(properties);
+      StorageEngine.getInstance().rebootTimedService();
 
       long seqTsFileSize =
           Long.parseLong(

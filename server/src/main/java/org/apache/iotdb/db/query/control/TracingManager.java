@@ -41,16 +41,17 @@ public class TracingManager {
   private static final Logger logger = LoggerFactory.getLogger(TracingManager.class);
   private static final String QUERY_ID = "Query Id: %d";
   private static final String DATE_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS";
-  private BufferedWriter writer;  //查询的追踪日志"data/trace/tracing.txt"的writer
-  private Map<Long, Long> queryStartTime = new ConcurrentHashMap<>(); //存放了每个查询ID对应的起使时间
+  private BufferedWriter writer; // 查询的追踪日志"data/trace/tracing.txt"的writer
+  private Map<Long, Long> queryStartTime = new ConcurrentHashMap<>(); // 存放了每个查询ID对应的起使时间
   private Map<Long, TracingInfo> tracingInfoMap = new ConcurrentHashMap<>();
 
   public TracingManager(String dirName, String logFileName) {
     initTracingManager(dirName, logFileName);
   }
 
-  public void initTracingManager(String dirName, String logFileName) {//前者为"data/trace"，后者为"tracing.txt"
-    File tracingDir = SystemFileFactory.INSTANCE.getFile(dirName);  //路径为"data/trace"
+  public void initTracingManager(
+      String dirName, String logFileName) { // 前者为"data/trace"，后者为"tracing.txt"
+    File tracingDir = SystemFileFactory.INSTANCE.getFile(dirName); // 路径为"data/trace"
     if (!tracingDir.exists()) {
       if (tracingDir.mkdirs()) {
         logger.info("create performance folder {}.", tracingDir);
@@ -58,7 +59,9 @@ public class TracingManager {
         logger.info("create performance folder {} failed.", tracingDir);
       }
     }
-    File logFile = SystemFileFactory.INSTANCE.getFile(dirName + File.separator + logFileName); //"data/trace/tracing.txt"
+    File logFile =
+        SystemFileFactory.INSTANCE.getFile(
+            dirName + File.separator + logFileName); // "data/trace/tracing.txt"
     FileWriter fileWriter = null;
     try {
       fileWriter = new FileWriter(logFile, true);
@@ -95,7 +98,8 @@ public class TracingManager {
   }
 
   // for align by device query
-  public void writeQueryInfo(long queryId, String statement, long startTime) throws IOException { //往查询追踪日志"data/trace/tracing.txt"里写入当前查询的日志
+  public void writeQueryInfo(long queryId, String statement, long startTime)
+      throws IOException { // 往查询追踪日志"data/trace/tracing.txt"里写入当前查询的日志
     queryStartTime.put(queryId, startTime);
     StringBuilder builder = new StringBuilder();
     builder
