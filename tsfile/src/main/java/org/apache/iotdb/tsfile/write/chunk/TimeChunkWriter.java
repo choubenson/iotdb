@@ -38,18 +38,18 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
-public class TimeChunkWriter {
+public class TimeChunkWriter {  //用作多元序列的TimeChunkWriter
 
   private static final Logger logger = LoggerFactory.getLogger(TimeChunkWriter.class);
 
-  private final String measurementId;
+  private final String measurementId; //多元序列的传感器ID，eg:vector1.measurement1
 
   private final TSEncoding encodingType;
 
   private final CompressionType compressionType;
 
   /** all pages of this chunk. */
-  private final PublicBAOS pageBuffer;
+  private final PublicBAOS pageBuffer;// 该Chunk的输出流pageBuffer，该chunk的每个page数据（pageHeader+pageData）会按顺序依次放入该输出流pageBuffer的缓存数组里
 
   private int numOfPages;
 
@@ -136,11 +136,11 @@ public class TimeChunkWriter {
     return false;
   }
 
-  public void writePageToPageBuffer() {
+  public void writePageToPageBuffer() {// 往对应Chunk的TimeChunkWriter的输出流pageBuffer缓存里写入该page的pageHeader和pageData（即pageWriter对象里输出流timeOut和valueOut的缓存数据），最后重置该pageWriter
     try {
       if (numOfPages == 0) { // record the firstPageStatistics
         this.firstPageStatistics = pageWriter.getStatistics();
-        this.sizeWithoutStatistic = pageWriter.writePageHeaderAndDataIntoBuff(pageBuffer, true);
+        this.sizeWithoutStatistic = pageWriter.writePageHeaderAndDataIntoBuff(pageBuffer, true);// 把该pageWriter对象暂存的数据（pageHeader和pageData，pageData需考虑是否经过压缩compress）依次写入该Chunk的TimeChunkWriter的输出流pageBuffer的缓冲数组里（即先写入该Page的PageHeader，再写入PageData，其中pageData只存放了时间分量），返回的内容是：(1)若要写入的数据所属page是Chunk的第一个page，则返回写入的pageHeader去掉statistics的字节数（2）若不是第一个page，则返回0
       } else if (numOfPages == 1) { // put the firstPageStatistics into pageBuffer
         byte[] b = pageBuffer.toByteArray();
         pageBuffer.reset();

@@ -139,12 +139,12 @@ class PageWriter { // page写入类对象，每个Chunk都会有一个PageWriter
   }
 
   /** write time series into encoder */
-  public void write(long[] timestamps, int[] values, int batchSize) {
-    for (int i = 0; i < batchSize; i++) {
-      timeEncoder.encode(timestamps[i], timeOut);
-      valueEncoder.encode(values[i], valueOut);
+  public void write(long[] timestamps, int[] values, int batchSize) {// 根据给定的数组，写入int型的数据（将经编码后的time和value分别写入到该PageWriter对象的timeOut输出流和valueOut输出流的buffer缓存里）
+    for (int i = 0; i < batchSize; i++) {//依次遍历每个数据点
+      timeEncoder.encode(timestamps[i], timeOut);// 对time进行编码后，写入timeOut写入流的buffer缓存里
+      valueEncoder.encode(values[i], valueOut);// 对value进行编码后，写入valueOut写入流的buffer缓存里
     }
-    statistics.update(timestamps, values, batchSize);
+    statistics.update(timestamps, values, batchSize);// 每向该page插入一次数据就要更新该page相应的statistics统计量数据
   }
 
   /** write time series into encoder */
@@ -218,7 +218,7 @@ class PageWriter { // page写入类对象，每个Chunk都会有一个PageWriter
   public int writePageHeaderAndDataIntoBuff(
       PublicBAOS pageBuffer,
       boolean
-          first) // 把该pageWriter对象暂存的数据（pageHeader和pageData，pageData需考虑是否经过压缩compress）写入该Chunk的ChunkWriterImpl的输出流pageBuffer的缓冲数组里，返回的内容是：(1)若要写入的数据所属page是Chunk的第一个page，则返回写入的pageHeader去掉statistics的字节数（2）若不是第一个page，则返回0
+          first) // 把该pageWriter对象暂存的数据（pageHeader和pageData，pageData需考虑是否经过压缩compress）依次写入该Chunk的ChunkWriterImpl的输出流pageBuffer的缓冲数组里（即先写入该Page的PageHeader，再写入PageData，其中pageData又依次存放了时间分量和数值分量），返回的内容是：(1)若要写入的数据所属page是Chunk的第一个page，则返回写入的pageHeader去掉statistics的字节数（2）若不是第一个page，则返回0
       throws IOException {
     if (statistics.getCount() == 0) { // 若该page的数据点个数为0，返回0
       return 0;
@@ -287,7 +287,7 @@ class PageWriter { // page写入类对象，每个Chunk都会有一个PageWriter
    *
    * @return allocated size in time, value and outputStream
    */
-  public long estimateMaxMemSize() { // 计算该PageWriter可能占用的最大内存
+  public long estimateMaxMemSize() { // 计算该PageWriter可能占用的最大内存（timeOut缓存+valueOut缓存+timeEncoder和valueEncoder的最大大小）
     return timeOut.size()
         + valueOut.size()
         + timeEncoder.getMaxByteSize()

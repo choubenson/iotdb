@@ -41,13 +41,13 @@ import java.util.Map;
  *
  * <p>Notice: The tablet should not have empty cell
  */
-public class Tablet {
+public class Tablet { //该类是一种用于插入操作时存放数据的数据结构，它可以存放一个设备上在多个时间戳上所有传感器的值，即它存放的必须是所有传感器的值，不能存在某时刻有空的传感器序列。
 
   private static final int DEFAULT_SIZE = 1024;
   private static final String NOT_SUPPORT_DATATYPE = "Data type %s is not supported.";
 
   /** deviceId of this tablet */
-  public String prefixPath;
+  public String prefixPath;//deviceId
 
   /** the list of measurement schemas for creating the tablet */
   private List<IMeasurementSchema> schemas;
@@ -58,11 +58,11 @@ public class Tablet {
   /** timestamps in this tablet */
   public long[] timestamps;
   /** each object is a primitive type array, which represents values of one measurement */
-  public Object[] values;
+  public Object[] values; //某一传感器在所有时间戳上的数据
   /** each bitmap represents the existence of each value in the current column. */
-  public BitMap[] bitMaps;
+  public BitMap[] bitMaps;  //
   /** the number of rows to include in this tablet */
-  public int rowSize;
+  public int rowSize; //行数，即时间戳的个数，因为每个时间戳是单独的一行数据
   /** the maximum number of rows for this tablet */
   private int maxRowNumber;
   /** whether this tablet store data of aligned timeseries or not */

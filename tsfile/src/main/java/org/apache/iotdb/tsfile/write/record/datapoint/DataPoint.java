@@ -33,12 +33,12 @@ import java.math.BigDecimal;
  * data type. subclass of DataPoint need override method {@code write(long time, IChunkWriter
  * writer)} .Every subclass has its data type and overrides a setting method for its data type.
  */
-public abstract class DataPoint {
+public abstract class DataPoint { //该类存放了某个传感器对应的某个数值是多少，即（传感器ID，数值）
 
   /** value type of this DataPoint. */
-  protected final TSDataType type;
+  protected final TSDataType type;//数据类型
   /** measurementId of this DataPoint. */
-  protected final String measurementId;
+  protected final String measurementId;//传感器ID
 
   /**
    * constructor of DataPoint.
@@ -101,7 +101,7 @@ public abstract class DataPoint {
    * @param writer writer
    * @throws IOException exception in IO
    */
-  public abstract void writeTo(long time, IChunkWriter writer) throws IOException;
+  public abstract void writeTo(long time, IChunkWriter writer) throws IOException;  //使用指定的ChunkWriter，将
 
   public String getMeasurementId() {
     return measurementId;

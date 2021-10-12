@@ -33,7 +33,7 @@ public class BooleanDataPoint extends DataPoint {
 
   private static final Logger LOG = LoggerFactory.getLogger(BooleanDataPoint.class);
   /** actual value. */
-  private boolean value;
+  private boolean value;//数值
 
   /** constructor of BooleanDataPoint, the value type will be set automatically. */
   public BooleanDataPoint(String measurementId, boolean v) {

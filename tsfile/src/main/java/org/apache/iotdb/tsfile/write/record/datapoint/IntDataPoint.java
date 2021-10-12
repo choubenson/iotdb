@@ -42,12 +42,12 @@ public class IntDataPoint extends DataPoint {
   }
 
   @Override
-  public void writeTo(long time, IChunkWriter writer) {
+  public void writeTo(long time, IChunkWriter writer) { //根据指定的ChunkWriter，将给定的数据点（time,value）交由该Chunk的pageWriter写入到其对应的两个输出流timeOut和valueOut的缓存中，并检查该Chunk的pageWriter的数据点or占用内存的大小情况，判断是否要开启一个新的page，若要开启新的page则往对应Chunk的ChunkWriterImpl的输出流pageBuffer缓存里写入该page的pageHeader和pageData（即pageWriter对象里输出流timeOut和valueOut的缓存数据），最后重置该pageWriter
     if (writer == null) {
       LOG.warn("given IChunkWriter is null, do nothing and return");
       return;
     }
-    writer.write(time, value, false);
+    writer.write(time, value, false);//使用指定ChunkWriter，把当前数据点的数据写入
   }
 
   @Override

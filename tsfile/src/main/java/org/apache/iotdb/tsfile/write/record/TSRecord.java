@@ -28,7 +28,7 @@ import java.util.List;
  * TSRecord is a kind of format that TsFile receives.TSRecord contains timestamp, deviceId and a
  * list of data points.
  */
-public class TSRecord {
+public class TSRecord {//TsRecord类是一种用于插入操作时存放数据的数据结构，它可以存放一个设备的某一个时间戳上一个或多个不同传感器对应的值
 
   /** timestamp of this TSRecord. */
   public long time;

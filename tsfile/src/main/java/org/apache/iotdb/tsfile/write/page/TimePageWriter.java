@@ -75,7 +75,7 @@ public class TimePageWriter {
   }
 
   /** flush all data remained in encoders. */
-  private void prepareEndWriteOnePage() throws IOException {
+  private void prepareEndWriteOnePage() throws IOException {// 对那些还残留在该TimePageWriter的时间编码器中的数据，把他们写入该pageWriter对应的输出流timeOut的缓存中（而输出写入流timeOut和valueOut缓存里的数据何时flush到输出写入流指定的本地文件里取决于OutputStream的机制）
     timeEncoder.flush(timeOut);
   }
 
@@ -85,27 +85,27 @@ public class TimePageWriter {
    *
    * @return a new readable ByteBuffer whose position is 0.
    */
-  public ByteBuffer getUncompressedBytes() throws IOException {
-    prepareEndWriteOnePage();
-    ByteBuffer buffer = ByteBuffer.allocate(timeOut.size());
-    buffer.put(timeOut.getBuf(), 0, timeOut.size());
+  public ByteBuffer getUncompressedBytes() throws IOException {//新建一个ByteBuffer，并往里写入该TimePageWriter的timeOut缓存流里的内容，并返回此ByteBuffer
+    prepareEndWriteOnePage();// 对那些还残留在该TimePageWriter的时间编码器中的数据，把他们写入该pageWriter对应的输出流timeOut的缓存中（而输出写入流timeOut缓存里的数据何时flush到输出写入流指定的本地文件里取决于OutputStream的机制）
+    ByteBuffer buffer = ByteBuffer.allocate(timeOut.size());// 创建大小为"timeOut输出流里缓存的字节数"的缓存
+    buffer.put(timeOut.getBuf(), 0, timeOut.size());//往该缓存里放入timeOut缓存流里的内容
     buffer.flip();
     return buffer;
   }
 
   /** write the page header and data into the PageWriter's output stream. */
   public int writePageHeaderAndDataIntoBuff(PublicBAOS pageBuffer, boolean first)
-      throws IOException {
-    if (statistics.getCount() == 0) {
+      throws IOException {// 把该pageWriter对象暂存的数据（pageHeader和pageData，pageData需考虑是否经过压缩compress）依次写入该Chunk的TimeChunkWriter的输出流pageBuffer的缓冲数组里（即先写入该Page的PageHeader，再写入PageData，其中pageData只存放了时间分量），返回的内容是：(1)若要写入的数据所属page是Chunk的第一个page，则返回写入的pageHeader去掉statistics的字节数（2）若不是第一个page，则返回0
+    if (statistics.getCount() == 0) {// 若该page的数据点个数为0，返回0
       return 0;
     }
 
-    ByteBuffer pageData = getUncompressedBytes();
-    int uncompressedSize = pageData.remaining();
-    int compressedSize;
-    byte[] compressedBytes = null;
+    ByteBuffer pageData = getUncompressedBytes();//新建一个ByteBuffer，并往里写入该TimePageWriter的timeOut缓存流里的内容，并返回此ByteBuffer
+    int uncompressedSize = pageData.remaining();// 获取该pageData缓存里存放的数据大小，该大小就是该page还未压缩的数据大小
+    int compressedSize; // 该page经压缩后的大小
+    byte[] compressedBytes = null;// 存放经压缩后的数据内容
 
-    if (compressor.getType().equals(CompressionType.UNCOMPRESSED)) {
+    if (compressor.getType().equals(CompressionType.UNCOMPRESSED)) {// 若该page是压缩方式是不压缩 ，则压缩后的数据大小等于未压缩的数据大小
       compressedSize = uncompressedSize;
     } else {
       compressedBytes = new byte[compressor.getMaxBytesForCompression(uncompressedSize)];
@@ -117,25 +117,25 @@ public class TimePageWriter {
 
     // write the page header to IOWriter
     int sizeWithoutStatistic = 0;
-    if (first) {
-      sizeWithoutStatistic +=
+    if (first) {// 如果该page是所属Chunk的第一个page，则（此处不用往Chunk的TimeChunkWriter对象的pageBuffer输出流缓存写入statistics）
+      sizeWithoutStatistic += // 往该Chunk的TimeChunkWriter对象的pageBuffer输出流缓存写入变量uncompressedSize数据
           ReadWriteForEncodingUtils.writeUnsignedVarInt(uncompressedSize, pageBuffer);
-      sizeWithoutStatistic +=
+      sizeWithoutStatistic +=// 往该Chunk的TimeChunkWriter对象的pageBuffer输出流缓存写入变量compressedSize数据
           ReadWriteForEncodingUtils.writeUnsignedVarInt(compressedSize, pageBuffer);
     } else {
       ReadWriteForEncodingUtils.writeUnsignedVarInt(uncompressedSize, pageBuffer);
       ReadWriteForEncodingUtils.writeUnsignedVarInt(compressedSize, pageBuffer);
-      statistics.serialize(pageBuffer);
+      statistics.serialize(pageBuffer);// 往该Chunk的TimeChunkWriter对象的pageBuffer输出流缓存写入statistics统计量数据
     }
 
     // write page content to temp PBAOS
     logger.trace(
         "start to flush a time page data into buffer, buffer position {} ", pageBuffer.size());
-    if (compressor.getType().equals(CompressionType.UNCOMPRESSED)) {
+    if (compressor.getType().equals(CompressionType.UNCOMPRESSED)) {//若数据未压缩，则直接把pageData(其实只是时间分量)写入TimeChunkWriter的pageBuffer缓存里
       try (WritableByteChannel channel = Channels.newChannel(pageBuffer)) {
         channel.write(pageData);
       }
-    } else {
+    } else {//若数据经压缩，则把压缩的内容写入pageBuffer里
       pageBuffer.write(compressedBytes, 0, compressedSize);
     }
     logger.trace(

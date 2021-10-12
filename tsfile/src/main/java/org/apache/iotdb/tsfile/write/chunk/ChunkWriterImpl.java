@@ -186,7 +186,7 @@ public class ChunkWriterImpl
   @Override
   public void write(long time, boolean value, boolean isNull) {
     pageWriter.write(time, value);
-    checkPageSizeAndMayOpenANewPage();
+    checkPageSizeAndMayOpenANewPage();// 检查该Chunk的pageWriter的数据点or占用内存的大小情况，判断是否要开启一个新的page，若要开启新的page则要把当前Chunk的pageWriter里两个输出流timeOut和valueOut的缓存数据写到该Chunk的ChunkWriterImpl的输出流pageBuffer缓存里
   }
 
   @Override
@@ -228,12 +228,12 @@ public class ChunkWriterImpl
   }
 
   @Override
-  public void write(long[] timestamps, int[] values, int batchSize) {
+  public void write(long[] timestamps, int[] values, int batchSize) {// 将给定的数据点数组交由该Chunk的pageWriter写入到其对应的两个输出流timeOut和valueOut的缓存中，并检查该Chunk的pageWriter的数据点or占用内存的大小情况，判断是否要开启一个新的page，若要开启新的page则往对应Chunk的ChunkWriterImpl的输出流pageBuffer缓存里写入该page的pageHeader和pageData（即pageWriter对象里输出流timeOut和valueOut的缓存数据），最后重置该pageWriter
     if (isSdtEncoding) {
       batchSize = sdtEncoder.encode(timestamps, values, batchSize);
     }
-    pageWriter.write(timestamps, values, batchSize);
-    checkPageSizeAndMayOpenANewPage();
+    pageWriter.write(timestamps, values, batchSize);// 根据给定的数组，写入int型的数据（将经编码后的time和value分别写入到该PageWriter对象的timeOut输出流和valueOut输出流的buffer缓存里）
+    checkPageSizeAndMayOpenANewPage(); // 检查该Chunk的pageWriter的数据点or占用内存的大小情况，判断是否要开启一个新的page，若要开启新的page则要把当前Chunk的pageWriter里两个输出流timeOut和valueOut的缓存数据写到该Chunk的ChunkWriterImpl的输出流pageBuffer缓存里
   }
 
   @Override
@@ -320,7 +320,7 @@ public class ChunkWriterImpl
         this.sizeWithoutStatistic =
             pageWriter.writePageHeaderAndDataIntoBuff(
                 pageBuffer,
-                true); // 使用该Chunk的pageWriter对象把其暂存的数据（pageHeader<去掉statistics>和pageData，pageData需考虑是否经过压缩compress）写入该Chunk的ChunkWriterImpl的输出流pageBuffer的缓冲数组里，返回的内容是：(1)若要写入的数据所属page是Chunk的第一个page，则返回写入的pageHeader去掉statistics的字节数（2）若不是第一个page，则返回0
+                true); // 使用该Chunk的pageWriter对象把其暂存的数据（pageHeader<去掉statistics>和pageData，pageData需考虑是否经过压缩compress）依次写入该Chunk的ChunkWriterImpl的输出流pageBuffer的缓冲数组里（即先写入该Page的PageHeader，再写入PageData，其中pageData又依次存放了时间分量和数值分量），返回的内容是：(1)若要写入的数据所属page是Chunk的第一个page，则返回写入的pageHeader去掉statistics的字节数（2）若不是第一个page，则返回0
       } else if (numOfPages == 1) { // 如果已经存在一个page,则 put the firstPageStatistics into pageBuffer
         byte[] b = pageBuffer.toByteArray(); // 获取pageBuffer输出流里的缓存数组
         pageBuffer.reset(); // 将输出流pageBuffer重置，即只需要设置其存放的数据点数量是0，而其buf则后续覆盖写入就可以，无需再重置操作
@@ -359,7 +359,7 @@ public class ChunkWriterImpl
   @Override
   public void writeToFileWriter(TsFileIOWriter tsfileWriter)
       throws
-          IOException { // 首先封口当前page(即把当前Chunk的pageWriter输出流timeOut和valueOut的缓存数据写到该Chunk的ChunkWriterImpl的输出流pageBuffer缓存里,最后重置该pageWriter)，然后往TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里写入该Chunk的ChunkHeader,最后再写入当前Chunk的所有page数据（pageBuffer输出流的缓存数组内容）
+          IOException { // 首先封口当前page(即把当前Chunk的pageWriter输出流timeOut和valueOut的缓存数据写到该Chunk的ChunkWriterImpl的输出流pageBuffer缓存里,最后重置该pageWriter)，然后往TsFileIOWriter对象的TsFileOutput输出对象的输出流BufferedOutputStream的缓存数组里写入该Chunk的ChunkHeader,最后再写入当前Chunk的所有page数据（pageBuffer输出流的缓存数组内容）
     sealCurrentPage(); // 关闭、封口当前pageWriter(即把当前Chunk的pageWriter输出流timeOut和valueOut的缓存数据写到该Chunk的ChunkWriterImpl的输出流pageBuffer缓存里,最后重置该pageWriter)
     writeAllPagesOfChunkToTsFile(
         tsfileWriter,
@@ -373,20 +373,20 @@ public class ChunkWriterImpl
   }
 
   @Override
-  public long estimateMaxSeriesMemSize() {
-    return pageBuffer.size()
-        + pageWriter.estimateMaxMemSize()
-        + PageHeader.estimateMaxPageHeaderSizeWithoutStatistics()
-        + pageWriter.getStatistics().getSerializedSize();
+  public long estimateMaxSeriesMemSize() {  //获取该Chunk最大占用的内存大小（pageBuffer缓存+pageWriter占用的最大内存大小+pageHeader大小）
+    return pageBuffer.size()    //pageBuffer缓存大小
+        + pageWriter.estimateMaxMemSize() //PageWriter可能占用的最大内存（timeOut缓存+valueOut缓存+timeEncoder和valueEncoder的最大大小）
+        + PageHeader.estimateMaxPageHeaderSizeWithoutStatistics() //去掉统计量的pageheader所占用的内存大小（应该是个定值）
+        + pageWriter.getStatistics().getSerializedSize();//pageHeader的统计量占用的内存大小
   }
 
   @Override
-  public long getCurrentChunkSize() {
+  public long getCurrentChunkSize() {//获取当前Chunk的字节大小，即ChunkHeader+ChunkData（缓存pageBuffer）的大小
     if (pageBuffer.size() == 0) {
       return 0;
     }
     // return the serialized size of the chunk header + all pages
-    return ChunkHeader.getSerializedSize(measurementSchema.getMeasurementId(), pageBuffer.size())
+    return ChunkHeader.getSerializedSize(measurementSchema.getMeasurementId(), pageBuffer.size())//获取该ChunkHeader经序列化到本地文件里所占用的字节大小
         + (long) pageBuffer.size();
   }
 

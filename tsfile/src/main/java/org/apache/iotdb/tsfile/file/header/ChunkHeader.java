@@ -120,7 +120,7 @@ public class ChunkHeader { // ChunkHeader类
   }
 
   /** the exact serialized size of chunk header */
-  public static int getSerializedSize(String measurementID, int dataSize) {
+  public static int getSerializedSize(String measurementID, int dataSize) {//获取该ChunkHeader经序列化到本地文件里所占用的字节大小
     int measurementIdLength = measurementID.getBytes(TSFileConfig.STRING_CHARSET).length;
     return Byte.BYTES // chunkType
         + ReadWriteForEncodingUtils.varIntSize(measurementIdLength) // measurementID length

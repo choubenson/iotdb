@@ -42,7 +42,7 @@ public class ValueChunkWriter {
 
   private static final Logger logger = LoggerFactory.getLogger(ValueChunkWriter.class);
 
-  private final String measurementId;
+  private final String measurementId; //
 
   private final TSEncoding encodingType;
 
