@@ -18,6 +18,8 @@
  */
 package org.apache.iotdb.tsfile.read.common;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.iotdb.tsfile.common.conf.TSFileConfig;
 import org.apache.iotdb.tsfile.exception.write.UnSupportedDataTypeException;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
@@ -32,9 +34,6 @@ import org.apache.iotdb.tsfile.utils.TsPrimitiveType.TsFloat;
 import org.apache.iotdb.tsfile.utils.TsPrimitiveType.TsInt;
 import org.apache.iotdb.tsfile.utils.TsPrimitiveType.TsLong;
 import org.apache.iotdb.tsfile.utils.TsPrimitiveType.TsVector;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * <code>BatchData</code> is a self-defined data structure which is optimized for different type of
@@ -56,7 +55,7 @@ public class BatchData {
   protected static final int CAPACITY_THRESHOLD = TSFileConfig.ARRAY_CAPACITY_THRESHOLD;
   protected int capacity = 16;
 
-  protected TSDataType dataType;
+  public TSDataType dataType;
 
   protected BatchDataType batchDataType = BatchDataType.Ordinary;
 
@@ -73,14 +72,14 @@ public class BatchData {
   // the insert timestamp number of timeRet
   protected int count;
 
-  protected List<long[]> timeRet;
-  protected List<boolean[]> booleanRet;
-  protected List<int[]> intRet;
-  protected List<long[]> longRet;
-  protected List<float[]> floatRet;
-  protected List<double[]> doubleRet;
-  protected List<Binary[]> binaryRet;
-  protected List<TsPrimitiveType[][]> vectorRet;
+  public List<long[]> timeRet;
+  public List<boolean[]> booleanRet;
+  public List<int[]> intRet;
+  public List<long[]> longRet;
+  public List<float[]> floatRet;
+  public List<double[]> doubleRet;
+  public List<Binary[]> binaryRet;
+  public List<TsPrimitiveType[][]> vectorRet;
 
   public BatchData() {
     dataType = null;

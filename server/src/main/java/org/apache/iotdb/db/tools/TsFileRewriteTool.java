@@ -20,6 +20,7 @@
 package org.apache.iotdb.db.tools;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -73,6 +74,9 @@ public class TsFileRewriteTool implements AutoCloseable {
   protected List<Modification> oldModification;
   protected TsFileResource oldTsFileResource;
   protected Iterator<Modification> modsIterator;
+  private String testDeviceId = "root.test.trans.46.9000862649047363396.";
+  private String testDeviceAddition = "9000862649047363396";
+  private String testMeasureId = "SMT_0001_00_04";
 
   protected Decoder defaultTimeDecoder =
       Decoder.getDecoderByType(
@@ -175,28 +179,28 @@ public class TsFileRewriteTool implements AutoCloseable {
             deviceId = chunkGroupHeader.getDeviceID();
             switch (deviceId) {
               case "root.test.trans.02.9000861394053543802.":
-                addContent = "9000861394053543802";
+                // addContent = "9000861394053543802";
                 break;
               case "root.test.trans.31.9000862649047362281.":
-                addContent = "9000862649047362281";
+                // addContent = "9000862649047362281";
                 break;
               case "root.test.trans.46.9000862649047363396.":
-                addContent = "9000862649047363396";
+                // addContent = "9000862649047363396";
                 break;
               case "root.test.trans.15.9000862649047361465.":
-                addContent = "9000862649047361465";
+                // addContent = "9000862649047361465";
                 break;
               case "root.test.trans.36.9000866323035976686.":
-                addContent = "9000866323035976686";
+                // addContent = "9000866323035976686";
                 break;
               case "root.test.trans.48.9000862649047361598.":
-                addContent = "9000862649047361598";
+                // addContent = "9000862649047361598";
                 break;
               case "root.cty.trans.03.1001201953.":
-                addContent = "88001445574";
+                // addContent = "88001445574";
                 break;
               case "root.cty.trans.29.1001148629.":
-                addContent = "88001418005";
+                // addContent = "88001418005";
                 break;
             }
             deviceId = deviceId + addContent;
@@ -332,6 +336,9 @@ public class TsFileRewriteTool implements AutoCloseable {
       List<Boolean> needToDecodeInfoInChunk,
       long chunkHeaderOffset)
       throws IOException, PageException, IllegalPathException {
+    if (!deviceId.contains(testDeviceId)) {
+      return;
+    }
     valueDecoder = Decoder.getDecoderByType(schema.getEncodingType(), schema.getType());
     Map<Long, ChunkWriterImpl> partitionChunkWriterMap = new HashMap<>();
     for (int i = 0; i < pageDataInChunk.size(); i++) {
@@ -423,7 +430,48 @@ public class TsFileRewriteTool implements AutoCloseable {
         getOldSortedDeleteIntervals(deviceId, schema, chunkHeaderOffset);
     pageReader.setDeleteIntervalList(deleteIntervalList);
     BatchData batchData = pageReader.getAllSatisfiedPageData();
-    rewritePageIntoFiles(batchData, schema, partitionChunkWriterMap);
+    if (deviceId.equals(testDeviceId) && schema.getMeasurementId().equals(testMeasureId)) {
+      // long[] times = batchData.timeRet;
+      System.out.println("------------------------------");
+      List<long[]> times = batchData.timeRet;
+      List<Binary[]> values = batchData.binaryRet;
+      File f = new File("C:\\Users\\20271\\Desktop\\repairFiles\\Wrong.txt");
+      f.delete();
+      f.createNewFile();
+      FileWriter fw = new FileWriter(f, true);
+      for (int i = 0; i < times.size(); i++) {
+        long[] time = times.get(i);
+        Binary[] value = values.get(i);
+        for (int j = 0; j < time.length; j++) {
+          System.out.println(time[j]);
+          System.out.println(value[j]);
+          fw.write(time[j] + "," + value[j] + "\n");
+        }
+      }
+      fw.flush();
+      fw.close();
+    } else if (deviceId.equals(testDeviceId + testDeviceAddition)
+        && schema.getMeasurementId().equals(testMeasureId)) {
+      System.out.println("------------------------------");
+      List<long[]> times = batchData.timeRet;
+      List<Binary[]> values = batchData.binaryRet;
+      File f = new File("C:\\Users\\20271\\Desktop\\repairFiles\\Correct.txt");
+      f.delete();
+      f.createNewFile();
+      FileWriter fw = new FileWriter(f, true);
+      for (int i = 0; i < times.size(); i++) {
+        long[] time = times.get(i);
+        Binary[] value = values.get(i);
+        for (int j = 0; j < time.length; j++) {
+          System.out.println(time[j]);
+          System.out.println(value[j]);
+          fw.write(time[j] + "," + value[j] + "\n");
+        }
+      }
+      fw.flush();
+      fw.close();
+    }
+    // rewritePageIntoFiles(batchData, schema, partitionChunkWriterMap);
   }
 
   private List<TimeRange> getOldSortedDeleteIntervals(
