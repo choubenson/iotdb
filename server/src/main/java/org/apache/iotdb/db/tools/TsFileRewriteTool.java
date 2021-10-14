@@ -77,6 +77,10 @@ public class TsFileRewriteTool implements AutoCloseable {
   private String testDeviceId = "root.test.trans.46.9000862649047363396.";
   private String testDeviceAddition = "9000862649047363396";
   private String testMeasureId = "SMT_0001_00_04";
+  File f = new File("C:\\Users\\20271\\Desktop\\repairFiles\\Wrong.txt");
+  File f2 = new File("C:\\Users\\20271\\Desktop\\repairFiles\\Correct.txt");
+  FileWriter fw;
+  FileWriter fw2;
 
   protected Decoder defaultTimeDecoder =
       Decoder.getDecoderByType(
@@ -109,6 +113,12 @@ public class TsFileRewriteTool implements AutoCloseable {
       oldModification = (List<Modification>) resourceToBeRewritten.getModFile().getModifications();
       modsIterator = oldModification.iterator();
     }
+    f.delete();
+    f.createNewFile();
+    f2.delete();
+    f2.createNewFile();
+    fw = new FileWriter(f, true);
+    fw2 = new FileWriter(f2, true);
   }
 
   public TsFileRewriteTool(TsFileResource resourceToBeRewritten, boolean needReaderForV2)
@@ -277,7 +287,8 @@ public class TsFileRewriteTool implements AutoCloseable {
       for (TsFileIOWriter tsFileIOWriter : partitionWriterMap.values()) {
         rewrittenResources.add(endFileAndGenerateResource(tsFileIOWriter));
       }
-
+      fw.close();
+      fw2.close();
     } catch (IOException e2) {
       throw new IOException(
           "TsFile rewrite process cannot proceed at position "
@@ -350,6 +361,7 @@ public class TsFileRewriteTool implements AutoCloseable {
             schema, pageHeadersInChunk.get(i), pageDataInChunk.get(i), partitionChunkWriterMap);
       }
     }
+
     for (Entry<Long, ChunkWriterImpl> entry : partitionChunkWriterMap.entrySet()) {
       long partitionId = entry.getKey();
       TsFileIOWriter tsFileIOWriter = partitionWriterMap.get(partitionId);
@@ -435,10 +447,6 @@ public class TsFileRewriteTool implements AutoCloseable {
       System.out.println("------------------------------");
       List<long[]> times = batchData.timeRet;
       List<Binary[]> values = batchData.binaryRet;
-      File f = new File("C:\\Users\\20271\\Desktop\\repairFiles\\Wrong.txt");
-      f.delete();
-      f.createNewFile();
-      FileWriter fw = new FileWriter(f, true);
       for (int i = 0; i < times.size(); i++) {
         long[] time = times.get(i);
         Binary[] value = values.get(i);
@@ -446,30 +454,26 @@ public class TsFileRewriteTool implements AutoCloseable {
           System.out.println(time[j]);
           System.out.println(value[j]);
           fw.write(time[j] + "," + value[j] + "\n");
+          fw.flush();
         }
       }
-      fw.flush();
-      fw.close();
+
     } else if (deviceId.equals(testDeviceId + testDeviceAddition)
         && schema.getMeasurementId().equals(testMeasureId)) {
       System.out.println("------------------------------");
       List<long[]> times = batchData.timeRet;
       List<Binary[]> values = batchData.binaryRet;
-      File f = new File("C:\\Users\\20271\\Desktop\\repairFiles\\Correct.txt");
-      f.delete();
-      f.createNewFile();
-      FileWriter fw = new FileWriter(f, true);
+
       for (int i = 0; i < times.size(); i++) {
         long[] time = times.get(i);
         Binary[] value = values.get(i);
         for (int j = 0; j < time.length; j++) {
           System.out.println(time[j]);
           System.out.println(value[j]);
-          fw.write(time[j] + "," + value[j] + "\n");
+          fw2.write(time[j] + "," + value[j] + "\n");
+          fw2.flush();
         }
       }
-      fw.flush();
-      fw.close();
     }
     // rewritePageIntoFiles(batchData, schema, partitionChunkWriterMap);
   }
