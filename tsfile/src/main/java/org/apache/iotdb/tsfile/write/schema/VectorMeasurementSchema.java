@@ -40,15 +40,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class VectorMeasurementSchema
+public class VectorMeasurementSchema  //多元传感器的配置类，该传感器里存放了对应的多个子分量的相关信息
     implements IMeasurementSchema, Comparable<VectorMeasurementSchema>, Serializable {
 
-  private String vectorMeasurementId;
-  private Map<String, Integer> subMeasurementsToIndexMap;
-  private byte[] types;
-  private byte[] encodings;
+  private String vectorMeasurementId; //多元传感器ID，如有时间序列root.sg.d1.GPS(s1,s2)，则多元传感器ID为GPS
+  private Map<String, Integer> subMeasurementsToIndexMap; //（分量名，索引位置），存放了每个分量的分量名以及该分量是此多元传感器中的第几个分量
+  private byte[] types; //每个分量的数据类型
+  private byte[] encodings; //每个分量的编码类型
   private TSEncodingBuilder[] encodingConverters;
-  private byte compressor;
+  private byte compressor;  //压缩类型
 
   public VectorMeasurementSchema() {}
 
@@ -78,7 +78,7 @@ public class VectorMeasurementSchema
     this.compressor = compressionType.serialize();
   }
 
-  public VectorMeasurementSchema(
+  public VectorMeasurementSchema( //第一个参数是多元传感器ID，第二个参数是该多元传感器的每个分量名（不包含时间分量），第三个参数是每个分量的数据类型
       String vectorMeasurementId, String[] subMeasurements, TSDataType[] types) {
     this.vectorMeasurementId = vectorMeasurementId;
     this.subMeasurementsToIndexMap = new HashMap<>();

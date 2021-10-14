@@ -44,7 +44,7 @@ public class TsFileRead {
 
   private static void queryAndPrint(
       ArrayList<Path> paths, ReadOnlyTsFile readTsFile, IExpression statement) throws IOException {
-    QueryExpression queryExpression = QueryExpression.create(paths, statement);
+    QueryExpression queryExpression = QueryExpression.create(paths, statement);//使用时间序列路径列表和表达式创建查询表达式类
     QueryDataSet queryDataSet = readTsFile.query(queryExpression);
     while (queryDataSet.hasNext()) {
       System.out.println(queryDataSet.next());
@@ -62,7 +62,7 @@ public class TsFileRead {
         ReadOnlyTsFile readTsFile = new ReadOnlyTsFile(reader)) {
 
       // use these paths(all measurements) for all the queries
-      ArrayList<Path> paths = new ArrayList<>();
+      ArrayList<Path> paths = new ArrayList<>();//存放了一堆时间序列路径
       paths.add(new Path(DEVICE1, "sensor_1"));
       paths.add(new Path(DEVICE1, "sensor_2"));
       paths.add(new Path(DEVICE1, "sensor_3"));

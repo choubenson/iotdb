@@ -41,7 +41,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 
-public class MetadataQuerierByFileImpl implements IMetadataQuerier {
+public class MetadataQuerierByFileImpl implements IMetadataQuerier { //某个文件的元数据查询器
 
   // number of cache entries (path -> List<ChunkMetadata>)
   private static final int CACHED_ENTRY_NUMBER = 1000;

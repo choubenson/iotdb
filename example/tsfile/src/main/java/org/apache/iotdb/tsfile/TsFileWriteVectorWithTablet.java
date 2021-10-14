@@ -51,35 +51,35 @@ public class TsFileWriteVectorWithTablet {
       }
       TSFileDescriptor.getInstance().getConfig().setMaxDegreeOfIndexNode(3);
 
-      Schema schema = new Schema();
+      Schema schema = new Schema(); //目前在使用TSFile API进行插入多元序列时，需要先新建一个Schema配置类对象，后续往该配置类对象里注册多元时间序列,然后用该schema创建TsFileWriter
 
       String device = Constant.DEVICE_PREFIX + 1;
       String sensorPrefix = "sensor_";
       String vectorName = "vector1";
       // the number of rows to include in the tablet
-      int rowNum = 10000;
+      int rowNum = 10000;//该tablet里的行数
       // the number of vector values to include in the tablet
-      int multiSensorNum = 10;
+      int multiSensorNum = 10;//该tablet里包含的传感器数量
 
       String[] measurementNames = new String[multiSensorNum];
       TSDataType[] dataTypes = new TSDataType[multiSensorNum];
 
-      List<IMeasurementSchema> measurementSchemas = new ArrayList<>();
+      List<IMeasurementSchema> measurementSchemas = new ArrayList<>();  //存放了该多元序列的多元传感器配置类对象，其实只有一个元素，但是为了创建Tablet需要构造ArrayList
       // add measurements into file schema (all with INT64 data type)
       for (int i = 0; i < multiSensorNum; i++) {
         measurementNames[i] = sensorPrefix + (i + 1);
         dataTypes[i] = TSDataType.INT64;
       }
       // vector schema
-      IMeasurementSchema vectorMeasurementSchema =
+      IMeasurementSchema vectorMeasurementSchema =  //创建多元传感器配置类对象
           new VectorMeasurementSchema(vectorName, measurementNames, dataTypes);
       measurementSchemas.add(vectorMeasurementSchema);
-      schema.registerTimeseries(new Path(device, vectorName), vectorMeasurementSchema);
+      schema.registerTimeseries(new Path(device, vectorName), vectorMeasurementSchema);//往TsFileWriter里的schema配置类对象里注册该多元时间序列
       // add measurements into TSFileWriter
       try (TsFileWriter tsFileWriter = new TsFileWriter(f, schema)) {
 
-        // construct the tablet
-        Tablet tablet = new Tablet(device, measurementSchemas);
+        // construct the tablet//该构造函数里会遍历传感器配置类对象数组：（1）若是单元传感器，则把对应的传感器放入measurementIndex里（2）若是多元传感器，则把其下的每个子分量依次放入measurementIndex里
+        Tablet tablet = new Tablet(device, measurementSchemas); //该Tablet里存放了一个设备，该设备只有一个传感器配置类对象，且是多元传感器的配置类对象，通过
 
         long[] timestamps = tablet.timestamps;
         Object[] values = tablet.values;
@@ -87,25 +87,25 @@ public class TsFileWriteVectorWithTablet {
         long timestamp = 1;
         long value = 1000000L;
 
-        for (int r = 0; r < rowNum; r++, value++) {
-          int row = tablet.rowSize++;
-          timestamps[row] = timestamp++;
-          for (int i = 0; i < measurementSchemas.size(); i++) {
-            IMeasurementSchema measurementSchema = measurementSchemas.get(i);
-            if (measurementSchema instanceof VectorMeasurementSchema) {
-              for (String valueName : measurementSchema.getSubMeasurementsList()) {
-                tablet.addValue(valueName, row, value);
+        for (int r = 0; r < rowNum; r++, value++) { //将该多元传感器的每个分量放入该Tablet里充当每列，然后依次对所有传感器插入一行行数据，此处插入数据是同一时间戳上所有传感器的值都相同
+          int row = tablet.rowSize++; //将tablet的行数+1
+          timestamps[row] = timestamp++;  //往timestamps数组里的当前行加入时间戳
+          for (int i = 0; i < measurementSchemas.size(); i++) {//遍历多元时间传感器配置类对象数组，应该只有一个元素
+            IMeasurementSchema measurementSchema = measurementSchemas.get(i);//获取多元时间传感器配置类对象
+            if (measurementSchema instanceof VectorMeasurementSchema) { //若是多元时间传感器配置类对象
+              for (String valueName : measurementSchema.getSubMeasurementsList()) {//遍历该多元传感器里的每个子分量的名称
+                tablet.addValue(valueName, row, value);//往该Tablet的指定valueName传感器的第row行放入value数据
               }
             }
           }
           // write Tablet to TsFile
-          if (tablet.rowSize == tablet.getMaxRowNumber()) {
+          if (tablet.rowSize == tablet.getMaxRowNumber()) { //当Tablet的行数到达上限时，就使用TsFileWriter把tablet写入TsFile，并重置Tablet
             tsFileWriter.write(tablet);
             tablet.reset();
           }
         }
         // write Tablet to TsFile
-        if (tablet.rowSize != 0) {
+        if (tablet.rowSize != 0) {//使用TsFileWriter把tablet写入TsFile，并重置Tablet
           tsFileWriter.write(tablet);
           tablet.reset();
         }

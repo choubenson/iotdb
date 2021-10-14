@@ -52,7 +52,7 @@ public class ChunkGroupWriterImpl implements IChunkGroupWriter {//TsFile文件�
     this.deviceId = deviceId;
   }
 
-  @Override
+  @Override   //此处schema可能是一个多元传感器配置类对象
   public void tryToAddSeriesWriter(IMeasurementSchema schema, int pageSizeThreshold) {  //判断该ChunkGroupWriter里是否存在此传感器ID对应的ChunkWriter，若不存在，则创建一个
     if (!chunkWriters.containsKey(schema.getMeasurementId())) { //若chunkWriters里不包含该传感器ID的ChunkWriter，则
       IChunkWriter seriesWriter = null;
