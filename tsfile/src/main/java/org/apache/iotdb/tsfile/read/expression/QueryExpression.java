@@ -25,12 +25,12 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class QueryExpression implements Serializable {  //查询表达式类
+public class QueryExpression implements Serializable { // 查询表达式类
 
-  private List<Path> selectedSeries;  //时间序列路径列表
-  private List<TSDataType> dataTypes; //每个时间序列对应的数据类型
-  private IExpression expression; //表达式
-  private boolean hasQueryFilter; //是否有查询过滤器
+  private List<Path> selectedSeries; // 时间序列路径列表
+  private List<TSDataType> dataTypes; // 每个时间序列对应的数据类型
+  private IExpression expression; // 表达式
+  private boolean hasQueryFilter; // 是否有查询过滤器
 
   private QueryExpression() {
     selectedSeries = new ArrayList<>();
@@ -41,7 +41,8 @@ public class QueryExpression implements Serializable {  //查询表达式类
     return new QueryExpression();
   }
 
-  public static QueryExpression create(List<Path> selectedSeries, IExpression expression) { //创建查询表达式类
+  public static QueryExpression create(
+      List<Path> selectedSeries, IExpression expression) { // 创建查询表达式类
     QueryExpression ret = new QueryExpression();
     ret.selectedSeries = selectedSeries;
     ret.expression = expression;

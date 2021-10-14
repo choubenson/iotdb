@@ -32,7 +32,8 @@ import java.util.List;
  * which takes a timestamp(in TimeValue class) and a list of data points as input. It should also
  * provide flushing method for serializing to local file system or HDFS.
  */
-public interface IChunkGroupWriter {  //TsFile文件里，每个设备ID应该对应一个ChunkGroupWriter类对象。ChunkGroupWriter类里存放着每个传感器ID对应的ChunkWriter类对象
+public
+interface IChunkGroupWriter { // TsFile文件里，每个设备ID应该对应一个ChunkGroupWriter类对象。ChunkGroupWriter类里存放着每个传感器ID对应的ChunkWriter类对象
 
   /**
    * receive a timestamp and a list of data points, write them to their series writers.

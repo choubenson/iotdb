@@ -210,7 +210,7 @@ public class ValuePageWriter {
    * @return a new readable ByteBuffer whose position is 0.
    */
   public ByteBuffer getUncompressedBytes() throws IOException {
-    prepareEndWriteOnePage();// 对那些还残留在该ValuePageWriter的数值编码器中的数据，把他们写入该pageWriter对应的输出流valueOut的缓存中（而输出写入流valueOut缓存里的数据何时flush到输出写入流指定的本地文件里取决于OutputStream的机制）
+    prepareEndWriteOnePage(); // 对那些还残留在该ValuePageWriter的数值编码器中的数据，把他们写入该pageWriter对应的输出流valueOut的缓存中（而输出写入流valueOut缓存里的数据何时flush到输出写入流指定的本地文件里取决于OutputStream的机制）
     ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + bitmapOut.size() + valueOut.size());
     buffer.putInt(size);
     buffer.put(bitmapOut.getBuf(), 0, bitmapOut.size());
@@ -221,7 +221,8 @@ public class ValuePageWriter {
 
   /** write the page header and data into the PageWriter's output stream. */
   public int writePageHeaderAndDataIntoBuff(PublicBAOS pageBuffer, boolean first)
-      throws IOException {// 把该pageWriter对象暂存的数据（pageHeader和pageData，pageData需考虑是否经过压缩compress）依次写入该Chunk的ValueChunkWriter的输出流pageBuffer的缓冲数组里（即先写入该Page的PageHeader，再写入PageData，其中pageData依次存放了和数值分量），返回的内容是：(1)若要写入的数据所属page是Chunk的第一个page，则返回写入的pageHeader去掉statistics的字节数（2）若不是第一个page，则返回0
+      throws
+          IOException { // 把该pageWriter对象暂存的数据（pageHeader和pageData，pageData需考虑是否经过压缩compress）依次写入该Chunk的ValueChunkWriter的输出流pageBuffer的缓冲数组里（即先写入该Page的PageHeader，再写入PageData，其中pageData依次存放了和数值分量），返回的内容是：(1)若要写入的数据所属page是Chunk的第一个page，则返回写入的pageHeader去掉statistics的字节数（2）若不是第一个page，则返回0
     if (size == 0) {
       return 0;
     }

@@ -389,7 +389,7 @@ public class VirtualStorageGroupManager { // 虚拟存储组管理类
   }
 
   /** push deleteStorageGroup operation down to all virtual storage group processors */
-  public void deleteStorageGroup(String path) {
+  public void deleteStorageGroupSystemFolder(String path) {
     for (StorageGroupProcessor processor : virtualStorageGroupProcessor) {
       if (processor != null) {
         processor.deleteFolder(path);

@@ -920,7 +920,7 @@ public class StorageEngine implements IService { // 负责一个 IoTDB 实例的
     deleteAllDataFilesInOneStorageGroup(storageGroupPath);
     releaseWalDirectByteBufferPoolInOneStorageGroup(storageGroupPath);
     VirtualStorageGroupManager virtualStorageGroupManager = processorMap.remove(storageGroupPath);
-    virtualStorageGroupManager.deleteStorageGroup(
+    virtualStorageGroupManager.deleteStorageGroupSystemFolder(
         systemDir + File.pathSeparator + storageGroupPath);
   }
 

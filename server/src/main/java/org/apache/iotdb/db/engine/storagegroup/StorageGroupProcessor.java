@@ -1597,7 +1597,6 @@ public class StorageGroupProcessor { // 每个虚拟存储组对应一个Storage
         systemDir);
     writeLock("deleteFolder");
     try {
-      syncCloseAllWorkingTsFileProcessors();
       File storageGroupFolder =
           SystemFileFactory.INSTANCE.getFile(systemDir, virtualStorageGroupId);
       if (storageGroupFolder.exists()) {

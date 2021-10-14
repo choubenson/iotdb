@@ -66,6 +66,7 @@ public class RawDataQueryExecutor { // 原数据的查询执行器类
       return dataSet;
     }
     List<ManagedSeriesReader> readersOfSelectedSeries = initManagedSeriesReader(context);
+
     try {
       return new RawQueryDataSetWithoutValueFilter(
           context.getQueryId(),

@@ -40,7 +40,7 @@ public class TsFileMetadata {
   private MetadataIndexNode metadataIndex;
 
   // offset of MetaMarker.SEPARATOR
-  private long metaOffset; //metaMarker在该TsFile文件的偏移量
+  private long metaOffset; // metaMarker在该TsFile文件的偏移量
 
   /**
    * deserialize data from the buffer.

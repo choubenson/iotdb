@@ -41,28 +41,29 @@ import java.util.Map;
  *
  * <p>Notice: The tablet should not have empty cell
  */
-public class Tablet { //该类是一种用于插入操作时存放数据的数据结构，它可以存放一个设备上在多个时间戳上所有传感器的值，即它存放的必须是所有传感器的值，不能存在某时刻有空的传感器序列。
+public
+class Tablet { // 该类是一种用于插入操作时存放数据的数据结构，它可以存放一个设备上在多个时间戳上所有传感器的值，即它存放的必须是所有传感器的值，不能存在某时刻有空的传感器序列。
 
   private static final int DEFAULT_SIZE = 1024;
   private static final String NOT_SUPPORT_DATATYPE = "Data type %s is not supported.";
 
   /** deviceId of this tablet */
-  public String prefixPath;//deviceId
+  public String prefixPath; // deviceId
 
   /** the list of measurement schemas for creating the tablet */
   private List<IMeasurementSchema> schemas;
 
   /** measurementId->indexOf(schemas) */
-  private Map<String, Integer> measurementIndex;  //存放了传感器ID和对应的索引位置，即该传感器在该Tablet的第几列
+  private Map<String, Integer> measurementIndex; // 存放了传感器ID和对应的索引位置，即该传感器在该Tablet的第几列
 
   /** timestamps in this tablet */
   public long[] timestamps;
   /** each object is a primitive type array, which represents values of one measurement */
-  public Object[] values; //某一传感器在所有时间戳上的数据
+  public Object[] values; // 某一传感器在所有时间戳上的数据
   /** each bitmap represents the existence of each value in the current column. */
-  public BitMap[] bitMaps;  //用于存放当前传感器在所有时间戳的行上是否为null，若为null则
+  public BitMap[] bitMaps; // 用于存放当前传感器在所有时间戳的行上是否为null，若为null则
   /** the number of rows to include in this tablet */
-  public int rowSize; //行数，即时间戳的个数，因为每个时间戳是单独的一行数据
+  public int rowSize; // 行数，即时间戳的个数，因为每个时间戳是单独的一行数据
   /** the maximum number of rows for this tablet */
   private int maxRowNumber;
   /** whether this tablet store data of aligned timeseries or not */
@@ -89,19 +90,25 @@ public class Tablet { //该类是一种用于插入操作时存放数据的数�
    *     and type take effects
    * @param maxRowNumber the maximum number of rows for this tablet
    */
-  public Tablet(String prefixPath, List<IMeasurementSchema> schemas, int maxRowNumber) {  //该构造函数里会遍历传感器配置类对象数组：（1）若是单元传感器，则把对应的传感器放入measurementIndex里（2）若是多元传感器，则把其下的每个子分量依次放入measurementIndex里
+  public Tablet(
+      String prefixPath,
+      List<IMeasurementSchema> schemas,
+      int
+          maxRowNumber) { // 该构造函数里会遍历传感器配置类对象数组：（1）若是单元传感器，则把对应的传感器放入measurementIndex里（2）若是多元传感器，则把其下的每个子分量依次放入measurementIndex里
     this.prefixPath = prefixPath;
     this.schemas = new ArrayList<>(schemas);
     this.maxRowNumber = maxRowNumber;
     measurementIndex = new HashMap<>();
 
     int indexInSchema = 0;
-    for (IMeasurementSchema schema : schemas) { //遍历传感器配置类对象数组
-      if (schema.getType() == TSDataType.VECTOR) {  //若是多元传感器配置类对象，则该多元配置类里又有多个子分量
-        for (String measurementId : schema.getSubMeasurementsList()) {//遍历该多元传感器里的每个子分量并把他们依次放入此Tablet里的measurementIndex变量里
+    for (IMeasurementSchema schema : schemas) { // 遍历传感器配置类对象数组
+      if (schema.getType() == TSDataType.VECTOR) { // 若是多元传感器配置类对象，则该多元配置类里又有多个子分量
+        for (String measurementId :
+            schema
+                .getSubMeasurementsList()) { // 遍历该多元传感器里的每个子分量并把他们依次放入此Tablet里的measurementIndex变量里
           measurementIndex.put(measurementId, indexInSchema);
         }
-      } else {  //若不是多元传感器配置类，则直接把该一元传感器配置类对象放入measurementIndex里
+      } else { // 若不是多元传感器配置类，则直接把该一元传感器配置类对象放入measurementIndex里
         measurementIndex.put(schema.getMeasurementId(), indexInSchema);
       }
       indexInSchema++;
@@ -120,19 +127,23 @@ public class Tablet { //该类是一种用于插入操作时存放数据的数�
     timestamps[rowIndex] = timestamp;
   }
 
-  public void addValue(String measurementId, int rowIndex, Object value) {  //往该Tablet里，对指定的传感器的第rowIndex行放入value数据
-    int indexOfSchema = measurementIndex.get(measurementId);//该变量其实就是表明该传感器在此Tablet是第几列
-    IMeasurementSchema measurementSchema = schemas.get(indexOfSchema);//获取当前传感器名对应的传感器配置类对象(可能是个多元传感器配置类)
-    if (measurementSchema.getType().equals(TSDataType.VECTOR)) {  //若是多元传感器
-      int indexInVector = measurementSchema.getSubMeasurementIndex(measurementId);//获取此分量是在多元传感器中的第几个位置
-      TSDataType dataType = measurementSchema.getSubMeasurementsTSDataTypeList().get(indexInVector);//获取该分量的数据类型
+  public void addValue(
+      String measurementId, int rowIndex, Object value) { // 往该Tablet里，对指定的传感器的第rowIndex行放入value数据
+    int indexOfSchema = measurementIndex.get(measurementId); // 该变量其实就是表明该传感器在此Tablet是第几列
+    IMeasurementSchema measurementSchema =
+        schemas.get(indexOfSchema); // 获取当前传感器名对应的传感器配置类对象(可能是个多元传感器配置类)
+    if (measurementSchema.getType().equals(TSDataType.VECTOR)) { // 若是多元传感器
+      int indexInVector =
+          measurementSchema.getSubMeasurementIndex(measurementId); // 获取此分量是在多元传感器中的第几个位置
+      TSDataType dataType =
+          measurementSchema.getSubMeasurementsTSDataTypeList().get(indexInVector); // 获取该分量的数据类型
       addValueOfDataType(dataType, rowIndex, indexInVector, value);
     } else {
       addValueOfDataType(measurementSchema.getType(), rowIndex, indexOfSchema, value);
     }
   }
 
-  private void addValueOfDataType(  //往该Tablet表的第indexOfSchema列的第rowIndex行放入value数值
+  private void addValueOfDataType( // 往该Tablet表的第indexOfSchema列的第rowIndex行放入value数值
       TSDataType dataType, int rowIndex, int indexOfSchema, Object value) {
 
     if (value == null) {

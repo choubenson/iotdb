@@ -139,12 +139,16 @@ class PageWriter { // page写入类对象，每个Chunk都会有一个PageWriter
   }
 
   /** write time series into encoder */
-  public void write(long[] timestamps, int[] values, int batchSize) {// 根据给定的数组，写入int型的数据（将经编码后的time和value分别写入到该PageWriter对象的timeOut输出流和valueOut输出流的buffer缓存里）
-    for (int i = 0; i < batchSize; i++) {//依次遍历每个数据点
-      timeEncoder.encode(timestamps[i], timeOut);// 对time进行编码后，写入timeOut写入流的buffer缓存里
-      valueEncoder.encode(values[i], valueOut);// 对value进行编码后，写入valueOut写入流的buffer缓存里
+  public void write(
+      long[] timestamps,
+      int[] values,
+      int
+          batchSize) { // 根据给定的数组，写入int型的数据（将经编码后的time和value分别写入到该PageWriter对象的timeOut输出流和valueOut输出流的buffer缓存里）
+    for (int i = 0; i < batchSize; i++) { // 依次遍历每个数据点
+      timeEncoder.encode(timestamps[i], timeOut); // 对time进行编码后，写入timeOut写入流的buffer缓存里
+      valueEncoder.encode(values[i], valueOut); // 对value进行编码后，写入valueOut写入流的buffer缓存里
     }
-    statistics.update(timestamps, values, batchSize);// 每向该page插入一次数据就要更新该page相应的statistics统计量数据
+    statistics.update(timestamps, values, batchSize); // 每向该page插入一次数据就要更新该page相应的statistics统计量数据
   }
 
   /** write time series into encoder */
@@ -287,7 +291,8 @@ class PageWriter { // page写入类对象，每个Chunk都会有一个PageWriter
    *
    * @return allocated size in time, value and outputStream
    */
-  public long estimateMaxMemSize() { // 计算该PageWriter可能占用的最大内存（timeOut缓存+valueOut缓存+timeEncoder和valueEncoder的最大大小）
+  public long
+      estimateMaxMemSize() { // 计算该PageWriter可能占用的最大内存（timeOut缓存+valueOut缓存+timeEncoder和valueEncoder的最大大小）
     return timeOut.size()
         + valueOut.size()
         + timeEncoder.getMaxByteSize()

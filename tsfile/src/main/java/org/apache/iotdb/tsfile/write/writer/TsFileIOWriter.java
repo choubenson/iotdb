@@ -445,7 +445,7 @@ public class TsFileIOWriter { // TsFile写入类，在写入操作中，要写�
    * @return - length of normal OutputStream
    * @throws IOException if I/O error occurs
    */
-  public long getPos() throws IOException { //获取当前TsFileIOWriter对象的输出缓存流out的长度，或者说缓存流out的缓存数组的指针位置
+  public long getPos() throws IOException { // 获取当前TsFileIOWriter对象的输出缓存流out的长度，或者说缓存流out的缓存数组的指针位置
     return out.getPosition();
   }
 
