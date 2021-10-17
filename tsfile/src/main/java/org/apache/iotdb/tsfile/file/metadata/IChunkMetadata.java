@@ -47,7 +47,7 @@ public interface IChunkMetadata {
 
   long getOffsetOfChunkHeader();
 
-  long getStartTime();
+  long getStartTime();//获取该Chunk的开始时间戳
 
   long getEndTime();
 

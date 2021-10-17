@@ -23,9 +23,9 @@ import java.util.List;
 /** Only maintained when writing, not serialized to TsFile */
 public class ChunkGroupMetadata { // ChunkGroup的元数据类
 
-  private String device; // 该ChunkGroup的所属类
+  private String device; // 该ChunkGroup的所属设备
 
-  private List<ChunkMetadata> chunkMetadataList; // 该ChunkGroup所有Chunk的Chunk元数据列表
+  private List<ChunkMetadata> chunkMetadataList; // 该ChunkGroup所有Chunk的ChunkMetadata元数据对象列表
 
   public ChunkGroupMetadata(String device, List<ChunkMetadata> chunkMetadataList) {
     this.device = device;

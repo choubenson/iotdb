@@ -31,16 +31,16 @@ import java.nio.ByteBuffer;
 import java.util.Set;
 
 /** TSFileMetaData collects all metadata info and saves in its data structure. */
-public class TsFileMetadata {
+public class TsFileMetadata { //该类其实就是IndexOfTimeseriesIndex，可以理解为整个TsFile的元数据类对象
 
   // bloom filter
-  private BloomFilter bloomFilter;
+  private BloomFilter bloomFilter;  //布隆过滤器
 
   // List of <name, offset, childMetadataIndexType>
-  private MetadataIndexNode metadataIndex;
+  private MetadataIndexNode metadataIndex;  //该TsFile的IndexOfTimeseriesIndexs索引的第一个节点类对象,它一定是设备中间节点类型
 
   // offset of MetaMarker.SEPARATOR
-  private long metaOffset; // metaMarker在该TsFile文件的偏移量
+  private long metaOffset; // 数值为2的metaMarker在该TsFile文件的偏移量，即该TsFile文件的索引区开始的位置,即TimeseriesIndex前面的marker的偏移量
 
   /**
    * deserialize data from the buffer.
@@ -48,22 +48,22 @@ public class TsFileMetadata {
    * @param buffer -buffer use to deserialize
    * @return -a instance of TsFileMetaData
    */
-  public static TsFileMetadata deserializeFrom(ByteBuffer buffer) {
+  public static TsFileMetadata deserializeFrom(ByteBuffer buffer) { //参数buffer里装着该TsFile的IndexOfTimeseriesIndex区的二进制数据，该方法从buffer里进行读取反序列化成TsFileMetadata对象并返回
     TsFileMetadata fileMetaData = new TsFileMetadata();
 
     // metadataIndex
-    fileMetaData.metadataIndex = MetadataIndexNode.deserializeFrom(buffer);
+    fileMetaData.metadataIndex = MetadataIndexNode.deserializeFrom(buffer);//使用从buffer反序列化读取的节点条目（即子节点索引项）和结束偏移和节点类型创建一个索引节点对象
 
     // metaOffset
-    long metaOffset = ReadWriteIOUtils.readLong(buffer);
+    long metaOffset = ReadWriteIOUtils.readLong(buffer);  //从buffer里读取metaOffset数据，该数据即索引区的marker在该TsFile的偏移量
     fileMetaData.setMetaOffset(metaOffset);
 
     // read bloom filter
-    if (buffer.hasRemaining()) {
-      byte[] bytes = ReadWriteIOUtils.readByteBufferWithSelfDescriptionLength(buffer);
-      int filterSize = ReadWriteForEncodingUtils.readUnsignedVarInt(buffer);
-      int hashFunctionSize = ReadWriteForEncodingUtils.readUnsignedVarInt(buffer);
-      fileMetaData.bloomFilter = BloomFilter.buildBloomFilter(bytes, filterSize, hashFunctionSize);
+    if (buffer.hasRemaining()) {//如果buffer里还存在尚未被读取的数据，则
+      byte[] bytes = ReadWriteIOUtils.readByteBufferWithSelfDescriptionLength(buffer);//从buffer里读取一个int型数据，代表字节长度byteLength，并创建长度为byteLength的字节数组bytes，从buffer里接着读取长度为byteLength的数据到bytes数组里后返回该数组
+      int filterSize = ReadWriteForEncodingUtils.readUnsignedVarInt(buffer);  //从buffer里读取filterSize变量数据
+      int hashFunctionSize = ReadWriteForEncodingUtils.readUnsignedVarInt(buffer);  //从buffer里读取hashFunctionSize变量数据
+      fileMetaData.bloomFilter = BloomFilter.buildBloomFilter(bytes, filterSize, hashFunctionSize); //创建BloomFilter对象
     }
 
     return fileMetaData;
@@ -142,7 +142,7 @@ public class TsFileMetadata {
     this.metaOffset = metaOffset;
   }
 
-  public MetadataIndexNode getMetadataIndex() {
+  public MetadataIndexNode getMetadataIndex() { //获取该TsFile的IndexOfTimeseriesIndex索引的第一个节点类对象
     return metadataIndex;
   }
 

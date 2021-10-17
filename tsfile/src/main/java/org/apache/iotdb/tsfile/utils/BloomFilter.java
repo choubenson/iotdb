@@ -101,7 +101,7 @@ public class BloomFilter {
     }
   }
 
-  public boolean contains(String value) {
+  public boolean contains(String value) { //使用布隆过滤器快速判断该TsFile里是否包含此时间序列value
     if (value == null) {
       return false;
     }

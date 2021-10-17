@@ -27,7 +27,7 @@ import java.util.List;
 
 public class QueryExpression implements Serializable { // 查询表达式类
 
-  private List<Path> selectedSeries; // 时间序列路径列表
+  private List<Path> selectedSeries; // 该次查询的时间序列路径列表
   private List<TSDataType> dataTypes; // 每个时间序列对应的数据类型
   private IExpression expression; // 表达式
   private boolean hasQueryFilter; // 是否有查询过滤器

@@ -31,18 +31,18 @@ import java.nio.ByteBuffer;
  * of the index tree's measurement level LEAF_MEASUREMENT: leaf nodes of the index tree's device
  * level, points to TimeseriesMetadata
  */
-public enum MetadataIndexNodeType {
+public enum MetadataIndexNodeType { //IndexOfTimeseriesIndex的索引节点类型，共有四种类型
   /** INTERNAL_DEVICE */
-  INTERNAL_DEVICE((byte) 0),
+  INTERNAL_DEVICE((byte) 0),  //“设备中间”节点，它指向“设备叶子”节点
 
   /** LEAF_DEVICE */
-  LEAF_DEVICE((byte) 1),
+  LEAF_DEVICE((byte) 1),  //“设备叶子”节点，它指向“传感器中间”节点
 
   /** INTERNAL_MEASUREMENT */
-  INTERNAL_MEASUREMENT((byte) 2),
+  INTERNAL_MEASUREMENT((byte) 2), //“传感器中间”节点，它指向“传感器叶子”节点
 
   /** INTERNAL_MEASUREMENT */
-  LEAF_MEASUREMENT((byte) 3);
+  LEAF_MEASUREMENT((byte) 3); //“传感器叶子”节点，它指向对应的传感器时间序列的TimeseriesIndex
 
   private final byte type;
 

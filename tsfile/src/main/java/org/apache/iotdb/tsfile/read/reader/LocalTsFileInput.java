@@ -75,7 +75,7 @@ public class LocalTsFileInput implements TsFileInput {
   }
 
   @Override
-  public int read(ByteBuffer dst) throws IOException {
+  public int read(ByteBuffer dst) throws IOException {  //从当前文件读指针的位置开始，往指定的ByteBuffer缓存里读取该TsFile的内容，返回读取的字节数
     try {
       return channel.read(dst);
     } catch (IOException e) {
@@ -85,7 +85,7 @@ public class LocalTsFileInput implements TsFileInput {
   }
 
   @Override
-  public int read(ByteBuffer dst, long position) throws IOException {
+  public int read(ByteBuffer dst, long position) throws IOException {//从指定的position位置开始，往指定的ByteBuffer缓存里读取该TsFile的内容，返回读取的字节数
     try {
       return channel.read(dst, position);
     } catch (IOException e) {

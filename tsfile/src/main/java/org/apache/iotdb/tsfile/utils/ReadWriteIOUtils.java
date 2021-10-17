@@ -695,10 +695,10 @@ public class ReadWriteIOUtils {
    *
    * <p>read a int + buffer
    */
-  public static byte[] readByteBufferWithSelfDescriptionLength(ByteBuffer buffer) {
-    int byteLength = ReadWriteForEncodingUtils.readUnsignedVarInt(buffer);
-    byte[] bytes = new byte[byteLength];
-    buffer.get(bytes);
+  public static byte[] readByteBufferWithSelfDescriptionLength(ByteBuffer buffer) { //从buffer里读取一个int型数据，代表字节长度byteLength，并创建长度为byteLength的字节数组bytes，从buffer里接着读取长度为byteLength的数据到bytes数组里后返回该数组
+    int byteLength = ReadWriteForEncodingUtils.readUnsignedVarInt(buffer);  //从buffer里读取一个int型数据，代表字节长度
+    byte[] bytes = new byte[byteLength];  //创建长度为byteLength的字节数组
+    buffer.get(bytes);  //从buffer里接着读取长度为byteLength的数据到bytes数组里
     return bytes;
   }
 
@@ -716,7 +716,7 @@ public class ReadWriteIOUtils {
   }
 
   /** read util to the end of buffer. */
-  public static int readAsPossible(TsFileInput input, ByteBuffer buffer) throws IOException {
+  public static int readAsPossible(TsFileInput input, ByteBuffer buffer) throws IOException { //使用TsFileInput对象把对应TsFile的内容读到buffer缓存里直至装满或者文件末尾，返回读取的字节数
     int length = 0;
     int read;
     while (buffer.hasRemaining() && (read = input.read(buffer)) != -1) {
@@ -726,8 +726,8 @@ public class ReadWriteIOUtils {
   }
 
   /** read bytes from buffer with offset position to the end of buffer or up to len. */
-  public static int readAsPossible(TsFileInput input, ByteBuffer target, long offset, int len)
-      throws IOException {
+  public static int readAsPossible(TsFileInput input, ByteBuffer target, long offset, int len)  //使用TsFileInput对象把对应TsFile的内容，从第offset偏移量的位置开始读取读到target二进制缓存里，读取的长度为len
+     throws IOException {
     int length = 0;
     int limit = target.limit();
     if (target.remaining() > len) {

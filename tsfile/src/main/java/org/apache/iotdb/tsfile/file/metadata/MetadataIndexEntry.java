@@ -24,11 +24,11 @@ import org.apache.iotdb.tsfile.utils.ReadWriteIOUtils;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+                    //索引节点里的每个条目格式为<子节点名称，偏移量>,代表该索引节点有哪些子节点以及对应在TsFile文件里的偏移量，可以把它理解为当前节点的子节点索引项
+public class MetadataIndexEntry { //节点条目项类，即在IndexOfTimeSeriesIndex索引类里，有一个个节点，每个节点里就会有一条条的索引条目项，指明了设备节点或传感器节点的名称，以及对应在TsFile的偏移位置
 
-public class MetadataIndexEntry {
-
-  private String name;
-  private long offset;
+  private String name;  //索引条目名称
+  private long offset;  //索引条目对应指向的名称为name的节点或者TimeseriesIndex在该TsFile里的开始偏移位置
 
   public MetadataIndexEntry(String name, long offset) {
     this.name = name;
@@ -62,9 +62,9 @@ public class MetadataIndexEntry {
     return byteLen;
   }
 
-  public static MetadataIndexEntry deserializeFrom(ByteBuffer buffer) {
-    String name = ReadWriteIOUtils.readVarIntString(buffer);
-    long offset = ReadWriteIOUtils.readLong(buffer);
-    return new MetadataIndexEntry(name, offset);
+  public static MetadataIndexEntry deserializeFrom(ByteBuffer buffer) { //从buffer里反序列化读取名称和偏移量，并用此创建节点条目对象
+    String name = ReadWriteIOUtils.readVarIntString(buffer);//从buffer缓存里读取当前节点条目的名称字符串
+    long offset = ReadWriteIOUtils.readLong(buffer);  //从buffer缓存里读取当前节点条目的偏移量
+    return new MetadataIndexEntry(name, offset);  //使用子节点名称和对应的偏移量创建节点条目对象
   }
 }

@@ -355,7 +355,7 @@ public abstract class Statistics<T extends Serializable> { // 统计量
     return statistics;
   }
 
-  public static Statistics<? extends Serializable> deserialize(
+  public static Statistics<? extends Serializable> deserialize( //根据数据类型从二进制缓存buffer里反序列化内容到Statistics对象
       ByteBuffer buffer, TSDataType dataType) {
     Statistics<? extends Serializable> statistics = getStatsByType(dataType);
     statistics.setCount(ReadWriteForEncodingUtils.readUnsignedVarInt(buffer));

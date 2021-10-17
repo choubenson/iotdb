@@ -167,8 +167,8 @@ public class ChunkMetadata
    * @param buffer ByteBuffer
    * @return ChunkMetaData object
    */
-  public static ChunkMetadata deserializeFrom(
-      ByteBuffer buffer, TimeseriesMetadata timeseriesMetadata) {
+  public static ChunkMetadata deserializeFrom(  //根据当前timeseriesMetadata是否包含多个Chunk以及其数据类型，从buffer里反序列化一个ChunkIndex对象
+      ByteBuffer buffer, TimeseriesMetadata timeseriesMetadata) {//该buffer是此timeseriesMetadata的所有ChunkIndex，可能有一个或多个
     ChunkMetadata chunkMetaData = new ChunkMetadata();
 
     chunkMetaData.measurementUid = timeseriesMetadata.getMeasurementId();
@@ -176,9 +176,9 @@ public class ChunkMetadata
     chunkMetaData.offsetOfChunkHeader = ReadWriteIOUtils.readLong(buffer);
     // if the TimeSeriesMetadataType is not 0, it means it has more than one chunk
     // and each chunk's metadata has its own statistics
-    if ((timeseriesMetadata.getTimeSeriesMetadataType() & 0x3F) != 0) {
-      chunkMetaData.statistics = Statistics.deserialize(buffer, chunkMetaData.tsDataType);
-    } else {
+    if ((timeseriesMetadata.getTimeSeriesMetadataType() & 0x3F) != 0) { //若TimeSeriesMetadataType不为0，说明它有多个Chunk,则每个chunk会有自己的statistics统计量信息，需要反序列化出来
+      chunkMetaData.statistics = Statistics.deserialize(buffer, chunkMetaData.tsDataType);  //根据数据类型反序列化statistics
+    } else {//若TimeSeriesMetadataType不为0，说明它只有一个Chunk，则不能从buffer里反序列化
       // if the TimeSeriesMetadataType is 0, it means it has only one chunk
       // and that chunk's metadata has no statistic
       chunkMetaData.statistics = timeseriesMetadata.getStatistics();

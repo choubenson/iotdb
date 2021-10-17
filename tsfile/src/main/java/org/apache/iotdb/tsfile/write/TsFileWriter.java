@@ -49,7 +49,7 @@ import java.util.Map;
  * close()} method to flush the last data outside and close the normal outputStream and error
  * outputStream.
  */
-public class TsFileWriter implements AutoCloseable { // 每个TsFile对应的Writer
+public class TsFileWriter implements AutoCloseable { // 每个TsFile对应的Writer，此类里的write方法都只是写数据区的内容，因此在使用该对象写完数据后，用户必须手动调用close方法以便往tsFile里写入索引区。
 
   protected static final TSFileConfig config = TSFileDescriptor.getInstance().getConfig();
   private static final Logger LOG = LoggerFactory.getLogger(TsFileWriter.class);
@@ -400,8 +400,8 @@ public class TsFileWriter implements AutoCloseable { // 每个TsFile对应的Wri
   @Override
   public void close() throws IOException {
     LOG.info("start close file");
-    flushAllChunkGroups();
-    fileWriter.endFile();
+    flushAllChunkGroups();// 将该TsFileWriter的所有ChunkGroupWriter里的所有ChunkWriter的缓存数据按序缓存到TsFileIOWriter的输出流缓存out里，最后将out输出流给flush到本地对应的TsFile文件。
+    fileWriter.endFile();// 在向该TsFileIOWriter的TsFileOutput的缓存输出流BufferedOutputStream的数组里写完数据区的内容并flush到本地后，再往该缓存里写对应索引区的内容，以及剩余的小内容（如TsFile结尾的Magic String等），最后关闭该TsFileIOWriter的TsFileOutput的两个输出流BufferedOutputStream和FileOutputStream，会往对应的本地TsFile写入该TsFileIOWriter缓存里的数据（即索引区和小内容等，数据区之前已经flush到本地文件了）
   }
 
   /**

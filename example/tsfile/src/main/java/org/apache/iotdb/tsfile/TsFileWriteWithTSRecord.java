@@ -72,6 +72,7 @@ public class TsFileWriteWithTSRecord {
           // write TSRecord
           tsFileWriter.write(tsRecord);
         }
+        tsFileWriter.close();
       }
     } catch (Throwable e) {
       e.printStackTrace();

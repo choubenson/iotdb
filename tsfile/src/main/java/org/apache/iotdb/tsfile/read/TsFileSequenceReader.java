@@ -88,10 +88,10 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
       "Something error happened while deserializing MetadataIndexNode of file {}";
   protected String file;
   protected TsFileInput tsFileInput;
-  protected long fileMetadataPos;
-  protected int fileMetadataSize;
+  protected long fileMetadataPos; //该TsFile的IndexOfTimeseriesIndex索引的开始处所在的偏移位置
+  protected int fileMetadataSize; //该TsFile的IndexOfTimeseriesIndex索引的字节大小
   private ByteBuffer markerBuffer = ByteBuffer.allocate(Byte.BYTES);
-  protected TsFileMetadata tsFileMetaData;
+  protected TsFileMetadata tsFileMetaData;  //该TsFile的IndexOfTimeseriesIndex索引
   // device -> measurement -> TimeseriesMetadata
   private Map<String, Map<String, TimeseriesMetadata>>
       cachedDeviceMetadata = // 存放某设备的某传感器的TimeseriesIndex
@@ -257,11 +257,11 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
    *
    * @throws IOException io error
    */
-  public TsFileMetadata readFileMetadata() throws IOException {
+  public TsFileMetadata readFileMetadata() throws IOException {//若当前顺序阅读器的tsFileMetaData为null，则使用tsFileInput对象读取对应TsFile里的IndexOfTimeseriesIndex索引的所有内容读到bytebuffer缓存里，并从buffer里进行读取反序列化成该顺序读取器里的TsFileMetadata对象
     try {
       if (tsFileMetaData == null) {
         tsFileMetaData =
-            TsFileMetadata.deserializeFrom(readData(fileMetadataPos, fileMetadataSize));
+            TsFileMetadata.deserializeFrom(readData(fileMetadataPos, fileMetadataSize));//此处其实是把该TsFile的IndexOfTimeseriesIndex索引的所有内容读到bytebuffer缓存里，并从buffer里进行读取反序列化成TsFileMetadata对象并返回//使用tsFileInput对象读取对应TsFile里从position位置开始，共计size个字节的数据到ByteBuffer缓存里.
       }
     } catch (BufferOverflowException e) {
       logger.error("Something error happened while reading file metadata of file {}", file);
@@ -328,37 +328,37 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
   }
 
   public TimeseriesMetadata readTimeseriesMetadata(Path path, boolean ignoreNotExists)
-      throws IOException {
-    readFileMetadata();
-    MetadataIndexNode deviceMetadataIndexNode = tsFileMetaData.getMetadataIndex();
-    Pair<MetadataIndexEntry, Long> metadataIndexPair =
+      throws IOException {//根据时间序列路径path，获取该时间序列在该TsFile里的TimeseriesIndex索引对象。具体做法是：（1）先获取该序列对应设备的索引条目指向的传感器节点内容（2）根据序列的传感器ID获取传感器条目指向的TimeseriesIndex节点（该节点包含了目标path序列的TimeseriesIndex索引）内容（3）将读取到的TimeseriesIndex节点内容buffer里的每个TimeseriesIndex依次反序列化放进临时列表里，最后获取目标path序列的TimeseriesIndex索引并返回
+    readFileMetadata();//若当前顺序阅读器的tsFileMetaData为null，则使用tsFileInput对象读取对应TsFile里的IndexOfTimeseriesIndex索引的所有内容读到bytebuffer缓存里，并从buffer里进行读取反序列化成该顺序读取器里的TsFileMetadata对象
+    MetadataIndexNode deviceMetadataIndexNode = tsFileMetaData.getMetadataIndex();//获取该TsFile的IndexOfTimeseriesIndex索引的第一个节点对象
+    Pair<MetadataIndexEntry, Long> metadataIndexPair =//从第一个根节点对象里根据时间序列的设备ID查找对应的目标索引条目和该条目指向的子节点的结束位置（因此若是中间节点且不存在目标条目，则要递归到目标条目所在的叶子节点去查找）：1. 若找到了则返回<名为name的索引条目对象，该条目指向子节点的结束偏移位置> 2. 若没找到，则若（1）exactSearch为true说明要精确查找，则返回null（2）exactSearch为false说明可以模糊查找，则返回该节点里离名称为key的目标索引条目最近的上一个条目对象和对应指向子节点的结束位置
         getMetadataAndEndOffset(deviceMetadataIndexNode, path.getDevice(), true, true);
-    if (metadataIndexPair == null) {
-      if (ignoreNotExists) {
+    if (metadataIndexPair == null) {  //若在IndexOfTimeseriesIndex的索引节点里没有找到该时间序列对应设备的索引条目，则
+      if (ignoreNotExists) {//若ignoreNotExists为真，则返回null,否则抛异常
         return null;
       }
       throw new IOException("Device {" + path.getDevice() + "} is not in tsFileMetaData");
     }
-    ByteBuffer buffer = readData(metadataIndexPair.left.getOffset(), metadataIndexPair.right);
-    MetadataIndexNode metadataIndexNode = deviceMetadataIndexNode;
-    if (!metadataIndexNode.getNodeType().equals(MetadataIndexNodeType.LEAF_MEASUREMENT)) {
+    ByteBuffer buffer = readData(metadataIndexPair.left.getOffset(), metadataIndexPair.right);//从TsFile里的IndexOfTimeseriesIndex索引里读取该时间序列对应设备的索引条目指向的子节点的内容到二进制缓存
+    MetadataIndexNode metadataIndexNode = deviceMetadataIndexNode;//该TsFile的IndexOfTimeseriesIndex索引的第一个节点对象
+    if (!metadataIndexNode.getNodeType().equals(MetadataIndexNodeType.LEAF_MEASUREMENT)) {//若第一个节点对象类型不是LEAF_MEASUREMENT
       try {
-        metadataIndexNode = MetadataIndexNode.deserializeFrom(buffer);
+        metadataIndexNode = MetadataIndexNode.deserializeFrom(buffer);//将buffer缓存反序列化成节点对象，此时是该时间路径对应设备的索引条目指向的传感器节点（可能是中间或者叶子节点），该传感器节点里的所有传感器都是属于该设备的
       } catch (BufferOverflowException e) {
         logger.error(METADATA_INDEX_NODE_DESERIALIZE_ERROR, file);
         throw e;
       }
-      metadataIndexPair =
+      metadataIndexPair =//从传感器节点对象里根据时间序列对应的传感器名称查找对应的目标索引条目和该条目指向的子节点（此时应该是TimeseriesIndex节点了）的结束位置（此处必须用模糊查找，找到待查找的时间序列的TimeseriesIndex对应的索引条目所在的LEAF_MEASUREMENT节点。）。（因此若是中间节点且不存在目标条目，则要递归到目标条目所在的叶子节点去查找）：1. 若找到了则返回<名为name的索引条目对象，该条目指向子节点的结束偏移位置>> 2. 若没找到，则若（1）exactSearch为true说明要精确查找，则返回null（2）exactSearch为false说明可以模糊查找，则返回该节点里离名称为key的目标索引条目最近的上一个条目对象和对应指向子节点的结束位置
           getMetadataAndEndOffset(metadataIndexNode, path.getMeasurement(), false, false);
     }
-    if (metadataIndexPair == null) {
+    if (metadataIndexPair == null) {//TOdo:bug?因为exactSearch是false，所以不可能为null
       return null;
     }
     List<TimeseriesMetadata> timeseriesMetadataList = new ArrayList<>();
-    buffer = readData(metadataIndexPair.left.getOffset(), metadataIndexPair.right);
-    while (buffer.hasRemaining()) {
+    buffer = readData(metadataIndexPair.left.getOffset(), metadataIndexPair.right); //读取该时间序列对应在该TsFile里的TimeseriesIndex索引所在的节点的所有内容到二进制缓存，也就是说此时该buffer里有多条TimeseriesIndex索引
+    while (buffer.hasRemaining()) { //当buffer缓存里还有没读完、可用的数据时
       try {
-        timeseriesMetadataList.add(TimeseriesMetadata.deserializeFrom(buffer, true));
+        timeseriesMetadataList.add(TimeseriesMetadata.deserializeFrom(buffer, true));//该buffer里可能包含了多个TimeseriesIndex的内容。从buffer里反序列化一个TimeseriesIndex对象并返回。（若needChunkMetadata为true，则还要一一反序列化该TimeseriesIndex的所有ChunkIndex，若为false则无需反序列化，直接将buffer指针后移到最后一个ChunkIndex的结尾处）。把该TimeseriesIndex加入此顺序阅读器里的timeseriesMetadataList列表
       } catch (BufferOverflowException e) {
         logger.error(
             "Something error happened while deserializing TimeseriesMetadata of file {}", file);
@@ -367,8 +367,8 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
     }
     // return null if path does not exist in the TsFile
     int searchResult =
-        binarySearchInTimeseriesMetadataList(timeseriesMetadataList, path.getMeasurement());
-    return searchResult >= 0 ? timeseriesMetadataList.get(searchResult) : null;
+        binarySearchInTimeseriesMetadataList(timeseriesMetadataList, path.getMeasurement());//使用二分搜索法查找传感器ID为key的时间序列索引TimeseriesIndex是在timeseriesMetadataList里的第几个，若没有则返回-1
+    return searchResult >= 0 ? timeseriesMetadataList.get(searchResult) : null; //若找到，则从timeseriesMetadataList里返回该时间序列path对应的TimeseriesIndex对象
   }
 
   /**
@@ -456,23 +456,23 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
     return metadataIndexPair;
   }
 
-  public List<TimeseriesMetadata> readTimeseriesMetadata(String device, Set<String> measurements)
+  public List<TimeseriesMetadata> readTimeseriesMetadata(String device, Set<String> measurements)//根据指定的设备ID和对应的传感器ID,获取该TsFile里对应的TimeseriesIndex对象
       throws IOException {
-    readFileMetadata();
-    MetadataIndexNode deviceMetadataIndexNode = tsFileMetaData.getMetadataIndex();
-    Pair<MetadataIndexEntry, Long> metadataIndexPair =
+    readFileMetadata();//若当前顺序阅读器的tsFileMetaData为null，则使用tsFileInput对象读取对应TsFile里的IndexOfTimeseriesIndex索引的所有内容读到bytebuffer缓存里，并从buffer里进行读取反序列化成该顺序读取器里的TsFileMetadata对象
+    MetadataIndexNode deviceMetadataIndexNode = tsFileMetaData.getMetadataIndex();//获取IndexOfTimeseriesIndex索引的第一个索引节点对象
+    Pair<MetadataIndexEntry, Long> metadataIndexPair =//从指定的MetadataIndexNode节点对象里查找名称为device的目标索引条目（若是中间节点且不存在目标条目，则要递归到目标条目所在的叶子节点去查找）：1. 若找到了则返回<名为name的索引条目对象，该条目对象的结束偏移位置> 2. 若没找到，exactSearch为false说明可以模糊查找，则返回该节点里离名称为device的目标索引条目最近的上一个条目对象和对应的结束位置
         getMetadataAndEndOffset(deviceMetadataIndexNode, device, true, false);
-    if (metadataIndexPair == null) {
+    if (metadataIndexPair == null) {  //Todo:bug?由于精度查询为false，因此可以模糊查询，不应该出现null
       return Collections.emptyList();
     }
     List<TimeseriesMetadata> resultTimeseriesMetadataList = new ArrayList<>();
-    List<String> measurementList = new ArrayList<>(measurements);
+    List<String> measurementList = new ArrayList<>(measurements);//初始化传感器列表
     Set<String> measurementsHadFound = new HashSet<>();
     for (int i = 0; i < measurementList.size(); i++) {
       if (measurementsHadFound.contains(measurementList.get(i))) {
         continue;
       }
-      ByteBuffer buffer = readData(metadataIndexPair.left.getOffset(), metadataIndexPair.right);
+      ByteBuffer buffer = readData(metadataIndexPair.left.getOffset(), metadataIndexPair.right);//将名为device变量的目标条目内容读取到buffer缓存
       Pair<MetadataIndexEntry, Long> measurementMetadataIndexPair = metadataIndexPair;
       List<TimeseriesMetadata> timeseriesMetadataList = new ArrayList<>();
       MetadataIndexNode metadataIndexNode = deviceMetadataIndexNode;
@@ -518,7 +518,7 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
     return resultTimeseriesMetadataList;
   }
 
-  protected int binarySearchInTimeseriesMetadataList(
+  protected int binarySearchInTimeseriesMetadataList( //使用二分搜索法查找传感器ID为key的时间序列索引TimeseriesIndex是在timeseriesMetadataList里的第几个，若没有则返回-1
       List<TimeseriesMetadata> timeseriesMetadataList, String key) {
     int low = 0;
     int high = timeseriesMetadataList.size() - 1;
@@ -539,42 +539,42 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
     return -1; // key not found
   }
 
-  public List<String> getAllDevices() throws IOException {
+  public List<String> getAllDevices() throws IOException {//获取该TsFile文件里的所有设备ID，放入list里并返回。具体做法是使用该TsFile的IndexOfTimeseriesIndex的第一个根索引节点进行递归查找其下的所有LEAF_DEVICE子节点，从而获取该根节点下的所有设备ID
     if (tsFileMetaData == null) {
-      readFileMetadata();
+      readFileMetadata();//使用tsFileInput对象读取对应TsFile里的IndexOfTimeseriesIndex索引的所有内容读到bytebuffer缓存里，并从buffer里进行读取反序列化成该顺序读取器里的TsFileMetadata对象
     }
-    return getAllDevices(tsFileMetaData.getMetadataIndex());
+    return getAllDevices(tsFileMetaData.getMetadataIndex());//获取该索引节点包含的所有设备ID，返回设备ID列表（由于设备信息是在LEAF_DEVICE节点上的，具体做法是进行递归深度遍历每个设备节点，直至当前遍历的索引节点是LEAF_DEVICE节点，则读取该节点的条目内容获得一条条设备ID放入list里）
   }
 
-  private List<String> getAllDevices(MetadataIndexNode metadataIndexNode) throws IOException {
+  private List<String> getAllDevices(MetadataIndexNode metadataIndexNode) throws IOException {  //获取该索引节点包含的所有设备ID，返回设备ID列表（由于设备信息是在LEAF_DEVICE节点上的，具体做法是进行递归深度遍历每个设备节点，直至当前遍历的索引节点是LEAF_DEVICE节点，则读取该节点的条目内容获得一条条设备ID放入list里）
     List<String> deviceList = new ArrayList<>();
-    int metadataIndexListSize = metadataIndexNode.getChildren().size();
+    int metadataIndexListSize = metadataIndexNode.getChildren().size(); //获取该索引节点对象的子节点的数量
 
     // if metadataIndexNode is LEAF_DEVICE, put all devices in node entry into the list
-    if (metadataIndexNode.getNodeType().equals(MetadataIndexNodeType.LEAF_DEVICE)) {
+    if (metadataIndexNode.getNodeType().equals(MetadataIndexNodeType.LEAF_DEVICE)) {//若当前节点类型是LEAF_DEVICE，则将当前节点包含的所有设备ID加入deviceList里，并返回deviceList
       deviceList.addAll(
-          metadataIndexNode.getChildren().stream()
+          metadataIndexNode.getChildren().stream()  //当前节点的一条条的条目内容的二进制流，代表了该索引节点有哪些子节点以及各自的偏移量是多少
               .map(MetadataIndexEntry::getName)
               .collect(Collectors.toList()));
       return deviceList;
     }
 
-    for (int i = 0; i < metadataIndexListSize; i++) {
-      long endOffset = metadataIndexNode.getEndOffset();
-      if (i != metadataIndexListSize - 1) {
-        endOffset = metadataIndexNode.getChildren().get(i + 1).getOffset();
+    for (int i = 0; i < metadataIndexListSize; i++) {//循环遍历当前索引节点的每个子节点
+      long endOffset = metadataIndexNode.getEndOffset();//获取该索引节点的末尾偏移量位置
+      if (i != metadataIndexListSize - 1) { //若此时遍历的不是最后一个子节点
+        endOffset = metadataIndexNode.getChildren().get(i + 1).getOffset();//获取当前子节点的后一个子节点的开始偏移量
       }
-      ByteBuffer buffer = readData(metadataIndexNode.getChildren().get(i).getOffset(), endOffset);
-      MetadataIndexNode node = MetadataIndexNode.deserializeFrom(buffer);
-      if (node.getNodeType().equals(MetadataIndexNodeType.LEAF_DEVICE)) {
+      ByteBuffer buffer = readData(metadataIndexNode.getChildren().get(i).getOffset(), endOffset);//从TsFile里读取当前子索引节点的内容到二进制buffer里，即读取的是当前子节点的开始位置到下一个子节点开始的位置
+      MetadataIndexNode node = MetadataIndexNode.deserializeFrom(buffer);//将buffer的内容反序列化成索引节点MetadataIndexNode对象,即使用从buffer反序列化读取的节点条目（即子节点索引项）和结束偏移和节点类型创建一个索引节点对象
+      if (node.getNodeType().equals(MetadataIndexNodeType.LEAF_DEVICE)) {//若当前子索引节点的类型是LEAF_DEVICE，则
         // if node in next level is LEAF_DEVICE, put all devices in node entry into the list
-        deviceList.addAll(
+        deviceList.addAll(//将当前节点包含的所有设备ID加入deviceList里
             node.getChildren().stream()
                 .map(MetadataIndexEntry::getName)
                 .collect(Collectors.toList()));
       } else {
         // keep traversing
-        deviceList.addAll(getAllDevices(node));
+        deviceList.addAll(getAllDevices(node));//递归遍历获取该节点下的子节点的所包含的所有设备
       }
     }
     return deviceList;
@@ -755,30 +755,30 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
   /**
    * Get target MetadataIndexEntry and its end offset
    *
-   * @param metadataIndex given MetadataIndexNode
+   * @param metadataIndex given MetadataIndexNode 索引节点对象
    * @param name target device / measurement name
-   * @param isDeviceLevel whether target MetadataIndexNode is device level
-   * @param exactSearch whether is in exact search mode, return null when there is no entry with
+   * @param isDeviceLevel whether target MetadataIndexNode is device level    //判断第一个参数索引节点对象是否是设备类型的节点
+   * @param exactSearch whether is in exact search mode, return null when there is no entry with  //是否是精确搜索模式
    *     name; or else return the nearest MetadataIndexEntry before it (for deeper search)
    * @return target MetadataIndexEntry, endOffset pair
    */
-  protected Pair<MetadataIndexEntry, Long> getMetadataAndEndOffset(
+  protected Pair<MetadataIndexEntry, Long> getMetadataAndEndOffset(//从指定的MetadataIndexNode节点对象里根据name查找对应的目标索引条目和它所指向的孩子节点的结束偏移位置（因此若是中间节点且不存在目标条目，则要递归到目标条目所在的叶子节点去查找）：1. 若找到了，则把该条目对应条目对象和该条目指向的子节点的结束位置放入pair对象里，即<名为key的索引条目对象，该条目指向的子节点的结束偏移位置> 2. 若没有找到，则若（1）exactSearch为true说明要精确查找，则返回null（2）exactSearch为false说明可以模糊查找，则返回该节点里离名称为key的目标索引条目最近的上一个条目对象和对应指向子节点的结束位置
       MetadataIndexNode metadataIndex, String name, boolean isDeviceLevel, boolean exactSearch)
       throws IOException {
     try {
       // When searching for a device node, return when it is not INTERNAL_DEVICE
       // When searching for a measurement node, return when it is not INTERNAL_MEASUREMENT
       if ((isDeviceLevel
-              && !metadataIndex.getNodeType().equals(MetadataIndexNodeType.INTERNAL_DEVICE))
+              && !metadataIndex.getNodeType().equals(MetadataIndexNodeType.INTERNAL_DEVICE))//若是设备类型的节点且节点类型是LEAF_DEVICE
           || (!isDeviceLevel
-              && !metadataIndex.getNodeType().equals(MetadataIndexNodeType.INTERNAL_MEASUREMENT))) {
-        return metadataIndex.getChildIndexEntry(name, exactSearch);
-      } else {
-        Pair<MetadataIndexEntry, Long> childIndexEntry =
-            metadataIndex.getChildIndexEntry(name, false);
-        ByteBuffer buffer = readData(childIndexEntry.left.getOffset(), childIndexEntry.right);
-        return getMetadataAndEndOffset(
-            MetadataIndexNode.deserializeFrom(buffer), name, isDeviceLevel, exactSearch);
+              && !metadataIndex.getNodeType().equals(MetadataIndexNodeType.INTERNAL_MEASUREMENT))) {  //若是传感器类型的节点且节点类型是LEAF_MEASUREMENT
+        return metadataIndex.getChildIndexEntry(name, exactSearch);//该方法其实就是用来查找名为name的索引条目它所指向的孩子节点的开始偏移位置和结束偏移位置。具体做法是从当前索引节点查找名字为name的索引条目：1. 若找到了，则把该条目对应条目对象和该条目指向的子节点的结束位置放入pair对象里，即<名为key的索引条目对象，该条目指向的子节点的结束偏移位置> 2. 若没有找到，则若（1）exactSearch为true说明要精确查找，则返回null（2）exactSearch为false说明可以模糊查找，则返回该节点里离名称为key的目标索引条目最近的上一个条目对象和对应指向子节点的结束位置
+      } else {//若节点类型是INTERNAL_DEVICE或者INTERNAL_MEASUREMENT，则
+        Pair<MetadataIndexEntry, Long> childIndexEntry =//该方法其实就是用来查找名为name的索引条目它所指向的孩子节点的开始偏移位置和结束偏移位置。具体做法是从当前索引节点查找名字为name的索引条目：1. 若找到了，则把该条目对应条目对象和该条目指向的子节点的结束位置放入pair对象里，即<名为key的索引条目对象，该条目指向的子节点的结束偏移位置> 2. 若没有找到，则若（1）exactSearch为true说明要精确查找，则返回null（2）exactSearch为false说明可以模糊查找，则返回该节点里离名称为key的目标索引条目最近的上一个条目对象和对应指向子节点的结束位置
+            metadataIndex.getChildIndexEntry(name, false);//此处其实是获得了叶子节点里的目标条目对应在中间节点的索引条目对象（称之为目标条目）和其子节点的结束位置
+        ByteBuffer buffer = readData(childIndexEntry.left.getOffset(), childIndexEntry.right);//将目标条目指向的子节点的内容读取到二进制缓存里
+        return getMetadataAndEndOffset( //使用该索引节点继续递归
+            MetadataIndexNode.deserializeFrom(buffer), name, isDeviceLevel, exactSearch);//将目标条目指向的子节点的内容反序列化。将buffer的内容反序列化成索引节点MetadataIndexNode对象,即使用从buffer反序列化读取的节点条目（即子节点索引项）和结束偏移和节点类型创建一个索引节点对象
       }
     } catch (BufferOverflowException e) {
       logger.error("Something error happened while deserializing MetadataIndex of file {}", file);
@@ -953,14 +953,14 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
    * @return data that been read.
    */
   protected ByteBuffer readData(long position, int size)
-      throws IOException { // 从position位置开始，读取size个字节的数据到ByteBuffer缓存里
+      throws IOException { //使用tsFileInput对象读取对应TsFile里从position位置开始，共计size个字节的数据到ByteBuffer缓存里.若position为-1，则从当前文件的指针位置开始读取
     ByteBuffer buffer = ByteBuffer.allocate(size); // 指定缓存大小，并创建缓存
     if (position < 0) {
-      if (ReadWriteIOUtils.readAsPossible(tsFileInput, buffer) != size) {
+      if (ReadWriteIOUtils.readAsPossible(tsFileInput, buffer) != size) {//使用TsFileInput对象把对应TsFile的内容读到buffer缓存里直至装满或者文件末尾，返回读取的字节数
         throw new IOException("reach the end of the data");
       }
     } else {
-      long actualReadSize = ReadWriteIOUtils.readAsPossible(tsFileInput, buffer, position, size);
+      long actualReadSize = ReadWriteIOUtils.readAsPossible(tsFileInput, buffer, position, size); //使用TsFileInput对象把对应TsFile的内容，从第offset偏移量的位置开始读取读到target二进制缓存里，读取的长度为len
       if (actualReadSize != size) {
         throw new IOException(
             String.format(
@@ -982,7 +982,7 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
    * @param end the end position of data that want to read
    * @return data that been read.
    */
-  protected ByteBuffer readData(long start, long end) throws IOException {
+  protected ByteBuffer readData(long start, long end) throws IOException {//从该TsFile里读取第start位置到第end位置的内容到Bytebuffer里，并返回该buffer
     return readData(start, (int) (end - start));
   }
 
@@ -1207,17 +1207,17 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
    * @return List of ChunkMetaData
    */
   public List<ChunkMetadata> getChunkMetadataList(Path path, boolean ignoreNotExists)
-      throws IOException {
-    TimeseriesMetadata timeseriesMetaData = readTimeseriesMetadata(path, ignoreNotExists);
-    if (timeseriesMetaData == null) {
+      throws IOException {//根据给定的时间序列path，获取其TimeseriesIndex对象里的所有ChunkIndex，并按照每个ChunkIndex的开始时间戳从小到大进行排序并返回
+    TimeseriesMetadata timeseriesMetaData = readTimeseriesMetadata(path, ignoreNotExists);//根据时间序列路径path，获取该时间序列在该TsFile里的TimeseriesIndex索引对象。具体做法是：（1）先获取该序列对应设备的索引条目指向的传感器节点内容（2）根据序列的传感器ID获取传感器条目指向的TimeseriesIndex节点（该节点包含了目标path序列的TimeseriesIndex索引）内容（3）将读取到的TimeseriesIndex节点内容buffer里的每个TimeseriesIndex依次反序列化放进临时列表里，最后获取目标path序列的TimeseriesIndex索引并返回
+    if (timeseriesMetaData == null) { //若为空，说明该TsFile里不存在此时间序列path,返回空列表
       return Collections.emptyList();
     }
-    List<ChunkMetadata> chunkMetadataList = readChunkMetaDataList(timeseriesMetaData);
-    chunkMetadataList.sort(Comparator.comparingLong(IChunkMetadata::getStartTime));
+    List<ChunkMetadata> chunkMetadataList = readChunkMetaDataList(timeseriesMetaData);//从指定的TimeseriesIndex对象里获取对应的所有ChunkIndex，存入列表里并返回
+    chunkMetadataList.sort(Comparator.comparingLong(IChunkMetadata::getStartTime));//将该chunkMetadataList列表依次每个ChunkIndex的开始时间戳从小到大进行排序
     return chunkMetadataList;
   }
 
-  public List<ChunkMetadata> getChunkMetadataList(Path path) throws IOException {
+  public List<ChunkMetadata> getChunkMetadataList(Path path) throws IOException {//根据给定的时间序列path，获取其TimeseriesIndex对象里的所有ChunkIndex，并按照每个ChunkIndex的开始时间戳从小到大进行排序并返回
     return getChunkMetadataList(path, false);
   }
 
@@ -1227,7 +1227,7 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
    * @return List of ChunkMetaData
    */
   public List<ChunkMetadata> readChunkMetaDataList(TimeseriesMetadata timeseriesMetaData)
-      throws IOException {
+      throws IOException {//从指定的TimeseriesIndex对象里获取对应的所有ChunkIndex，存入列表里并返回
     return timeseriesMetaData.getChunkMetadataList().stream()
         .map(chunkMetadata -> (ChunkMetadata) chunkMetadata)
         .collect(Collectors.toList());

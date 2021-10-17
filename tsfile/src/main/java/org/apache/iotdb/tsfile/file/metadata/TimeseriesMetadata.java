@@ -35,7 +35,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TimeseriesMetadata implements Accountable, ITimeSeriesMetadata {
+public class TimeseriesMetadata implements Accountable, ITimeSeriesMetadata { //TimeseriesMetadata类，它包含了一个个ChunkMetadata类
 
   /** used for old version tsfile */
   private long startOffsetOfChunkMetaDataList;
@@ -52,19 +52,19 @@ public class TimeseriesMetadata implements Accountable, ITimeSeriesMetadata {
    */
   private byte timeSeriesMetadataType;
 
-  private int chunkMetaDataListDataSize;
+  private int chunkMetaDataListDataSize;  //该TimeseriesMetadata包含的所有ChunkMetadata对象的大小总和
 
-  private String measurementId;
-  private TSDataType dataType;
+  private String measurementId; //该TimeseriesMetadata所属的传感器ID
+  private TSDataType dataType;  //该TimeseriesMetadata所属的传感器的数据类型
 
-  private Statistics<? extends Serializable> statistics;
+  private Statistics<? extends Serializable> statistics;  //该TimeseriesMetadata包含的统计量信息
 
   // modified is true when there are modifications of the series, or from unseq file
   private boolean modified;
 
-  protected IChunkMetadataLoader chunkMetadataLoader;
+  protected IChunkMetadataLoader chunkMetadataLoader; //ChunkMetadata对象的加载器
 
-  private long ramSize;
+  private long ramSize; //该TimeseriesMetadata所占用的内存大小
 
   // used for SeriesReader to indicate whether it is a seq/unseq timeseries metadata
   private boolean isSeq = true;
@@ -72,7 +72,7 @@ public class TimeseriesMetadata implements Accountable, ITimeSeriesMetadata {
   // used to save chunk metadata list while serializing
   private PublicBAOS chunkMetadataListBuffer;
 
-  private ArrayList<IChunkMetadata> chunkMetadataList;
+  private ArrayList<IChunkMetadata> chunkMetadataList;  //ChunkMetadata对象列表
 
   public TimeseriesMetadata() {}
 
@@ -101,26 +101,27 @@ public class TimeseriesMetadata implements Accountable, ITimeSeriesMetadata {
     this.chunkMetadataList = new ArrayList<>(timeseriesMetadata.chunkMetadataList);
   }
 
+  //该buffer里可能包含了多个TimeseriesIndex的内容。从buffer里反序列化一个TimeseriesIndex对象并返回。（若needChunkMetadata为true，则还要一一反序列化该TimeseriesIndex的所有ChunkIndex，若为false则无需反序列化，直接将buffer指针后移到最后一个ChunkIndex的结尾处）
   public static TimeseriesMetadata deserializeFrom(ByteBuffer buffer, boolean needChunkMetadata) {
-    TimeseriesMetadata timeseriesMetaData = new TimeseriesMetadata();
-    timeseriesMetaData.setTimeSeriesMetadataType(ReadWriteIOUtils.readByte(buffer));
-    timeseriesMetaData.setMeasurementId(ReadWriteIOUtils.readVarIntString(buffer));
-    timeseriesMetaData.setTSDataType(ReadWriteIOUtils.readDataType(buffer));
-    int chunkMetaDataListDataSize = ReadWriteForEncodingUtils.readUnsignedVarInt(buffer);
+    TimeseriesMetadata timeseriesMetaData = new TimeseriesMetadata();//创建一个TimeseriesIndex对象，下面开始从buffer里读取数据并初始化它
+    timeseriesMetaData.setTimeSeriesMetadataType(ReadWriteIOUtils.readByte(buffer));//读取TimeSeriesMetadataType，可能为0或者1，0代表该时间序列只有一个chunk，1代表有多个chunk
+    timeseriesMetaData.setMeasurementId(ReadWriteIOUtils.readVarIntString(buffer));//读取MeasurementId
+    timeseriesMetaData.setTSDataType(ReadWriteIOUtils.readDataType(buffer));//读取DataType
+    int chunkMetaDataListDataSize = ReadWriteForEncodingUtils.readUnsignedVarInt(buffer);//读取chunkMetaDataListDataSize，即该TimeseriesIndex里所有ChunkIndex大小的总和
     timeseriesMetaData.setDataSizeOfChunkMetaDataList(chunkMetaDataListDataSize);
-    timeseriesMetaData.setStatistics(Statistics.deserialize(buffer, timeseriesMetaData.dataType));
-    if (needChunkMetadata) {
-      ByteBuffer byteBuffer = buffer.slice();
-      byteBuffer.limit(chunkMetaDataListDataSize);
-      timeseriesMetaData.chunkMetadataList = new ArrayList<>();
-      while (byteBuffer.hasRemaining()) {
-        timeseriesMetaData.chunkMetadataList.add(
+    timeseriesMetaData.setStatistics(Statistics.deserialize(buffer, timeseriesMetaData.dataType));//根据数据类型从二进制缓存buffer里反序列化内容到Statistics对象
+    if (needChunkMetadata) {  //若为true，则新建一个byteBuffer缓存，它存放了当前TimeseriesIndex的所有ChunkIndex内容
+      ByteBuffer byteBuffer = buffer.slice(); //将buffer当前读指针的位置开始切割，其后续还未读取的内容放到新的byteBuffer缓存里。此时读指针在第一个ChunkIndex的开头处
+      byteBuffer.limit(chunkMetaDataListDataSize);  //限制该byteBuffer能读取的数据长度为当前TimeseriesIndex的最后一个ChunkIndex的结尾处
+      timeseriesMetaData.chunkMetadataList = new ArrayList<>(); //清空当前timeseriesMetaData的chunkMetadataList
+      while (byteBuffer.hasRemaining()) { //若byteBuffer还有数据未被读取，则
+        timeseriesMetaData.chunkMetadataList.add(//根据当前timeseriesMetadata是否包含多个Chunk以及其数据类型，从buffer里反序列化一个ChunkIndex对象，加入当前TimeseriesIndex的chunkMetadataList列表里
             ChunkMetadata.deserializeFrom(byteBuffer, timeseriesMetaData));
       }
       // minimize the storage of an ArrayList instance.
       timeseriesMetaData.chunkMetadataList.trimToSize();
     }
-    buffer.position(buffer.position() + chunkMetaDataListDataSize);
+    buffer.position(buffer.position() + chunkMetaDataListDataSize);//将buffer的读指针位置移到该TimeseriesIndex的最后一个ChunkIndex的结尾处
     return timeseriesMetaData;
   }
 
