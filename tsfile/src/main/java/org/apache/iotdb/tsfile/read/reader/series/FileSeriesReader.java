@@ -32,9 +32,9 @@ import java.util.List;
  * Series reader is used to query one series of one TsFile, and this reader has a filter operating
  * on the same series.
  */
-public class FileSeriesReader extends AbstractFileSeriesReader {
+public class FileSeriesReader extends AbstractFileSeriesReader {//每个FileSeriesReader用来专门读取一个TsFile里一个时间序列
 
-  public FileSeriesReader(
+  public FileSeriesReader(  //根据该时间序列的Chunk加载器和器ChunkIndex列表和查询过滤器，创建该TsFile的该时间序列的专属文件序列阅读器
       IChunkLoader chunkLoader, List<IChunkMetadata> chunkMetadataList, Filter filter) {
     super(chunkLoader, chunkMetadataList, filter);
   }

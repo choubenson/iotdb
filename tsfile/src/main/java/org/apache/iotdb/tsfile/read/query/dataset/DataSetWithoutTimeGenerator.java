@@ -36,7 +36,7 @@ import java.util.Set;
 /** multi-way merging data set, no need to use TimeGenerator. */
 public class DataSetWithoutTimeGenerator extends QueryDataSet {
 
-  private List<AbstractFileSeriesReader> readers;
+  private List<AbstractFileSeriesReader> readers; //文件序列读取器列表
 
   private List<BatchData> batchDataList;
 

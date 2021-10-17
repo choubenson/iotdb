@@ -45,8 +45,8 @@ import java.util.List;
 
 public class TsFileExecutor implements QueryExecutor {  //TsFile执行器，用来执行该TsFile的查询操作
 
-  private IMetadataQuerier metadataQuerier;
-  private IChunkLoader chunkLoader;
+  private IMetadataQuerier metadataQuerier;//该TsFile文件的元数据查询器
+  private IChunkLoader chunkLoader; //Chunk加载器
 
   public TsFileExecutor(IMetadataQuerier metadataQuerier, IChunkLoader chunkLoader) {
     this.metadataQuerier = metadataQuerier;
@@ -56,7 +56,7 @@ public class TsFileExecutor implements QueryExecutor {  //TsFile执行器，用�
   @Override
   public QueryDataSet execute(QueryExpression queryExpression) throws IOException {
     // bloom filter
-    BloomFilter bloomFilter = metadataQuerier.getWholeFileMetadata().getBloomFilter();//获取该文件的TsFileMetadata对象（即IndexOfTimeseriesIndex索引内容）里的布隆过滤器
+    BloomFilter bloomFilter = metadataQuerier.getWholeFileMetadata().getBloomFilter();//使用该文件的元数据查询器获取该文件的TsFileMetadata对象（即IndexOfTimeseriesIndex索引内容）里的布隆过滤器
     List<Path> filteredSeriesPath = new ArrayList<>();  //用于存放该TsFile包含了此次查询的哪些时间序列路径
     if (bloomFilter != null) {
       for (Path path : queryExpression.getSelectedSeries()) {//获取该次查询的时间序列路径列表
@@ -77,9 +77,9 @@ public class TsFileExecutor implements QueryExecutor {  //TsFile执行器，用�
         queryExpression.setExpression(regularIExpression);//对queryExpression重新设置优化后的表达式
 
         if (regularIExpression instanceof GlobalTimeExpression) { //若表达式是GlobalTimeExpression类型，则
-          return execute(
+          return execute(//根据给定的该次查询的时间序列路径列表和表达式，获取对应的数据类型列表和文件序列读取器列表并创建DataSetWithoutTimeGenerator查询结果集对象返回
               queryExpression.getSelectedSeries(), (GlobalTimeExpression) regularIExpression);
-        } else {
+        } else {//否则是SingleSeriesExpression类型
           return new ExecutorWithTimeGenerator(metadataQuerier, chunkLoader)
               .execute(queryExpression);
         }
@@ -147,7 +147,7 @@ public class TsFileExecutor implements QueryExecutor {  //TsFile执行器，用�
    * @param selectedPathList all selected paths
    * @return DataSet without TimeGenerator
    */
-  private QueryDataSet execute(List<Path> selectedPathList)
+  private QueryDataSet execute(List<Path> selectedPathList)//根据给定的该次查询的时间序列路径列表，获取对应的数据类型列表和文件序列读取器列表并创建DataSetWithoutTimeGenerator查询结果集对象返回
       throws IOException, NoMeasurementException {
     return executeMayAttachTimeFiler(selectedPathList, null);
   }
@@ -160,7 +160,7 @@ public class TsFileExecutor implements QueryExecutor {  //TsFile执行器，用�
    * @return DataSet without TimeGenerator
    */
   private QueryDataSet execute(List<Path> selectedPathList, GlobalTimeExpression timeFilter)  //第一个参数是时间序列路径列表，第二个是GlobalTimeExpression表达式
-      throws IOException, NoMeasurementException {
+      throws IOException, NoMeasurementException {//根据给定的该次查询的时间序列路径列表和表达式，获取对应的数据类型列表和文件序列读取器列表并创建DataSetWithoutTimeGenerator查询结果集对象返回
     return executeMayAttachTimeFiler(selectedPathList, timeFilter);
   }
 
@@ -169,29 +169,29 @@ public class TsFileExecutor implements QueryExecutor {  //TsFile执行器，用�
    * @param timeExpression a GlobalTimeExpression or null
    * @return DataSetWithoutTimeGenerator
    */
-  private QueryDataSet executeMayAttachTimeFiler(
+  private QueryDataSet executeMayAttachTimeFiler(//根据给定的该次查询的时间序列路径列表和表达式，获取对应的数据类型列表和文件序列读取器列表并创建DataSetWithoutTimeGenerator查询结果集对象返回
       List<Path> selectedPathList, GlobalTimeExpression timeExpression)
       throws IOException, NoMeasurementException {
-    List<AbstractFileSeriesReader> readersOfSelectedSeries = new ArrayList<>();
+    List<AbstractFileSeriesReader> readersOfSelectedSeries = new ArrayList<>();//文件序列读取器列表
     List<TSDataType> dataTypes = new ArrayList<>(); //存放了该TsFIle里每个指定的时间序列对应的数据类型，若不存在此时序则类型为Null
 
     for (Path path : selectedPathList) {//遍历给定的时间序列路径列表
       List<IChunkMetadata> chunkMetadataList = metadataQuerier.getChunkMetaDataList(path);//从chunkMetaDataCache缓存里获取该时间序列路径对应的所有ChunkIndex
-      AbstractFileSeriesReader seriesReader;
+      AbstractFileSeriesReader seriesReader;//文件序列读取器，用来专门读取一个TsFile里一个时间序列
       if (chunkMetadataList.isEmpty()) {  //若该时间序列对应的ChunkIndex列表为空，则说明该TsFile里不存在此时间序列
         seriesReader = new EmptyFileSeriesReader(); //创建一个空的文件序列读取器
         dataTypes.add(metadataQuerier.getDataType(path));//获取该时间序列对应的数据类型,若该TsFile不存在此时间序列则返回null，具体做法是获取其TimeseriesIndex对象里的所有ChunkIndex列表，然后拿第一个ChunkIndex获取其数据类型。此处应该为null
       } else {
-        if (timeExpression == null) {
+        if (timeExpression == null) {//若该查询的表达式为空，即没有条件过滤器，则创建一个Filter为空的FileSeriesReader文件序列读取器
           seriesReader = new FileSeriesReader(chunkLoader, chunkMetadataList, null);
         } else {
-          seriesReader =
+          seriesReader =//创建一个Filter不为空的FileSeriesReader文件序列读取器
               new FileSeriesReader(chunkLoader, chunkMetadataList, timeExpression.getFilter());
         }
-        dataTypes.add(chunkMetadataList.get(0).getDataType());
+        dataTypes.add(chunkMetadataList.get(0).getDataType());//将该时间序列的数据类型加入列表里
       }
-      readersOfSelectedSeries.add(seriesReader);
+      readersOfSelectedSeries.add(seriesReader);//把该时间序列的文件序列读取器加入readersOfSelectedSeries列表里
     }
-    return new DataSetWithoutTimeGenerator(selectedPathList, dataTypes, readersOfSelectedSeries);
+    return new DataSetWithoutTimeGenerator(selectedPathList, dataTypes, readersOfSelectedSeries);//创建DataSetWithoutTimeGenerator查询结果集
   }
 }

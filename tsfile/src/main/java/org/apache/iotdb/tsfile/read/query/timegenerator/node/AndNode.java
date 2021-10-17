@@ -21,10 +21,10 @@ package org.apache.iotdb.tsfile.read.query.timegenerator.node;
 import java.io.IOException;
 import java.util.function.BiPredicate;
 
-public class AndNode implements Node {
+public class AndNode implements Node {  //And节点
 
-  private Node leftChild;
-  private Node rightChild;
+  private Node leftChild; //左子节点
+  private Node rightChild;  //右子节点
 
   private long cachedTime;
   private boolean hasCachedTime;

@@ -31,8 +31,8 @@ import java.util.List;
 
 public class TsFileTimeGenerator extends TimeGenerator {
 
-  private IChunkLoader chunkLoader;
-  private IMetadataQuerier metadataQuerier;
+  private IChunkLoader chunkLoader; //Chunk加载器
+  private IMetadataQuerier metadataQuerier; //该TsFile的元数据查询器
 
   public TsFileTimeGenerator(
       IExpression iexpression, IChunkLoader chunkLoader, IMetadataQuerier metadataQuerier)
@@ -40,15 +40,15 @@ public class TsFileTimeGenerator extends TimeGenerator {
     this.chunkLoader = chunkLoader;
     this.metadataQuerier = metadataQuerier;
 
-    super.constructNode(iexpression);
+    super.constructNode(iexpression);//根据查询的表达式IExpression，若是：（1）SingleSeriesExpression则获取对应时间序列的文件序列阅读区并封装入叶子节点后并装入leafNodeCache缓存（2）否则是二元表达式，则依次对左、右子表达式递归次方法直至表达式为SingleSeriesExpression，则获取对应时间序列表达式的叶子节点（包含文件序列阅读器）
   }
 
   @Override
   protected IBatchReader generateNewBatchReader(SingleSeriesExpression expression)
-      throws IOException {
+      throws IOException {   //根据此次查询的单序列表达式获取对应时间序列的ChunkIndex列表，进而创建该TsFile的该时间序列的专属文件序列阅读器
     List<IChunkMetadata> chunkMetadataList =
-        metadataQuerier.getChunkMetaDataList(expression.getSeriesPath());
-    return new FileSeriesReader(chunkLoader, chunkMetadataList, expression.getFilter());
+        metadataQuerier.getChunkMetaDataList(expression.getSeriesPath()); //使用该TsFile的元数据查询器获取该次查询的单时间序列表达式里的时间序列获取对应的ChunkIndex列表
+    return new FileSeriesReader(chunkLoader, chunkMetadataList, expression.getFilter());  //创建该TsFile的该时间序列的专属文件序列阅读器
   }
 
   @Override

@@ -40,8 +40,8 @@ import java.util.List;
 
 public class ExecutorWithTimeGenerator implements QueryExecutor {
 
-  private IMetadataQuerier metadataQuerier;
-  private IChunkLoader chunkLoader;
+  private IMetadataQuerier metadataQuerier; //该TsFile文件的元数据查询器
+  private IChunkLoader chunkLoader; //Chunk加载器
 
   public ExecutorWithTimeGenerator(IMetadataQuerier metadataQuerier, IChunkLoader chunkLoader) {
     this.metadataQuerier = metadataQuerier;
@@ -57,11 +57,11 @@ public class ExecutorWithTimeGenerator implements QueryExecutor {
   @Override
   public DataSetWithTimeGenerator execute(QueryExpression queryExpression) throws IOException {
 
-    IExpression expression = queryExpression.getExpression();
-    List<Path> selectedPathList = queryExpression.getSelectedSeries();
+    IExpression expression = queryExpression.getExpression(); //获取此次查询的表达式
+    List<Path> selectedPathList = queryExpression.getSelectedSeries();  //获取此次查询的时间序列列表
 
     // get TimeGenerator by IExpression
-    TimeGenerator timeGenerator = new TsFileTimeGenerator(expression, chunkLoader, metadataQuerier);
+    TimeGenerator timeGenerator = new TsFileTimeGenerator(expression, chunkLoader, metadataQuerier);  //使用此次查询的表达式和该TsFile的Chunk加载器和元数据查询器创建TsFileTimeGenerator对象
 
     // the size of hasFilter is equal to selectedPathList, if a series has a filter, it is true,
     // otherwise false
@@ -99,7 +99,7 @@ public class ExecutorWithTimeGenerator implements QueryExecutor {
   public static List<Boolean> markFilterdPaths(
       IExpression expression, List<Path> selectedPaths, boolean hasOrNode) {
     List<Boolean> cached = new ArrayList<>();
-    if (hasOrNode) {
+    if (hasOrNode) {  //
       for (Path ignored : selectedPaths) {
         cached.add(false);
       }

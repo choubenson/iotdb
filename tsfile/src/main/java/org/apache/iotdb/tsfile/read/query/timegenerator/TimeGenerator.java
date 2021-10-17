@@ -43,10 +43,10 @@ import java.util.List;
  */
 public abstract class TimeGenerator {
 
-  private HashMap<Path, List<LeafNode>> leafNodeCache = new HashMap<>();
+  private HashMap<Path, List<LeafNode>> leafNodeCache = new HashMap<>();  //叶子节点缓存，存放了每个时间序列对应的叶子节点（叶子节点里存放了该时间序列的阅读器）
   private HashMap<Path, List<Object>> leafValuesCache;
-  protected Node operatorNode;
-  private boolean hasOrNode;
+  protected Node operatorNode;  //
+  private boolean hasOrNode;  //是否有OR这个节点
 
   public boolean hasNext() throws IOException {
     return operatorNode.hasNext();
@@ -92,42 +92,42 @@ public abstract class TimeGenerator {
     return leafValuesCache.get(path).remove(0);
   }
 
-  public void constructNode(IExpression expression) throws IOException {
+  public void constructNode(IExpression expression) throws IOException {//根据查询的表达式IExpression，若是：（1）SingleSeriesExpression则获取对应时间序列的文件序列阅读区并封装入叶子节点后并装入leafNodeCache缓存（2）否则是二元表达式，则依次对左、右子表达式递归次方法直至表达式为SingleSeriesExpression，则获取对应时间序列表达式的叶子节点（包含文件序列阅读器）
     operatorNode = construct(expression);
   }
 
   /** construct the tree that generate timestamp. */
-  protected Node construct(IExpression expression) throws IOException {
+  protected Node construct(IExpression expression) throws IOException {//根据查询的表达式IExpression，若是：（1）SingleSeriesExpression则获取对应时间序列的文件序列阅读区并封装入叶子节点后并装入leafNodeCache缓存，返回该叶子节点（2）否则是二元表达式，则依次对左、右子表达式递归次方法直至表达式为SingleSeriesExpression，则获取对应时间序列表达式的叶子节点（包含文件序列阅读器）
 
-    if (expression.getType() == ExpressionType.SERIES) {
-      SingleSeriesExpression singleSeriesExp = (SingleSeriesExpression) expression;
-      IBatchReader seriesReader = generateNewBatchReader(singleSeriesExp);
-      Path path = singleSeriesExp.getSeriesPath();
+    if (expression.getType() == ExpressionType.SERIES) {//如果此次查询的表达式类型是SingleSeriesExpression
+      SingleSeriesExpression singleSeriesExp = (SingleSeriesExpression) expression;//进行表达式的类型转换
+      IBatchReader seriesReader = generateNewBatchReader(singleSeriesExp);//根据此次查询的单序列表达式获取对应时间序列的ChunkIndex列表，进而创建该TsFile的该时间序列的专属文件序列阅读器
+      Path path = singleSeriesExp.getSeriesPath();//获取此次查询的该单时间序列表达式的时间序列路径
 
       // put the current reader to valueCache
-      LeafNode leafNode = new LeafNode(seriesReader);
-      leafNodeCache.computeIfAbsent(path, p -> new ArrayList<>()).add(leafNode);
+      LeafNode leafNode = new LeafNode(seriesReader);//使用该时间序列的读取器创建叶子节点
+      leafNodeCache.computeIfAbsent(path, p -> new ArrayList<>()).add(leafNode);//将该时间序列及其对应的包含阅读器的叶子节点放入leafNodeCache变量里
 
-      return leafNode;
-    } else {
-      Node leftChild = construct(((IBinaryExpression) expression).getLeft());
-      Node rightChild = construct(((IBinaryExpression) expression).getRight());
+      return leafNode;  //返回叶子节点
+    } else {  //否则表达式是二元表达式
+      Node leftChild = construct(((IBinaryExpression) expression).getLeft()); //获取左孩子表达式，并递归
+      Node rightChild = construct(((IBinaryExpression) expression).getRight());//获取右孩子表达式，并递归
 
-      if (expression.getType() == ExpressionType.OR) {
+      if (expression.getType() == ExpressionType.OR) {  //若是OR表达式，则
         hasOrNode = true;
-        return new OrNode(leftChild, rightChild, isAscending());
-      } else if (expression.getType() == ExpressionType.AND) {
-        return new AndNode(leftChild, rightChild, isAscending());
+        return new OrNode(leftChild, rightChild, isAscending());  //返回OR节点
+      } else if (expression.getType() == ExpressionType.AND) {  //若是And表达式，则
+        return new AndNode(leftChild, rightChild, isAscending()); //返回And节点
       }
       throw new UnSupportedDataTypeException(
           "Unsupported ExpressionType when construct OperatorNode: " + expression.getType());
     }
   }
 
-  protected abstract IBatchReader generateNewBatchReader(SingleSeriesExpression expression)
+  protected abstract IBatchReader generateNewBatchReader(SingleSeriesExpression expression)//根据此次查询的单序列表达式获取对应时间序列的ChunkIndex列表，进而创建该TsFile的该时间序列的专属文件序列阅读器
       throws IOException;
 
-  public boolean hasOrNode() {
+  public boolean hasOrNode() {//是否存在or节点
     return hasOrNode;
   }
 

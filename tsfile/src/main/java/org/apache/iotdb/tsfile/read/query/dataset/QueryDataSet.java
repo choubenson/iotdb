@@ -25,10 +25,10 @@ import org.apache.iotdb.tsfile.read.common.RowRecord;
 import java.io.IOException;
 import java.util.List;
 
-public abstract class QueryDataSet {
+public abstract class QueryDataSet {  //查询结果数据集
 
-  protected List<Path> paths;
-  protected List<TSDataType> dataTypes;
+  protected List<Path> paths; //时间序列列表
+  protected List<TSDataType> dataTypes; //时间序列对应的数据类型列表
 
   protected int rowLimit = 0; // rowLimit > 0 means the LIMIT constraint exists
   protected int rowOffset = 0;
@@ -92,7 +92,7 @@ public abstract class QueryDataSet {
     initQueryDataSetFields(paths, dataTypes, ascending);
   }
 
-  protected void initQueryDataSetFields(
+  protected void initQueryDataSetFields(  //初始化结果集的列
       List<Path> paths, List<TSDataType> dataTypes, boolean ascending) {
     this.paths = paths;
     this.dataTypes = dataTypes;

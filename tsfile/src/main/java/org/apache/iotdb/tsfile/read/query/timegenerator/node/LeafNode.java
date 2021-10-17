@@ -23,7 +23,7 @@ import org.apache.iotdb.tsfile.read.reader.IBatchReader;
 
 import java.io.IOException;
 
-public class LeafNode implements Node {
+public class LeafNode implements Node {//叶子节点
 
   private IBatchReader reader;
 

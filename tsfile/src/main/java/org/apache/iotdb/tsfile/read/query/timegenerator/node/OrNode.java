@@ -20,10 +20,10 @@ package org.apache.iotdb.tsfile.read.query.timegenerator.node;
 
 import java.io.IOException;
 
-public class OrNode implements Node {
+public class OrNode implements Node {//OR节点
 
-  private Node leftChild;
-  private Node rightChild;
+  private Node leftChild; //左子节点
+  private Node rightChild;  //右子节点
 
   private boolean hasCachedLeftTime;
   private long cachedLeftTime;

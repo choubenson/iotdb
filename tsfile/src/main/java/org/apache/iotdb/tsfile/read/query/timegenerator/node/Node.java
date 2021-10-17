@@ -20,7 +20,7 @@ package org.apache.iotdb.tsfile.read.query.timegenerator.node;
 
 import java.io.IOException;
 
-public interface Node {
+public interface Node { //节点类，有And节点、Or节点和Leaf叶子节点
 
   boolean hasNext() throws IOException;
 

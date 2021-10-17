@@ -30,12 +30,12 @@ import java.io.IOException;
 import java.util.List;
 
 /** Series reader is used to query one series of one tsfile. */
-public abstract class AbstractFileSeriesReader implements IBatchReader {
+public abstract class AbstractFileSeriesReader implements IBatchReader {//每个FileSeriesReader用来专门读取一个TsFile里一个时间序列，也就是说一个TsFile的一个时间序列的读取会有专属的AbstractFileSeriesReader
 
-  protected IChunkLoader chunkLoader;
-  protected List<IChunkMetadata> chunkMetadataList;
-  protected ChunkReader chunkReader;
-  private int chunkToRead;
+  protected IChunkLoader chunkLoader; //该时间序列的Chunk加载器
+  protected List<IChunkMetadata> chunkMetadataList;//该时间序列的ChunkIndex列表
+  protected ChunkReader chunkReader;//Chunk读取器
+  private int chunkToRead;  //待读取Chunk的位置
 
   protected Filter filter;
 
