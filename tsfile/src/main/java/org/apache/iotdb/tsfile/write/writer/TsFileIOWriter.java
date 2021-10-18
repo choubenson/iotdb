@@ -431,11 +431,11 @@ public class TsFileIOWriter { // TsFile写入类，在写入操作中，要写�
       // chunkMetadata is time column of a vector series
       if (chunkMetadata.isTimeColumn()) {
         Map<Path, List<IChunkMetadata>> vectorMap = vectorToPathsMap.get(path);
-
         for (Map.Entry<Path, List<IChunkMetadata>> entry : vectorMap.entrySet()) {
           flushOneChunkMetadata(entry.getKey(), entry.getValue(), vectorToPathsMap);
         }
       }
+      break;
     }
   }
 
