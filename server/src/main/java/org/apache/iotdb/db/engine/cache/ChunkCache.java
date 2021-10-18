@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * This class is used to cache <code>Chunk</code> of <code>ChunkMetaData</code> in IoTDB. The
  * caching strategy is LRU.
  */
-public class ChunkCache {
+public class ChunkCache { //该Chunk缓存类是用在IOTDB server系统里的，系统有配置是否允许开启缓存，以及采用的调度策略是LRU
 
   private static final Logger logger = LoggerFactory.getLogger(ChunkCache.class);
   private static final Logger DEBUG_LOGGER = LoggerFactory.getLogger("QUERY_DEBUG");
@@ -50,7 +50,7 @@ public class ChunkCache {
       config.getAllocateMemoryForChunkCache();
   private static final boolean CACHE_ENABLE = config.isMetaDataCacheEnable();
 
-  private final LoadingCache<ChunkMetadata, Chunk> lruCache;
+  private final LoadingCache<ChunkMetadata, Chunk> lruCache;//该缓存存放了每个ChunkIndex和对应的Chunk对象数据,这些在缓存里的Chunk不会存储其删除的数据范围和该Chunk的统计量
 
   private final AtomicLong entryAverageSize = new AtomicLong(0);
 
@@ -58,7 +58,7 @@ public class ChunkCache {
     if (CACHE_ENABLE) {
       logger.info("ChunkCache size = " + MEMORY_THRESHOLD_IN_CHUNK_CACHE);
     }
-    lruCache =
+    lruCache =        //将ChunkIndex和对应的Chunk对象数据存入缓存lruCache里
         Caffeine.newBuilder()
             .maximumWeight(MEMORY_THRESHOLD_IN_CHUNK_CACHE)
             .weigher(
@@ -71,10 +71,10 @@ public class ChunkCache {
             .build(
                 chunkMetadata -> {
                   try {
-                    TsFileSequenceReader reader =
+                    TsFileSequenceReader reader =//从文件阅读器的管理类里获取该文件的顺序阅读器
                         FileReaderManager.getInstance()
                             .get(chunkMetadata.getFilePath(), chunkMetadata.isClosed());
-                    return reader.readMemChunk(chunkMetadata);
+                    return reader.readMemChunk(chunkMetadata); //根据传来的ChunkIndex，使用顺序读取器里的TsFileInput读取本地文件并反序列化成对应的Chunk对象
                   } catch (IOException e) {
                     logger.error("Something wrong happened in reading {}", chunkMetadata, e);
                     throw e;
@@ -90,12 +90,12 @@ public class ChunkCache {
     return get(chunkMetaData, false);
   }
 
-  public Chunk get(ChunkMetadata chunkMetaData, boolean debug) throws IOException {
-    if (!CACHE_ENABLE) {
-      TsFileSequenceReader reader =
+  public Chunk get(ChunkMetadata chunkMetaData, boolean debug) throws IOException {//若不允许缓存，则使用顺序读取器里的TsFileInput读取本地文件并反序列化成对应的Chunk对象；若允许缓存，则根据ChunkIndex从缓存获取对应的Chunk数据，并初始化其删除的数据范围和统计量
+    if (!CACHE_ENABLE) {  //若系统是不允许ChunkIndex缓存的，则
+      TsFileSequenceReader reader =//从文件阅读器的管理类里获取该文件的顺序阅读器
           FileReaderManager.getInstance()
-              .get(chunkMetaData.getFilePath(), chunkMetaData.isClosed());
-      Chunk chunk = reader.readMemChunk(chunkMetaData);
+              .get(chunkMetaData.getFilePath(), chunkMetaData.isClosed());//Get the reader of the file(tsfile or unseq tsfile) indicated by filePath. If the reader already exists, just get it from closedFileReaderMap or unclosedFileReaderMap depending on isClosing .Otherwise a new reader will be created and cached.
+      Chunk chunk = reader.readMemChunk(chunkMetaData); //根据传来的ChunkIndex，使用顺序读取器里的TsFileInput读取本地文件并反序列化成对应的Chunk对象
       return new Chunk(
           chunk.getHeader(),
           chunk.getData().duplicate(),
@@ -103,13 +103,14 @@ public class ChunkCache {
           chunkMetaData.getStatistics());
     }
 
-    Chunk chunk = lruCache.get(chunkMetaData);
+    //若系统允许缓存，则
+    Chunk chunk = lruCache.get(chunkMetaData);  //从缓存里拿取对应ChunkIndex的Chunk对象
 
     if (debug) {
       DEBUG_LOGGER.info("get chunk from cache whose meta data is: " + chunkMetaData);
     }
 
-    return new Chunk(
+    return new Chunk(//初始化其删除的数据范围和统计量
         chunk.getHeader(),
         chunk.getData().duplicate(),
         chunkMetaData.getDeleteIntervalList(),

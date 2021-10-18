@@ -23,10 +23,10 @@ import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import java.util.ArrayList;
 import java.util.List;
 
-public class RowRecord {
+public class RowRecord {  //行记录数据，用于查询时返回的数据格式
 
-  private final long timestamp;
-  private final List<Field> fields;
+  private final long timestamp;//时间戳
+  private final List<Field> fields; //每列
   /** if any column is null, this field should be set to true; otherwise false */
   private boolean hasNullField = false;
 

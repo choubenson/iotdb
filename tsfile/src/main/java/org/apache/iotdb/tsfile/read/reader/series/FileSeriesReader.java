@@ -40,13 +40,13 @@ public class FileSeriesReader extends AbstractFileSeriesReader {//每个FileSeri
   }
 
   @Override
-  protected void initChunkReader(IChunkMetadata chunkMetaData) throws IOException {
-    Chunk chunk = chunkLoader.loadChunk((ChunkMetadata) chunkMetaData);
-    this.chunkReader = new ChunkReader(chunk, filter);
+  protected void initChunkReader(IChunkMetadata chunkMetaData) throws IOException {//根据ChunkIndex使用加载器从缓存获取对应的Chunk数据（并初始化其删除的数据范围和统计量）然后用chunk对象和filter过滤器初始化该文件序列读取器的ChunkReader对象并初始化其所有满足条件（存在未被删除且满足过滤器的数据的page）的PageReader
+    Chunk chunk = chunkLoader.loadChunk((ChunkMetadata) chunkMetaData);//根据ChunkIndex使用加载器从缓存获取对应的Chunk数据，并初始化其删除的数据范围和统计量
+    this.chunkReader = new ChunkReader(chunk, filter);//创建对应的ChunkReader并初始化其所有满足条件（存在未被删除且满足过滤器的数据的page）的PageReader
   }
 
   @Override
-  protected boolean chunkSatisfied(IChunkMetadata chunkMetaData) {
+  protected boolean chunkSatisfied(IChunkMetadata chunkMetaData) {  //根据传来的ChunkIndex的统计量和该时间序列的过滤器判断该Chunk的数据是否存在符合过滤条件的数据，若过滤器为null则直接为true
     return filter == null || filter.satisfy(chunkMetaData.getStatistics());
   }
 }

@@ -136,7 +136,7 @@ public class ChunkHeader { // ChunkHeader类
    * The estimated serialized size of chunk header. Only used when we don't know the actual dataSize
    * attribute
    */
-  public static int getSerializedSize(String measurementID) {
+  public static int getSerializedSize(String measurementID) {//根据传感器ID获取对应Chunk的ChunkHeader的字节大小
 
     int measurementIdLength = measurementID.getBytes(TSFileConfig.STRING_CHARSET).length;
     return Byte.BYTES // chunkType
@@ -171,11 +171,11 @@ public class ChunkHeader { // ChunkHeader类
    * @throws IOException IOException
    */
   public static ChunkHeader deserializeFrom(TsFileInput input, long offset, int chunkHeaderSize)
-      throws IOException {
+      throws IOException {  //使用TsFileInput对象从指定的ChunkHeader偏移量和ChunkHeader大小，来读取本地文件并反序列化成一个ChunkHeader对象
 
     // read chunk header from input to buffer
     ByteBuffer buffer = ByteBuffer.allocate(chunkHeaderSize);
-    input.read(buffer, offset);
+    input.read(buffer, offset);//从指定的position位置开始，往指定的ByteBuffer缓存里读取该TsFile的内容，返回读取的字节数
     buffer.flip();
 
     byte chunkType = buffer.get();

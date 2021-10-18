@@ -26,7 +26,7 @@ import java.io.IOException;
 public interface IChunkLoader {
 
   /** read all content of any chunk. */
-  Chunk loadChunk(ChunkMetadata chunkMetaData) throws IOException;
+  Chunk loadChunk(ChunkMetadata chunkMetaData) throws IOException;//根据ChunkIndex从缓存获取对应的Chunk数据，并初始化其删除的数据范围和统计量
 
   /** close the file reader. */
   void close() throws IOException;

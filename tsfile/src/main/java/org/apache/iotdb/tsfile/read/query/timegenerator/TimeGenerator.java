@@ -92,8 +92,8 @@ public abstract class TimeGenerator {
     return leafValuesCache.get(path).remove(0);
   }
 
-  public void constructNode(IExpression expression) throws IOException {//根据查询的表达式IExpression，若是：（1）SingleSeriesExpression则获取对应时间序列的文件序列阅读区并封装入叶子节点后并装入leafNodeCache缓存（2）否则是二元表达式，则依次对左、右子表达式递归次方法直至表达式为SingleSeriesExpression，则获取对应时间序列表达式的叶子节点（包含文件序列阅读器）
-    operatorNode = construct(expression);
+  public void constructNode(IExpression expression) throws IOException {//根据查询的表达式IExpression，设置该类中的operatorNode操作节点对象。若IExpression是：（1）SingleSeriesExpression则获取对应时间序列的文件序列阅读区并封装入叶子节点后并装入leafNodeCache缓存（2）否则是二元表达式，则依次对左、右子表达式递归次方法直至表达式为SingleSeriesExpression，则获取对应时间序列表达式的叶子节点（包含文件序列阅读器）。
+    operatorNode = construct(expression);//可能是（1）包含该时间序列的文件序列阅读器的叶子节点（2）OR或者And节点，其中其左右子节点又分别是包含该时间序列的文件序列阅读器的叶子节点
   }
 
   /** construct the tree that generate timestamp. */
@@ -106,7 +106,7 @@ public abstract class TimeGenerator {
 
       // put the current reader to valueCache
       LeafNode leafNode = new LeafNode(seriesReader);//使用该时间序列的读取器创建叶子节点
-      leafNodeCache.computeIfAbsent(path, p -> new ArrayList<>()).add(leafNode);//将该时间序列及其对应的包含阅读器的叶子节点放入leafNodeCache变量里
+      leafNodeCache.computeIfAbsent(path, p -> new ArrayList<>()).add(leafNode);//将该时间序列及其对应的包含阅读器的叶子节点放入leafNodeCache变量缓存里
 
       return leafNode;  //返回叶子节点
     } else {  //否则表达式是二元表达式

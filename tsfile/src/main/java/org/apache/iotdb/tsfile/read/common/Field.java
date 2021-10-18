@@ -27,9 +27,9 @@ import org.apache.iotdb.tsfile.utils.Binary;
  * Field is component of one {@code RowRecord} which stores a value in specific data type. The value
  * type of Field is primitive(int long, float, double, binary, boolean).
  */
-public class Field {
+public class Field {  //列类，一行RowRecord数据可能有多个Field
 
-  private TSDataType dataType;
+  private TSDataType dataType;  //该列数据类型
   private boolean boolV;
   private int intV;
   private long longV;

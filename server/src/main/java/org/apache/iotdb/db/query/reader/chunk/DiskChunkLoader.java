@@ -27,7 +27,7 @@ import org.apache.iotdb.tsfile.read.controller.IChunkLoader;
 import java.io.IOException;
 
 /** To read one chunk from disk, and only used in iotdb server module */
-public class DiskChunkLoader implements IChunkLoader {
+public class DiskChunkLoader implements IChunkLoader {//该Chunk加载类是用在IOTDB server系统里的，有ChunkCache缓存，系统有配置是否允许开启缓存，以及采用的调度策略是LRU
 
   private final boolean debug;
 
@@ -36,7 +36,7 @@ public class DiskChunkLoader implements IChunkLoader {
   }
 
   @Override
-  public Chunk loadChunk(ChunkMetadata chunkMetaData) throws IOException {
+  public Chunk loadChunk(ChunkMetadata chunkMetaData) throws IOException {//若不允许缓存，则使用顺序读取器里的TsFileInput读取本地文件并反序列化成对应的Chunk对象；若允许缓存，则根据ChunkIndex从缓存获取对应的Chunk数据，并初始化其删除的数据范围和统计量
     return ChunkCache.getInstance().get(chunkMetaData, debug);
   }
 

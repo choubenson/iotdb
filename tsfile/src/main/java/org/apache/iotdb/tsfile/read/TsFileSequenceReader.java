@@ -86,8 +86,8 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
   protected static final TSFileConfig config = TSFileDescriptor.getInstance().getConfig();
   private static final String METADATA_INDEX_NODE_DESERIALIZE_ERROR =
       "Something error happened while deserializing MetadataIndexNode of file {}";
-  protected String file;
-  protected TsFileInput tsFileInput;
+  protected String file;  //Todo:bug 此处是文件的绝对路径，可是若其文件夹层数小于4后面运行会报错
+  protected TsFileInput tsFileInput;  //该TsFile对应的TsFileInput对象，用来执行底层真正地从本地文件读取内容并反序列化到对象的操作
   protected long fileMetadataPos; //该TsFile的IndexOfTimeseriesIndex索引的开始处所在的偏移位置
   protected int fileMetadataSize; //该TsFile的IndexOfTimeseriesIndex索引的字节大小
   private ByteBuffer markerBuffer = ByteBuffer.allocate(Byte.BYTES);
@@ -128,7 +128,7 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
     tsFileInput = FSFactoryProducer.getFileInputFactory().getTsFileInput(file);
     try {
       if (loadMetadataSize) {
-        loadMetadataSize();
+        loadMetadataSize();//加载初始化该TsFile顺序阅读器的IndexOfTimeseriesIndex的大小和开始偏移位置
       }
     } catch (Throwable e) {
       tsFileInput.close();
@@ -188,15 +188,15 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
     this.fileMetadataSize = fileMetadataSize;
   }
 
-  public void loadMetadataSize() throws IOException {
-    ByteBuffer metadataSize = ByteBuffer.allocate(Integer.BYTES);
-    if (readTailMagic().equals(TSFileConfig.MAGIC_STRING)) {
-      tsFileInput.read(
+  public void loadMetadataSize() throws IOException {//加载初始化该TsFile顺序阅读器的IndexOfTimeseriesIndex的大小和开始偏移位置
+    ByteBuffer metadataSize = ByteBuffer.allocate(Integer.BYTES); //该缓存存放该TsFile的IndexOfTimeseriesIndex索引的大小
+    if (readTailMagic().equals(TSFileConfig.MAGIC_STRING)) {  //若TsFile文件尾部的字符串为MagicString
+      tsFileInput.read(//从文件的metadataSize处位置开始，往metadataSize缓存里读取该TsFile的内容，返回读取的字节数
           metadataSize,
           tsFileInput.size() - TSFileConfig.MAGIC_STRING.getBytes().length - Integer.BYTES);
       metadataSize.flip();
       // read file metadata size and position
-      fileMetadataSize = ReadWriteIOUtils.readInt(metadataSize);
+      fileMetadataSize = ReadWriteIOUtils.readInt(metadataSize);//从缓存里读取int型数据
       fileMetadataPos =
           tsFileInput.size()
               - TSFileConfig.MAGIC_STRING.getBytes().length
@@ -214,8 +214,8 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
   }
 
   /** this function does not modify the position of the file reader. */
-  public String readTailMagic() throws IOException {
-    long totalSize = tsFileInput.size();
+  public String readTailMagic() throws IOException {//使用TsFileInput对象读取该TsFile尾部的魔法字符串
+    long totalSize = tsFileInput.size();//该TsFile的文件大小
     ByteBuffer magicStringBytes = ByteBuffer.allocate(TSFileConfig.MAGIC_STRING.getBytes().length);
     tsFileInput.read(magicStringBytes, totalSize - TSFileConfig.MAGIC_STRING.getBytes().length);
     magicStringBytes.flip();
@@ -460,39 +460,39 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
       throws IOException {
     readFileMetadata();//若当前顺序阅读器的tsFileMetaData为null，则使用tsFileInput对象读取对应TsFile里的IndexOfTimeseriesIndex索引的所有内容读到bytebuffer缓存里，并从buffer里进行读取反序列化成该顺序读取器里的TsFileMetadata对象
     MetadataIndexNode deviceMetadataIndexNode = tsFileMetaData.getMetadataIndex();//获取IndexOfTimeseriesIndex索引的第一个索引节点对象
-    Pair<MetadataIndexEntry, Long> metadataIndexPair =//从指定的MetadataIndexNode节点对象里查找名称为device的目标索引条目（若是中间节点且不存在目标条目，则要递归到目标条目所在的叶子节点去查找）：1. 若找到了则返回<名为name的索引条目对象，该条目对象的结束偏移位置> 2. 若没找到，exactSearch为false说明可以模糊查找，则返回该节点里离名称为device的目标索引条目最近的上一个条目对象和对应的结束位置
-        getMetadataAndEndOffset(deviceMetadataIndexNode, device, true, false);
+    Pair<MetadataIndexEntry, Long> metadataIndexPair =//从指定的MetadataIndexNode节点对象里根据name查找对应的目标索引条目和它所指向的孩子节点的结束偏移位置（因此若是中间节点且不存在目标条目，则要递归到目标条目所在的叶子节点去查找）：1. 若找到了，则把该条目对应条目对象和该条目指向的子节点的结束位置放入pair对象里，即<名为key的索引条目对象，该条目指向的子节点的结束偏移位置> 2. 若没有找到，则若（1）exactSearch为true说明要精确查找，则返回null（2）exactSearch为false说明可以模糊查找，则返回该节点里离名称为key的目标索引条目最近的上一个条目对象和对应指向子节点的结束位置
+        getMetadataAndEndOffset(deviceMetadataIndexNode, device, true, false);//Todo:此处必须是要精确查询？！因为最后设备叶子节点一定会存在具体的该设备的条目
     if (metadataIndexPair == null) {  //Todo:bug?由于精度查询为false，因此可以模糊查询，不应该出现null
       return Collections.emptyList();
     }
     List<TimeseriesMetadata> resultTimeseriesMetadataList = new ArrayList<>();
     List<String> measurementList = new ArrayList<>(measurements);//初始化传感器列表
     Set<String> measurementsHadFound = new HashSet<>();
-    for (int i = 0; i < measurementList.size(); i++) {
+    for (int i = 0; i < measurementList.size(); i++) {//遍历每个传感器
       if (measurementsHadFound.contains(measurementList.get(i))) {
         continue;
       }
-      ByteBuffer buffer = readData(metadataIndexPair.left.getOffset(), metadataIndexPair.right);//将名为device变量的目标条目内容读取到buffer缓存
+      ByteBuffer buffer = readData(metadataIndexPair.left.getOffset(), metadataIndexPair.right);//将名为device变量的目标条目指向的子节点内容读取到buffer缓存，此处一定是属于该设备的传感器节点（可能中间或叶子）
       Pair<MetadataIndexEntry, Long> measurementMetadataIndexPair = metadataIndexPair;
       List<TimeseriesMetadata> timeseriesMetadataList = new ArrayList<>();
-      MetadataIndexNode metadataIndexNode = deviceMetadataIndexNode;
-      if (!metadataIndexNode.getNodeType().equals(MetadataIndexNodeType.LEAF_MEASUREMENT)) {
+      MetadataIndexNode metadataIndexNode = deviceMetadataIndexNode;//该文件的IndexOfTimeseriesIndex索引的第一个索引节点对象
+      if (!metadataIndexNode.getNodeType().equals(MetadataIndexNodeType.LEAF_MEASUREMENT)) {//若不是叶子传感器节点，则
         try {
-          metadataIndexNode = MetadataIndexNode.deserializeFrom(buffer);
+          metadataIndexNode = MetadataIndexNode.deserializeFrom(buffer);//将device变量的目标条目指向的子节点内容反序列化，即属于该设备的传感器节点
         } catch (BufferOverflowException e) {
           logger.error(METADATA_INDEX_NODE_DESERIALIZE_ERROR, file);
           throw e;
         }
-        measurementMetadataIndexPair =
+        measurementMetadataIndexPair =//获取属于该设备的该传感器的索引条目及其指向的子节点的结束位置。必须要用模糊查询，因为最后传感器叶子节点可能不包含具体的该传感器的条目，此时指向对应的TimeseriesIndex节点，它可能包含了多个时间序列的TimeseriesIndex
             getMetadataAndEndOffset(metadataIndexNode, measurementList.get(i), false, false);
       }
       if (measurementMetadataIndexPair == null) {
         return Collections.emptyList();
       }
-      buffer =
+      buffer =  //此时是包含该传感器的TimeseriesIndex节点的内容，它可能包含了多个时间序列的TimeseriesIndex
           readData(
               measurementMetadataIndexPair.left.getOffset(), measurementMetadataIndexPair.right);
-      while (buffer.hasRemaining()) {
+      while (buffer.hasRemaining()) {   //下面开始一次从buffer里读取一个个TimeseriesIndex，把所有读出来加入到临时列表里
         try {
           timeseriesMetadataList.add(TimeseriesMetadata.deserializeFrom(buffer, true));
         } catch (BufferOverflowException e) {
@@ -501,7 +501,7 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
           throw e;
         }
       }
-      for (int j = i; j < measurementList.size(); j++) {
+      for (int j = i; j < measurementList.size(); j++) {//从中获得想要的传感器的TimeseriesIndex并返回即可
         String current = measurementList.get(j);
         if (!measurementsHadFound.contains(current)) {
           int searchResult = binarySearchInTimeseriesMetadataList(timeseriesMetadataList, current);
@@ -842,8 +842,8 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
    * @param position the file offset of this chunk's header
    * @param chunkHeaderSize the size of chunk's header
    */
-  private ChunkHeader readChunkHeader(long position, int chunkHeaderSize) throws IOException {
-    return ChunkHeader.deserializeFrom(tsFileInput, position, chunkHeaderSize);
+  private ChunkHeader readChunkHeader(long position, int chunkHeaderSize) throws IOException {// 根据该Chunk的ChunkHeader在TsFile文件中的偏移量和该ChunkHeader的大小，使用TsFileInput对象来读取本地文件并反序列化成一个ChunkHeader对象
+    return ChunkHeader.deserializeFrom(tsFileInput, position, chunkHeaderSize);//使用TsFileInput对象从指定的ChunkHeader偏移量和ChunkHeader大小，来读取本地文件并反序列化成一个ChunkHeader对象
   }
 
   /**
@@ -853,7 +853,7 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
    * @param position the offset of the chunk data
    * @return the pages of this chunk
    */
-  private ByteBuffer readChunk(long position, int dataSize) throws IOException {
+  private ByteBuffer readChunk(long position, int dataSize) throws IOException {//从指定偏移量开始读取dataSize的大小到buffer缓存
     return readData(position, dataSize);
   }
 
@@ -863,12 +863,12 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
    * @param metaData -given chunk meta data
    * @return -chunk
    */
-  public Chunk readMemChunk(ChunkMetadata metaData) throws IOException {
-    int chunkHeadSize = ChunkHeader.getSerializedSize(metaData.getMeasurementUid());
-    ChunkHeader header = readChunkHeader(metaData.getOffsetOfChunkHeader(), chunkHeadSize);
+  public Chunk readMemChunk(ChunkMetadata metaData) throws IOException {  //根据传来的ChunkIndex，使用TsFileInput读取本地文件并反序列化成对应的Chunk对象
+    int chunkHeadSize = ChunkHeader.getSerializedSize(metaData.getMeasurementUid());//根据传感器ID获取对应Chunk的ChunkHeader的字节大小
+    ChunkHeader header = readChunkHeader(metaData.getOffsetOfChunkHeader(), chunkHeadSize);// 根据该Chunk的ChunkHeader在TsFile文件中的偏移量和该ChunkHeader的大小，使用TsFileInput对象来读取本地文件并反序列化成一个ChunkHeader对象
     ByteBuffer buffer =
         readChunk(
-            metaData.getOffsetOfChunkHeader() + header.getSerializedSize(), header.getDataSize());
+            metaData.getOffsetOfChunkHeader() + header.getSerializedSize(), header.getDataSize());//读取该Chunk的ChunkData到buffer缓存，即从该Chunk的ChunkData偏移量开始读取ChunkData的大小到buffer缓存
     return new Chunk(header, buffer, metaData.getDeleteIntervalList(), metaData.getStatistics());
   }
 

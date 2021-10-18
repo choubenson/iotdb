@@ -120,7 +120,7 @@ public class ChunkMetadata
    * @return Byte offset of header of this chunk (includes the marker)
    */
   @Override
-  public long getOffsetOfChunkHeader() {
+  public long getOffsetOfChunkHeader() {// 获取该Chunk的ChunkHeader在TsFile文件中的偏移量
     return offsetOfChunkHeader;
   }
 

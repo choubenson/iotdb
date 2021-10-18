@@ -134,7 +134,7 @@ public class PageHeader {
   }
 
   /** max page header size without statistics */
-  public int getSerializedPageSize() {
+  public int getSerializedPageSize() {  //获取此page（包括pageHeader+pageData）的全部大小
     return ReadWriteForEncodingUtils.uVarIntSize(uncompressedSize)
         + ReadWriteForEncodingUtils.uVarIntSize(compressedSize)
         + (statistics == null ? 0 : statistics.getSerializedSize()) // page header

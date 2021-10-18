@@ -30,11 +30,11 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 /** used in query. */
-public class Chunk implements Accountable {
+public class Chunk implements Accountable { //Chunk类，存放了该Chunk的数据信息
 
   private ChunkHeader chunkHeader;
   private Statistics chunkStatistic;
-  private ByteBuffer chunkData;
+  private ByteBuffer chunkData; //ChunkData，二进制流的形式，即pageHeader+pageData
   private boolean isFromOldFile = false;
   /** A list of deleted intervals. */
   private List<TimeRange> deleteIntervalList;

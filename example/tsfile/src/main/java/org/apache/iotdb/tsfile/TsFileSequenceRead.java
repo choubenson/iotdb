@@ -55,13 +55,13 @@ public class TsFileSequenceRead {
           "file length: " + FSFactoryProducer.getFSFactory().getFile(filename).length());
       System.out.println("file magic head: " + reader.readHeadMagic());
       System.out.println("file magic tail: " + reader.readTailMagic());
-      System.out.println("Level 1 metadata position: " + reader.getFileMetadataPos());
-      System.out.println("Level 1 metadata size: " + reader.getFileMetadataSize());
+      System.out.println("Level 1 metadata position: " + reader.getFileMetadataPos());//获取该TsFile的IndexOfTimeseriesIndex索引的开始处所在的偏移位置
+      System.out.println("Level 1 metadata size: " + reader.getFileMetadataSize());//该TsFile的IndexOfTimeseriesIndex索引内容的大小
       // Sequential reading of one ChunkGroup now follows this order:
       // first the CHUNK_GROUP_HEADER, then SeriesChunks (headers and data) in one ChunkGroup
       // Because we do not know how many chunks a ChunkGroup may have, we should read one byte (the
       // marker) ahead and judge accordingly.
-      reader.position((long) TSFileConfig.MAGIC_STRING.getBytes().length + 1);
+      reader.position((long) TSFileConfig.MAGIC_STRING.getBytes().length + 1);//将顺序读取器的指针移到MagicString 和 version后面
       System.out.println("[Chunk Group]");
       System.out.println("position: " + reader.position());
       byte marker;
@@ -84,7 +84,7 @@ public class TsFileSequenceRead {
                     TSDataType.INT64);
             Decoder valueDecoder =
                 Decoder.getDecoderByType(header.getEncodingType(), header.getDataType());
-            int dataSize = header.getDataSize();
+            int dataSize = header.getDataSize();  //获取该Chunk的ChunkData数据大小(即PageHeader+PageData)
             while (dataSize > 0) {
               valueDecoder.reset();
               System.out.println("\t\t[Page]\n \t\tPage head position: " + reader.position());
@@ -92,14 +92,14 @@ public class TsFileSequenceRead {
                   reader.readPageHeader(
                       header.getDataType(), header.getChunkType() == MetaMarker.CHUNK_HEADER);
               System.out.println("\t\tPage data position: " + reader.position());
-              ByteBuffer pageData = reader.readPage(pageHeader, header.getCompressionType());
+              ByteBuffer pageData = reader.readPage(pageHeader, header.getCompressionType()); // 根据pageHeader和压缩类型，把该page的二进制流数据进行解压后的二进制流数据存入ByteBuffer缓存并返回
               System.out.println(
                   "\t\tUncompressed page data size: " + pageHeader.getUncompressedSize());
               PageReader reader1 =
-                  new PageReader(
+                  new PageReader(     //创建该page的pageReader
                       pageData, header.getDataType(), valueDecoder, defaultTimeDecoder, null);
-              BatchData batchData = reader1.getAllSatisfiedPageData();
-              if (header.getChunkType() == MetaMarker.CHUNK_HEADER) {
+              BatchData batchData = reader1.getAllSatisfiedPageData(); // 读取该page所有满足条件（不在被删除时间范围内以及符合过滤器）的时间戳和对应的数据，放入BatchData类对象里并返回
+              if (header.getChunkType() == MetaMarker.CHUNK_HEADER) { //1代表该Page有1个或多个page,则可以直接从pageHeader的statistics获取数据点的数量；否则pageHeader是没有统计量的
                 System.out.println("\t\tpoints in the page: " + pageHeader.getNumOfValues());
               } else {
                 System.out.println("\t\tpoints in the page: " + batchData.length());
@@ -112,7 +112,7 @@ public class TsFileSequenceRead {
                         + batchData.currentValue());
                 batchData.next();
               }
-              dataSize -= pageHeader.getSerializedPageSize();
+              dataSize -= pageHeader.getSerializedPageSize();//ChunkData剩余数据大小-此page（包括pageHeader+pageData）的全部大小
             }
             break;
           case MetaMarker.CHUNK_GROUP_HEADER:

@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * FileReaderManager is a singleton, which is used to manage all file readers(opened file streams)
  * to ensure that each file is opened at most once.
  */
-public class FileReaderManager implements IService {
+public class FileReaderManager implements IService {//文件阅读器管理类，它是单例的，负责管理所有的打开的文件流，保证每个TsFile文件最多只被打开一次
 
   private static final Logger logger = LoggerFactory.getLogger(FileReaderManager.class);
   private static final Logger resourceLogger = LoggerFactory.getLogger("FileMonitor");

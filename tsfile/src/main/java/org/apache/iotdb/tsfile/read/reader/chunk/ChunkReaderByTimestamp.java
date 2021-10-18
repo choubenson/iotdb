@@ -23,9 +23,9 @@ import org.apache.iotdb.tsfile.read.common.Chunk;
 
 import java.io.IOException;
 
-public class ChunkReaderByTimestamp extends ChunkReader {
+public class ChunkReaderByTimestamp extends ChunkReader {//根据时间戳读取的ChunkReader
 
-  private long currentTimestamp;
+  private long currentTimestamp;  //当前的时间戳
 
   public ChunkReaderByTimestamp(Chunk chunk) throws IOException {
     super(chunk, null);

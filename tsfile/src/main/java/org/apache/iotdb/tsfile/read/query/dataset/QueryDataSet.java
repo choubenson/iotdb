@@ -105,7 +105,7 @@ public abstract class QueryDataSet {  //查询结果数据集
       if (hasNextWithoutConstraint()) {
         RowRecord rowRecord = nextWithoutConstraint(); // DO NOT use next()
         // filter rows whose columns are null according to the rule
-        if ((withoutAllNull && rowRecord.isAllNull())
+        if ((withoutAllNull && rowRecord.isAllNull()) //判断是否不能有空值
             || (withoutAnyNull && rowRecord.hasNullField())) {
           continue;
         }
@@ -126,7 +126,7 @@ public abstract class QueryDataSet {  //查询结果数据集
   public abstract boolean hasNextWithoutConstraint() throws IOException;
 
   /** This method is used for batch query, return RowRecord. */
-  public RowRecord next() throws IOException {
+  public RowRecord next() throws IOException {  //获取当前查询结果集的下一条查询数据rowRecord
     if (rowLimit > 0) {
       alreadyReturnedRowNum++;
     }
@@ -137,7 +137,7 @@ public abstract class QueryDataSet {  //查询结果数据集
     this.fetchSize = fetchSize;
   }
 
-  public abstract RowRecord nextWithoutConstraint() throws IOException;
+  public abstract RowRecord nextWithoutConstraint() throws IOException;//获取该查询结果集的下一条RowRecord
 
   public List<Path> getPaths() {
     return paths;

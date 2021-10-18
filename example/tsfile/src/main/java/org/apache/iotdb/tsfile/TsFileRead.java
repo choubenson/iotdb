@@ -46,7 +46,7 @@ public class TsFileRead {
       ArrayList<Path> paths, ReadOnlyTsFile readTsFile, IExpression statement) throws IOException {
     QueryExpression queryExpression =
         QueryExpression.create(paths, statement); // 使用时间序列路径列表和表达式创建查询表达式类
-    QueryDataSet queryDataSet = readTsFile.query(queryExpression);
+    QueryDataSet queryDataSet = readTsFile.query(queryExpression);//根据给定的查询表达式，（1）首先把此次查询中属于该TsFile的时间序列路径加入列表里（一个查询可能涉及到多个不同TsFile的多个时间序列）（2）获取该次查询在该TsFile的每个时间序列对应的所有ChunkIndex放入该TsFile的元数据查询器里的chunkMetaDataCache缓存里（3）通过判断该次查询是否有过滤器，有的话则创建DataSetWithTimeGenerator查询结果集对象并返回，没有则创建DataSetWithoutTimeGenerator查询结果集对象返回
     while (queryDataSet.hasNext()) {
       System.out.println(queryDataSet.next());
     }
@@ -56,7 +56,7 @@ public class TsFileRead {
   public static void main(String[] args) throws IOException {
 
     // file path
-    String path = "test.tsfile";
+    String path = "C:\\IOTDB\\sourceCode\\choubenson\\iotdb\\test.tsfile";
 
     // create reader and get the readTsFile interface
     try (TsFileSequenceReader reader = new TsFileSequenceReader(path);

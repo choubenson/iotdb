@@ -32,7 +32,7 @@ public interface Filter { // 过滤器基类
    *
    * @param statistics statistics with min time, max time, min value, max value.
    */
-  boolean satisfy(Statistics statistics);
+  boolean satisfy(Statistics statistics); //根据统计量判断该统计量对应的数据是否存在满足此过滤器的数据，若存在则返回true
 
   /**
    * To examine whether the single point(with time and value) is satisfied with the filter.

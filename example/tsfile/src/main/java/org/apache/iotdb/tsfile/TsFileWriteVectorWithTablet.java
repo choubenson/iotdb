@@ -53,7 +53,7 @@ public class TsFileWriteVectorWithTablet {
 
       Schema schema = new Schema(); // 目前在使用TSFile
       // API进行插入多元序列时，需要先新建一个Schema配置类对象，后续往该配置类对象里注册多元时间序列,然后用该schema创建TsFileWriter
-
+      //此处创建的数据结构是一个设备一个多元传感器，该多元传感器有十个子传感器分量，而共有10000行数据
       String device = Constant.DEVICE_PREFIX + 1;
       String sensorPrefix = "sensor_";
       String vectorName = "vector1";
@@ -73,7 +73,7 @@ public class TsFileWriteVectorWithTablet {
         dataTypes[i] = TSDataType.INT64;
       }
       // vector schema
-      IMeasurementSchema vectorMeasurementSchema = // 创建多元传感器配置类对象
+      IMeasurementSchema vectorMeasurementSchema = // 创建多元传感器配置类对象，每个多元传感器有是个子分量传感器
           new VectorMeasurementSchema(vectorName, measurementNames, dataTypes);
       measurementSchemas.add(vectorMeasurementSchema);
       schema.registerTimeseries(

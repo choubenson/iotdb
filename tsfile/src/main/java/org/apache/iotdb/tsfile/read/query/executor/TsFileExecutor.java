@@ -53,8 +53,8 @@ public class TsFileExecutor implements QueryExecutor {  //TsFile执行器，用�
     this.chunkLoader = chunkLoader;
   }
 
-  @Override
-  public QueryDataSet execute(QueryExpression queryExpression) throws IOException {
+  @Override     //此方法允许用户对该TsFile查询里面的某些时间序列满足过滤器的数据，而这些时间序列和过滤器都是封装在QueryExpression查询表达式对象里的。
+  public QueryDataSet execute(QueryExpression queryExpression) throws IOException {//根据给定的查询表达式，（1）首先把此次查询中属于该TsFile的时间序列路径加入列表里（一个查询可能涉及到多个不同TsFile的多个时间序列）（2）获取该次查询在该TsFile的每个时间序列对应的所有ChunkIndex放入该TsFile的元数据查询器里的chunkMetaDataCache缓存里（3）通过判断该次查询是否有过滤器，有的话则创建DataSetWithTimeGenerator查询结果集对象并返回，没有则创建DataSetWithoutTimeGenerator查询结果集对象返回
     // bloom filter
     BloomFilter bloomFilter = metadataQuerier.getWholeFileMetadata().getBloomFilter();//使用该文件的元数据查询器获取该文件的TsFileMetadata对象（即IndexOfTimeseriesIndex索引内容）里的布隆过滤器
     List<Path> filteredSeriesPath = new ArrayList<>();  //用于存放该TsFile包含了此次查询的哪些时间序列路径
@@ -67,7 +67,7 @@ public class TsFileExecutor implements QueryExecutor {  //TsFile执行器，用�
       queryExpression.setSelectSeries(filteredSeriesPath);  //重新设置此次查询表达式queryExpression的时间序列路径列表
     }
 
-    metadataQuerier.loadChunkMetaDatas(queryExpression.getSelectedSeries());//针对给定时间序列路径列表，获取每个时间序列各自对应在该TsFile里的所有ChunkIndex放入chunkMetaDataCache缓存里。具体做法是：1. 首先将整理每个DeviceID对应有哪些MeasurementId  2.遍历每个设备ID和对应的传感器集合：（1）获得对应的TimeseriesIndex列表（2）对每个TimeseriesIndex获取其所有的ChunkIndex依次放入一个列表里（3）遍历所有的ChunkIndex列表，把属于该次遍历的传感器的ChunkIndex对象加入对应时间序列的缓存变量里
+    metadataQuerier.loadChunkMetaDatas(queryExpression.getSelectedSeries());//针对给定时间序列路径列表，获取该次查询在该TsFile的每个时间序列对应的所有ChunkIndex放入该TsFile的元数据查询器里的chunkMetaDataCache缓存里。具体做法是：1. 首先将整理每个DeviceID对应有哪些MeasurementId  2.遍历每个设备ID和对应的传感器集合：（1）获得对应的TimeseriesIndex列表（2）对每个TimeseriesIndex获取其所有的ChunkIndex依次放入一个列表里（3）遍历所有的ChunkIndex列表，把属于该次遍历的传感器的ChunkIndex对象加入对应时间序列的缓存变量里
     if (queryExpression.hasQueryFilter()) { //若该次查询有查询的条件过滤器，则
       try {
         IExpression expression = queryExpression.getExpression(); //获取该次查询的表达式
@@ -81,14 +81,14 @@ public class TsFileExecutor implements QueryExecutor {  //TsFile执行器，用�
               queryExpression.getSelectedSeries(), (GlobalTimeExpression) regularIExpression);
         } else {//否则是SingleSeriesExpression类型
           return new ExecutorWithTimeGenerator(metadataQuerier, chunkLoader)
-              .execute(queryExpression);
+              .execute(queryExpression);//通过查询表达式计算该次查询的所有时间序列对应的是否有过滤器以及对应的“文件序列的时间戳阅读器”和一个TsFileTimeGenerator对象，以此创建DataSetWithTimeGenerator查询结果集对象并返回
         }
       } catch (QueryFilterOptimizationException | NoMeasurementException e) {
         throw new IOException(e);
       }
-    } else {
+    } else {//若该次查询没有查询的条件过滤器，则
       try {
-        return execute(queryExpression.getSelectedSeries());
+        return execute(queryExpression.getSelectedSeries());//根据给定的该次查询的时间序列路径列表，获取对应的数据类型列表和文件序列读取器列表并创建DataSetWithoutTimeGenerator查询结果集对象返回
       } catch (NoMeasurementException e) {
         throw new IOException(e);
       }
@@ -169,7 +169,7 @@ public class TsFileExecutor implements QueryExecutor {  //TsFile执行器，用�
    * @param timeExpression a GlobalTimeExpression or null
    * @return DataSetWithoutTimeGenerator
    */
-  private QueryDataSet executeMayAttachTimeFiler(//根据给定的该次查询的时间序列路径列表和表达式，获取对应的数据类型列表和文件序列读取器列表并创建DataSetWithoutTimeGenerator查询结果集对象返回
+  private QueryDataSet executeMayAttachTimeFiler(//根据给定的该次查询的时间序列路径列表和表达式，获取每个序列对应的数据类型列表和文件序列读取器列表并创建DataSetWithoutTimeGenerator查询结果集对象返回
       List<Path> selectedPathList, GlobalTimeExpression timeExpression)
       throws IOException, NoMeasurementException {
     List<AbstractFileSeriesReader> readersOfSelectedSeries = new ArrayList<>();//文件序列读取器列表
@@ -185,7 +185,7 @@ public class TsFileExecutor implements QueryExecutor {  //TsFile执行器，用�
         if (timeExpression == null) {//若该查询的表达式为空，即没有条件过滤器，则创建一个Filter为空的FileSeriesReader文件序列读取器
           seriesReader = new FileSeriesReader(chunkLoader, chunkMetadataList, null);
         } else {
-          seriesReader =//创建一个Filter不为空的FileSeriesReader文件序列读取器
+          seriesReader =//创建一个Filter不为空的属于该序列的FileSeriesReader文件序列读取器
               new FileSeriesReader(chunkLoader, chunkMetadataList, timeExpression.getFilter());
         }
         dataTypes.add(chunkMetadataList.get(0).getDataType());//将该时间序列的数据类型加入列表里

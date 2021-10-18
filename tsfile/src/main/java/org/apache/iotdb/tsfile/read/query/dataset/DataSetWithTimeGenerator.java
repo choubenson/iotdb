@@ -34,8 +34,8 @@ import java.util.List;
 public class DataSetWithTimeGenerator extends QueryDataSet {
 
   private TimeGenerator timeGenerator;
-  private List<FileSeriesReaderByTimestamp> readers;
-  private List<Boolean> cached;
+  private List<FileSeriesReaderByTimestamp> readers;  //存放了每个时间序列专属的“文件序列的时间戳阅读器”，若某序列有数值过滤器，则其“文件序列的时间戳阅读器”为Null
+  private List<Boolean> cached;//存放每个时间序列对应是否有数值过滤器，有的话则为true
 
   /**
    * constructor of DataSetWithTimeGenerator.
@@ -65,21 +65,21 @@ public class DataSetWithTimeGenerator extends QueryDataSet {
 
   @Override
   public RowRecord nextWithoutConstraint() throws IOException {
-    long timestamp = timeGenerator.next();
-    RowRecord rowRecord = new RowRecord(timestamp);
+    long timestamp = timeGenerator.next();  //从当前结果集获取下一条数据的时间戳
+    RowRecord rowRecord = new RowRecord(timestamp); //用时间戳创建RowRecord对象
 
-    for (int i = 0; i < paths.size(); i++) {
+    for (int i = 0; i < paths.size(); i++) {//遍历每个时序
 
       // get value from readers in time generator
-      if (cached.get(i)) {
+      if (cached.get(i)) {  //若当前时间序列有数值过滤器
         Object value = timeGenerator.getValue(paths.get(i));
         rowRecord.addField(value, dataTypes.get(i));
         continue;
       }
 
       // get value from series reader without filter
-      FileSeriesReaderByTimestamp fileSeriesReaderByTimestamp = readers.get(i);
-      Object value = fileSeriesReaderByTimestamp.getValueInTimestamp(timestamp);
+      FileSeriesReaderByTimestamp fileSeriesReaderByTimestamp = readers.get(i);//获取该时序的“文件序列的时间戳阅读器”
+      Object value = fileSeriesReaderByTimestamp.getValueInTimestamp(timestamp);//get value with time equals timestamp. If there is no such point, return null.
       rowRecord.addField(value, dataTypes.get(i));
     }
 

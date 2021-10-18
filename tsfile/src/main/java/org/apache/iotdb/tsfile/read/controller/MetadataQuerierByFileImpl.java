@@ -66,7 +66,7 @@ public class MetadataQuerierByFileImpl implements IMetadataQuerier { // 某个�
   }
 
   @Override
-  public List<IChunkMetadata> getChunkMetaDataList(Path path) throws IOException {  //从chunkMetaDataCache缓存里获取该时间序列路径对应的ChunkIndex
+  public List<IChunkMetadata> getChunkMetaDataList(Path path) throws IOException {  //从chunkMetaDataCache缓存里获取该时间序列路径对应的ChunkIndex列表
     return new ArrayList<>(chunkMetaDataCache.get(path));
   }
 
@@ -149,7 +149,7 @@ public class MetadataQuerierByFileImpl implements IMetadataQuerier { // 某个�
       }
     }
 
-    for (Map.Entry<Path, List<ChunkMetadata>> entry : tempChunkMetaDatas.entrySet()) {  //把tempChunkMetaDatas里的内容放入chunkMetaDataCache变量里
+    for (Map.Entry<Path, List<ChunkMetadata>> entry : tempChunkMetaDatas.entrySet()) {  //把tempChunkMetaDatas里的内容放入chunkMetaDataCache变量缓存里
       chunkMetaDataCache.put(entry.getKey(), entry.getValue());
     }
   }

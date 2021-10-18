@@ -36,7 +36,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-public class PageReader implements IPageReader { // page读取接口的具体实现类
+public class PageReader implements IPageReader { // page读取接口的具体实现类，一个PageReader一次读取出来的数据量就是BatchData
 
   private PageHeader pageHeader;
 
