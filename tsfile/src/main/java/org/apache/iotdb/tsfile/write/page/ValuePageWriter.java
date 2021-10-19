@@ -92,11 +92,11 @@ public class ValuePageWriter {
   }
 
   /** write a time value pair into encoder */
-  public void write(long time, int value, boolean isNull) {
+  public void write(long time, int value, boolean isNull) { //第三个参数是判断该多元传感器的该分量是不是为null
     setBit(isNull);
     if (!isNull) {
-      valueEncoder.encode(value, valueOut);
-      statistics.update(time, value);
+      valueEncoder.encode(value, valueOut);// 对value进行编码后，写入valueOut写入流的buffer缓存里
+      statistics.update(time, value);// 每向该page插入一次数据就要更新该page相应的statistics统计量数据
     }
   }
 
@@ -198,7 +198,7 @@ public class ValuePageWriter {
   /** flush all data remained in encoders. */
   private void prepareEndWriteOnePage() throws IOException {
     valueEncoder.flush(valueOut);
-    if (size % 8 != 0) {
+    if (size % 8 != 0) {//把bitmap数组中还未写到bitmapOut缓存流的数据写入
       bitmapOut.write(bitmap);
     }
   }
@@ -210,7 +210,7 @@ public class ValuePageWriter {
    * @return a new readable ByteBuffer whose position is 0.
    */
   public ByteBuffer getUncompressedBytes() throws IOException {
-    prepareEndWriteOnePage(); // 对那些还残留在该ValuePageWriter的数值编码器中的数据，把他们写入该pageWriter对应的输出流valueOut的缓存中（而输出写入流valueOut缓存里的数据何时flush到输出写入流指定的本地文件里取决于OutputStream的机制）
+    prepareEndWriteOnePage(); // 对那些还残留在该ValuePageWriter的数值编码器中的数据，把他们写入该ValuePageWriter对应的输出流valueOut的缓存中（而输出写入流valueOut缓存里的数据何时flush到输出写入流指定的本地文件里取决于OutputStream的机制）
     ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + bitmapOut.size() + valueOut.size());
     buffer.putInt(size);
     buffer.put(bitmapOut.getBuf(), 0, bitmapOut.size());
@@ -222,12 +222,12 @@ public class ValuePageWriter {
   /** write the page header and data into the PageWriter's output stream. */
   public int writePageHeaderAndDataIntoBuff(PublicBAOS pageBuffer, boolean first)
       throws
-          IOException { // 把该pageWriter对象暂存的数据（pageHeader和pageData，pageData需考虑是否经过压缩compress）依次写入该Chunk的ValueChunkWriter的输出流pageBuffer的缓冲数组里（即先写入该Page的PageHeader，再写入PageData，其中pageData依次存放了和数值分量），返回的内容是：(1)若要写入的数据所属page是Chunk的第一个page，则返回写入的pageHeader去掉statistics的字节数（2）若不是第一个page，则返回0
+          IOException { // 把该pageWriter对象暂存的数据（pageHeader和该子分量的内容bitmapOut和valueOut，需考虑是否经过压缩compress）依次写入该Chunk的TimeChunkWriter的输出流pageBuffer的缓冲数组里（即先写入该Page的PageHeader，再写入该子分量的内容bitmapOut和valueOut），返回的内容是：(1)若要写入的数据所属page是Chunk的第一个page，则返回写入的pageHeader去掉statistics的字节数（2）若不是第一个page，则返回0
     if (size == 0) {
       return 0;
     }
 
-    ByteBuffer pageData = getUncompressedBytes();
+    ByteBuffer pageData = getUncompressedBytes();// 新建一个ByteBuffer，并先后往里写入该ValuePageWriter的bitmapOut和valueOut缓存流里的内容，并返回此ByteBuffer
     int uncompressedSize = pageData.remaining();
     int compressedSize;
     byte[] compressedBytes = null;
@@ -237,14 +237,14 @@ public class ValuePageWriter {
     } else {
       compressedBytes = new byte[compressor.getMaxBytesForCompression(uncompressedSize)];
       // data is never a directByteBuffer now, so we can use data.array()
-      compressedSize =
+      compressedSize =//将未经压缩的该多元传感器的bitmapOut和valueOut内容进行压缩到compressedBytes数组里
           compressor.compress(
               pageData.array(), pageData.position(), uncompressedSize, compressedBytes);
     }
 
     // write the page header to IOWriter
     int sizeWithoutStatistic = 0;
-    if (first) {
+    if (first) { // 如果该page是所属Chunk的第一个page，则（此处不用往Chunk的TimeChunkWriter对象的pageBuffer输出流缓存写入statistics）
       sizeWithoutStatistic +=
           ReadWriteForEncodingUtils.writeUnsignedVarInt(uncompressedSize, pageBuffer);
       sizeWithoutStatistic +=
@@ -252,7 +252,7 @@ public class ValuePageWriter {
     } else {
       ReadWriteForEncodingUtils.writeUnsignedVarInt(uncompressedSize, pageBuffer);
       ReadWriteForEncodingUtils.writeUnsignedVarInt(compressedSize, pageBuffer);
-      statistics.serialize(pageBuffer);
+      statistics.serialize(pageBuffer); // 往该Chunk的TimeChunkWriter对象的pageBuffer输出流缓存写入statistics统计量数据
     }
 
     // write page content to temp PBAOS

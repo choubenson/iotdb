@@ -64,9 +64,9 @@ public class TsFileRead {
 
       // use these paths(all measurements) for all the queries
       ArrayList<Path> paths = new ArrayList<>(); // 存放了一堆时间序列路径
-      paths.add(new Path(DEVICE1, "sensor_1"));
-      paths.add(new Path(DEVICE1, "sensor_2"));
-      paths.add(new Path(DEVICE1, "sensor_3"));
+//      paths.add(new Path(DEVICE1, "sensor_1"));
+//      paths.add(new Path(DEVICE1, "sensor_2"));
+      paths.add(new Path(DEVICE1, "sensor_77"));
 
       // no filter, should select 1 2 3 4 6 7 8
       queryAndPrint(paths, readTsFile, null);
@@ -78,7 +78,7 @@ public class TsFileRead {
               new GlobalTimeExpression(TimeFilter.ltEq(10L)));
       queryAndPrint(paths, readTsFile, timeFilter);
 
-      // value filter : device_1.sensor_2 <= 20, should select 1 2 4 6 7
+      // value filter : device_1.sensor_2 <= 20, should select 1 2 4 6 7 //Todo:bug?test!!
       IExpression valueFilter =
           new SingleSeriesExpression(new Path(DEVICE1, "sensor_2"), ValueFilter.ltEq(20L));
       queryAndPrint(paths, readTsFile, valueFilter);

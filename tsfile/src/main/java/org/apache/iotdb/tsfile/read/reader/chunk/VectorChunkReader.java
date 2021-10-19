@@ -40,8 +40,8 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-
-public class VectorChunkReader implements IChunkReader {
+        //一个VectorChunk（包含了TimeChunk和多个ValueChunk），而一个VectorChunk又有一个VectorPage（包含了一个TimePage和多个ValuePage）
+public class VectorChunkReader implements IChunkReader {  //多元传感器的ChunkReader
 
   // chunk header of the time column
   private final ChunkHeader timeChunkHeader;
@@ -84,17 +84,17 @@ public class VectorChunkReader implements IChunkReader {
           valueChunkStatisticsList.add(chunk.getChunkStatistic());
           valueDeleteIntervalList.add(chunk.getDeleteIntervalList());
         });
-    initAllPageReaders(timeChunk.getChunkStatistic(), valueChunkStatisticsList);
+    initAllPageReaders(timeChunk.getChunkStatistic(), valueChunkStatisticsList);//通过读取该VectorChunk的所有VectorPage的内容来初始化对应的所有满足条件（存在未被删除且满足过滤器的数据的page）的VectorPage的VectorPageReader
   }
 
   /** construct all the page readers in this chunk */
-  private void initAllPageReaders(
+  private void initAllPageReaders( //通过读取该VectorChunk的所有VectorPage的内容来初始化对应的所有满足条件（存在未被删除且满足过滤器的数据的page）的VectorPage的VectorPageReader
       Statistics timeChunkStatistics, List<Statistics> valueChunkStatisticsList)
       throws IOException {
     // construct next satisfied page header
     while (timeChunkDataBuffer.remaining() > 0) {
       // deserialize a PageHeader from chunkDataBuffer
-      PageHeader timePageHeader;
+      PageHeader timePageHeader;  //该多元传感器的时间戳
       List<PageHeader> valuePageHeaderList = new ArrayList<>();
       // mask the two highest bit
       // this chunk has only one page
@@ -116,7 +116,7 @@ public class VectorChunkReader implements IChunkReader {
       }
       // if the current page satisfies
       if (pageSatisfied(timePageHeader)) {
-        pageReaderList.add(constructPageReaderForNextPage(timePageHeader, valuePageHeaderList));
+        pageReaderList.add(constructPageReaderForNextPage(timePageHeader, valuePageHeaderList));//通过读取对应page的经压缩后的pageData并进行解压后，创建属于该page的VectorPageReader
       } else {
         skipBytesInStreamByLength(timePageHeader, valuePageHeaderList);
       }
@@ -142,7 +142,7 @@ public class VectorChunkReader implements IChunkReader {
     return filter == null || filter.satisfy(pageHeader.getStatistics());
   }
 
-  private VectorPageReader constructPageReaderForNextPage(
+  private VectorPageReader constructPageReaderForNextPage(//通过读取对应page的经压缩后的pageData并进行解压后，创建属于该page的VectorPageReader
       PageHeader timePageHeader, List<PageHeader> valuePageHeader) throws IOException {
     PageInfo timePageInfo = new PageInfo();
     getPageInfo(timePageHeader, timeChunkDataBuffer, timeChunkHeader, timePageInfo);

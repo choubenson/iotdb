@@ -30,10 +30,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class VectorChunkWriterImpl implements IChunkWriter {
+public class VectorChunkWriterImpl implements IChunkWriter {//多元传感器的ChunkWriter。一个多元传感器里每个子分量（不含时间）会有自己的ValueChunkWriter和对应的ValuePageWriter,因为数据类型等属性都不一样，但是只有一个TimeChunkWriter
 
-  private final TimeChunkWriter timeChunkWriter;
-  private final List<ValueChunkWriter> valueChunkWriterList;
+  private final TimeChunkWriter timeChunkWriter;  //时间分量的timeChunkWriter
+  private final List<ValueChunkWriter> valueChunkWriterList;  //数值分量的ValueChunkWriter列表
   private int valueIndex;
 
   /** @param schema schema of this measurement */
@@ -67,7 +67,7 @@ public class VectorChunkWriterImpl implements IChunkWriter {
   }
 
   @Override
-  public void write(long time, int value, boolean isNull) {
+  public void write(long time, int value, boolean isNull) {//使用该多元传感器的该子分量的ValueChunkWriter把该value写入其pageWriter的valueOut写入流缓存里。注意：此处只会写入value到缓存，time不会被写入
     valueChunkWriterList.get(valueIndex++).write(time, value, isNull);
   }
 
@@ -97,11 +97,11 @@ public class VectorChunkWriterImpl implements IChunkWriter {
   }
 
   @Override
-  public void write(long time) {
+  public void write(long time) {//往该多元传感器的TimeChunkWriter的pageWriter写入时间戳到其timeOut缓存里，并判断是否需要开启一个新的page,若需要，则将该多元传感器的TimePage的内容（pageHeader和时间戳列，即TimePageWriter对象里输出流timeOut的缓存数据）和每个ValuePage的内容（pageHeader和该子分量的数值内容，即对应ValuePageWriter里的bitmapOut和valueOut缓存）写到对应TimeChunkWriter和各子分量ValueChunkWriter的pageBuffer缓存里
     valueIndex = 0;
-    timeChunkWriter.write(time);
-    if (checkPageSizeAndMayOpenANewPage()) {
-      writePageToPageBuffer();
+    timeChunkWriter.write(time);//往该多元传感器的TimeChunkWriter的pageWriter写入时间戳到其timeOut缓存里
+    if (checkPageSizeAndMayOpenANewPage()) {//根据时间分量占用的大小判断是否需要开启一个新的page,若需要，则
+      writePageToPageBuffer();//将该多元传感器的TimePage的内容（pageHeader和时间戳列，即TimePageWriter对象里输出流timeOut的缓存数据）和每个ValuePage的内容（pageHeader和该子分量的数值内容，即对应ValuePageWriter里的bitmapOut和valueOut缓存）写到对应TimeChunkWriter和各子分量ValueChunkWriter的pageBuffer缓存里
     }
   }
 
@@ -140,22 +140,22 @@ public class VectorChunkWriterImpl implements IChunkWriter {
    * check occupied memory size, if it exceeds the PageSize threshold, construct a page and put it
    * to pageBuffer
    */
-  private boolean checkPageSizeAndMayOpenANewPage() {
-    return timeChunkWriter.checkPageSizeAndMayOpenANewPage();
+  private boolean checkPageSizeAndMayOpenANewPage() {//根据时间分量占用的大小判断是否需要开启一个新的page
+    return timeChunkWriter.checkPageSizeAndMayOpenANewPage();//根据时间分量占用的大小判断是否需要开启一个新的page
   }
 
-  private void writePageToPageBuffer() {
-    timeChunkWriter.writePageToPageBuffer();
+  private void writePageToPageBuffer() {//将该多元传感器的TimePage的内容（pageHeader和时间戳列，即TimePageWriter对象里输出流timeOut的缓存数据）和每个ValuePage的内容（pageHeader和该子分量的数值内容，即对应ValuePageWriter里的bitmapOut和valueOut缓存）写到对应TimeChunkWriter和各子分量ValueChunkWriter的pageBuffer缓存里
+    timeChunkWriter.writePageToPageBuffer();// 往对应多元传感器Chunk的TimeChunkWriter的输出流pageBuffer缓存里写入该page的pageHeader和时间戳列（即TimePageWriter对象里输出流timeOut的缓存数据），最后重置该TimePageWriter
     for (ValueChunkWriter valueChunkWriter : valueChunkWriterList) {
-      valueChunkWriter.writePageToPageBuffer();
+      valueChunkWriter.writePageToPageBuffer();// 往对应多元传感器Chunk的某子分量的ValueChunkWriter的输出流pageBuffer缓存里写入该page的pageHeader和该子分量的数值内容（即对应ValuePageWriter里的bitmapOut和valueOut缓存），最后重置该TimePageWriter
     }
   }
 
   @Override
-  public void writeToFileWriter(TsFileIOWriter tsfileWriter) throws IOException {
-    timeChunkWriter.writeToFileWriter(tsfileWriter);
+  public void writeToFileWriter(TsFileIOWriter tsfileWriter) throws IOException {//先后一次对TimeChunkWriter和每个子传感器的ValueChunkWriter执行以下操作：1. 封口当前子传感器的TimePage/ValuePage的内容（即TimePageWriter/ValuePageWriter对象里输出流timeOut/bitmapOut和valueOut的缓存数据）到此TimeChunkWriter/ValueChunkWriter的输出流pageBuffer缓存里 2. 把当前TimeChunk/ValueChunk的ChunkHeader和TimeChunkWriter/ValueChunkWriter里pageBuffer缓存的内容（该chunk所有page的pageHeader+timeOut/bitmapOut和valueOut）写到该TsFileIOWriter对象的out缓存里 ,并初始化当前Chunk的ChunkIndex对象并放到TsFileIOWriter里
+    timeChunkWriter.writeToFileWriter(tsfileWriter);//1. 封口当前TimePage的内容（即TimePageWriter对象里输出流timeOut的缓存数据）到TimeChunkWriter的输出流pageBuffer缓存里 2. 把当前Chunk的ChunkHeader和TimeChunkWriter里pageBuffer缓存的内容（该chunk所有page的pageHeader+时间戳列）写到该TsFileIOWriter对象的out缓存里 ,并初始化当前Chunk的ChunkIndex对象并放到TsFileIOWriter里
     for (ValueChunkWriter valueChunkWriter : valueChunkWriterList) {
-      valueChunkWriter.writeToFileWriter(tsfileWriter);
+      valueChunkWriter.writeToFileWriter(tsfileWriter);//1. 封口当前子传感器的ValuePage的内容（即ValuePageWriter对象里输出流bitmapOut和valueOut的缓存数据）到此ValueChunkWriter的输出流pageBuffer缓存里 2. 把当前ValueChunk的ChunkHeader和ValueChunkWriter里pageBuffer缓存的内容（该chunk所有page的pageHeader+bitmapOut和valueOut）写到该TsFileIOWriter对象的out缓存里 ,并初始化当前Chunk的ChunkIndex对象并放到TsFileIOWriter里
     }
   }
 
@@ -178,8 +178,8 @@ public class VectorChunkWriterImpl implements IChunkWriter {
   }
 
   @Override
-  public void sealCurrentPage() {
-    timeChunkWriter.sealCurrentPage();
+  public void sealCurrentPage() { //封口TimePageWriter的内容到TimeChunkWriter的pageBuffer和封口每个ValuePageWriter的内容（该子分量的数值内容（即对应ValuePageWriter里的bitmapOut和valueOut缓存）到各自的ValueChunkWriter的pageBuffer里
+    timeChunkWriter.sealCurrentPage();//封口TimeChunkWriter的当前PageWriter的内容，即往对应多元Chunk的TimeChunkWriter的输出流pageBuffer缓存里写入该page的pageHeader和时间戳列（即TimePageWriter对象里输出流timeOut的缓存数据），最后重置该TimePageWriter
     for (ValueChunkWriter valueChunkWriter : valueChunkWriterList) {
       valueChunkWriter.sealCurrentPage();
     }

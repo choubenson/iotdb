@@ -128,7 +128,7 @@ public class ChunkReader implements IChunkReader {  //一个时间序列的Chunk
         if (range.contains(pageHeader.getStartTime(), pageHeader.getEndTime())) {//若该page的数据全被删了，则返回false
           return false;
         }
-        if (range.overlaps(new TimeRange(pageHeader.getStartTime(), pageHeader.getEndTime()))) {
+        if (range.overlaps(new TimeRange(pageHeader.getStartTime(), pageHeader.getEndTime()))) {//若当前page存在被删除的数据，即该page时间戳区间与删除区间有重叠，则设置当前page是已经被修改过的
           pageHeader.setModified(true);
         }
       }

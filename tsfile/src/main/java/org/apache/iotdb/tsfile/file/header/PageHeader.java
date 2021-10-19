@@ -33,7 +33,7 @@ public class PageHeader {
   private int uncompressedSize; // 压缩前的page data大小
   private int compressedSize; // 压缩后的page data大小
   private Statistics<? extends Serializable> statistics;
-  private boolean modified;
+  private boolean modified; //判断当前Page是否被修改过，即存在被删除的数据，若有则为true
 
   public PageHeader(
       int uncompressedSize, int compressedSize, Statistics<? extends Serializable> statistics) {

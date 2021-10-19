@@ -254,22 +254,22 @@ public class FileLoaderUtils {
    * @param timeFilter it should be a TimeFilter instead of a ValueFilter
    */
   public static List<IPageReader> loadPageReaderList(
-      IChunkMetadata chunkMetaData, Filter timeFilter) throws IOException {
+      IChunkMetadata chunkMetaData, Filter timeFilter) throws IOException { //该ChunkIndex可能是个VectorChunkIndex，即可能一元或多元
     if (chunkMetaData == null) {
       throw new IOException("Can't init null chunkMeta");
     }
     IChunkReader chunkReader;
     IChunkLoader chunkLoader = chunkMetaData.getChunkLoader();
-    if (chunkLoader instanceof MemChunkLoader) {
+    if (chunkLoader instanceof MemChunkLoader) {  //从内存读取
       MemChunkLoader memChunkLoader = (MemChunkLoader) chunkLoader;
       chunkReader = new MemChunkReader(memChunkLoader.getChunk(), timeFilter);
-    } else {
-      if (chunkMetaData instanceof ChunkMetadata) {
+    } else {        //从磁盘读取
+      if (chunkMetaData instanceof ChunkMetadata) { //一元
         Chunk chunk = chunkLoader.loadChunk((ChunkMetadata) chunkMetaData);
         chunk.setFromOldFile(chunkMetaData.isFromOldTsFile());
         chunkReader = new ChunkReader(chunk, timeFilter);
         chunkReader.hasNextSatisfiedPage();
-      } else {
+      } else {  //多元
         VectorChunkMetadata vectorChunkMetadata = (VectorChunkMetadata) chunkMetaData;
         Chunk timeChunk = vectorChunkMetadata.getTimeChunk();
         List<Chunk> valueChunkList = vectorChunkMetadata.getValueChunkList();

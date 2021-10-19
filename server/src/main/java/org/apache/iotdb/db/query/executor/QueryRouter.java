@@ -99,9 +99,9 @@ public class QueryRouter implements IQueryRouter {
     }
 
     if (optimizedExpression
-            != null // 如果优化后的expression不为空（只要该查询的expression不为空，优化后的Expression就不为空）且优化后表达式类型不为GlobalTime，则
+            != null // 如果优化后的expression不为空（只要该查询的expression不为空，优化后的Expression就不为空）且优化后表达式类型不为GlobalTime，即为SingleSeries则
         && optimizedExpression.getType() != ExpressionType.GLOBAL_TIME) {
-      return rawDataQueryExecutor.executeWithValueFilter(context);
+      return rawDataQueryExecutor.executeWithValueFilter(context);//查询条件是数值相关的
     } else if (optimizedExpression != null
         && optimizedExpression.getType()
             == ExpressionType.GLOBAL_TIME) { // 如果优化后的expression不为空且优化后表达式类型为GlobalTime，则
@@ -119,7 +119,7 @@ public class QueryRouter implements IQueryRouter {
 
     // Currently, we only group the vector partial paths for raw query without value filter
     queryPlan.transformToVector();
-    return rawDataQueryExecutor.executeWithoutValueFilter(context); // 目前查询条件只能是时间相关的，不能有数值相关的。
+    return rawDataQueryExecutor.executeWithoutValueFilter(context); // 查询条件是时间相关的
   }
 
   protected RawDataQueryExecutor getRawDataQueryExecutor(

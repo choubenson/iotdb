@@ -45,7 +45,7 @@ public class TimePageWriter {
 
   // time
   private Encoder timeEncoder;
-  private final PublicBAOS timeOut;
+  private final PublicBAOS timeOut; //时间流缓存
 
   /**
    * statistic of current page. It will be reset after calling {@code
@@ -62,8 +62,8 @@ public class TimePageWriter {
 
   /** write a time into encoder */
   public void write(long time) {
-    timeEncoder.encode(time, timeOut);
-    statistics.update(time);
+    timeEncoder.encode(time, timeOut);// 对time进行编码后，写入timeOut写入流的buffer缓存里
+    statistics.update(time);// 每向该page插入一次数据就要更新该page相应的statistics统计量数据
   }
 
   /** write time series into encoder */
@@ -99,7 +99,7 @@ public class TimePageWriter {
   /** write the page header and data into the PageWriter's output stream. */
   public int writePageHeaderAndDataIntoBuff(PublicBAOS pageBuffer, boolean first)
       throws
-          IOException { // 把该pageWriter对象暂存的数据（pageHeader和pageData，pageData需考虑是否经过压缩compress）依次写入该Chunk的TimeChunkWriter的输出流pageBuffer的缓冲数组里（即先写入该Page的PageHeader，再写入PageData，其中pageData只存放了时间分量），返回的内容是：(1)若要写入的数据所属page是Chunk的第一个page，则返回写入的pageHeader去掉statistics的字节数（2）若不是第一个page，则返回0
+          IOException { // 把该pageWriter对象的数据（pageHeader和时间戳列，时间戳列需考虑是否经过压缩compress）依次写入该Chunk的TimeChunkWriter的输出流pageBuffer的缓冲数组里（即先写入该Page的PageHeader，再写入时间戳列，即该多元传感器的时间分量），返回的内容是：(1)若要写入的数据所属page是Chunk的第一个page，则返回写入的pageHeader去掉statistics的字节数（2）若不是第一个page，则返回0
     if (statistics.getCount() == 0) { // 若该page的数据点个数为0，返回0
       return 0;
     }
@@ -108,7 +108,7 @@ public class TimePageWriter {
         getUncompressedBytes(); // 新建一个ByteBuffer，并往里写入该TimePageWriter的timeOut缓存流里的内容，并返回此ByteBuffer
     int uncompressedSize = pageData.remaining(); // 获取该pageData缓存里存放的数据大小，该大小就是该page还未压缩的数据大小
     int compressedSize; // 该page经压缩后的大小
-    byte[] compressedBytes = null; // 存放经压缩后的数据内容
+    byte[] compressedBytes = null; // 存放经压缩后的数据内容，即经压缩的time时间戳timeOut内容
 
     if (compressor
         .getType()
@@ -117,7 +117,7 @@ public class TimePageWriter {
     } else {
       compressedBytes = new byte[compressor.getMaxBytesForCompression(uncompressedSize)];
       // data is never a directByteBuffer now, so we can use data.array()
-      compressedSize =
+      compressedSize =        //将未经压缩的该多元传感器的timeOut内容进行压缩到compressedBytes数组里
           compressor.compress(
               pageData.array(), pageData.position(), uncompressedSize, compressedBytes);
     }
@@ -147,7 +147,7 @@ public class TimePageWriter {
       try (WritableByteChannel channel = Channels.newChannel(pageBuffer)) {
         channel.write(pageData);
       }
-    } else { // 若数据经压缩，则把压缩的内容写入pageBuffer里
+    } else { // 若数据经压缩，则把压缩的timeOut内容写入pageBuffer里
       pageBuffer.write(compressedBytes, 0, compressedSize);
     }
     logger.trace(
@@ -161,7 +161,7 @@ public class TimePageWriter {
    *
    * @return allocated size in time, value and outputStream
    */
-  public long estimateMaxMemSize() {
+  public long estimateMaxMemSize() {//获取TimePageWrtier占用的可能最大内存大小
     return timeOut.size() + timeEncoder.getMaxByteSize();
   }
 

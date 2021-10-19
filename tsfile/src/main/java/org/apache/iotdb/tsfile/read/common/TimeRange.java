@@ -188,7 +188,7 @@ public class TimeRange implements Comparable<TimeRange> { // 时间范围类，�
    * @param rhs the given time range
    * @return true if the current time range overlaps with the given time range rhs
    */
-  public boolean overlaps(TimeRange rhs) {
+  public boolean overlaps(TimeRange rhs) {  //判断两个时间区间是否重叠
     if ((!this.leftClose || !rhs.rightClose) && (rhs.max <= this.min)) {
       // e.g., rhs:[1,3] does not overlap with this:(3,5].
       return false;

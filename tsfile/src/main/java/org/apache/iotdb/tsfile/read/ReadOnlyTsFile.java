@@ -43,6 +43,7 @@ public class ReadOnlyTsFile implements AutoCloseable {
     tsFileExecutor = new TsFileExecutor(metadataQuerier, chunkLoader);
   }
 
+
   public QueryDataSet query(QueryExpression queryExpression) throws IOException { //此方法允许用户对该TsFile查询里面的某些时间序列满足过滤器的数据，而这些时间序列和过滤器都是封装在QueryExpression查询表达式对象里的。
     return tsFileExecutor.execute(queryExpression);//根据给定的查询表达式，（1）首先把此次查询中属于该TsFile的时间序列路径加入列表里（一个查询可能涉及到多个不同TsFile的多个时间序列）（2）获取该次查询在该TsFile的每个时间序列对应的所有ChunkIndex放入该TsFile的元数据查询器里的chunkMetaDataCache缓存里（3）通过判断该次查询是否有过滤器，有的话则创建DataSetWithTimeGenerator查询结果集对象并返回，没有则创建DataSetWithoutTimeGenerator查询结果集对象返回
   }

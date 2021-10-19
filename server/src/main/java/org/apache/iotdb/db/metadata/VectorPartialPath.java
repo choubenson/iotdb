@@ -34,7 +34,7 @@ import java.util.Objects;
  */
 public class VectorPartialPath extends PartialPath {
 
-  private List<String> subSensorsList;
+  private List<String> subSensorsList;  //存放着该多元序列的多个子传感器的完整路径
 
   public VectorPartialPath() {}
 

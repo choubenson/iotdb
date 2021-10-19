@@ -34,10 +34,10 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-public class VectorPageReader implements IPageReader {
+public class VectorPageReader implements IPageReader {//多元传感器的PageReader
 
-  private final TimePageReader timePageReader;
-  private final List<ValuePageReader> valuePageReaderList;
+  private final TimePageReader timePageReader;  //该页的TimePageReader
+  private final List<ValuePageReader> valuePageReaderList;//该页对应的多个子传感器的ValuePageReader
   private final int valueCount;
   private Filter filter;
   private boolean isModified;

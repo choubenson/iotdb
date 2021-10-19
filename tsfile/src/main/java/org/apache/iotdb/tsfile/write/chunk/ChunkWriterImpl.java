@@ -53,7 +53,7 @@ public class ChunkWriterImpl
 
   /** all pages of this chunk. */
   private PublicBAOS
-      pageBuffer; // 该Chunk的输出流pageBuffer，该chunk的每个page数据（pageHeader+pageData）会按顺序依次放入该输出流pageBuffer的缓存数组里
+      pageBuffer; // 该Chunk的输出流pageBuffer，依次存储了该chunk的每个page数据（pageHeader+pageData，pageData里的顺序是先存放该page的所有时间戳timeOut，然后存放该page的所有数据值valueOut）
 
   private int numOfPages; // 该Chunk的page数量
 

@@ -38,7 +38,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.Serializable;
 
-public class ValueChunkWriter {
+public class ValueChunkWriter { //一个多元传感器里每个子分量（不含时间）会有自己的ValueChunkWriter和对应的ValuePageWriter,因为数据类型等属性都不一样
 
   private static final Logger logger = LoggerFactory.getLogger(ValueChunkWriter.class);
 
@@ -51,7 +51,7 @@ public class ValueChunkWriter {
   private final CompressionType compressionType;
 
   /** all pages of this chunk. */
-  private final PublicBAOS pageBuffer;
+  private final PublicBAOS pageBuffer;//存放了该ValueChunk的所有ValuePage的内容（即pageHeader和该子分量的内容bitmapOut和valueOut）
 
   private int numOfPages;
 
@@ -133,11 +133,11 @@ public class ValueChunkWriter {
     pageWriter.write(timestamps, values, batchSize);
   }
 
-  public void writePageToPageBuffer() {
+  public void writePageToPageBuffer() {// 往对应多元传感器Chunk的该子分量的ValueChunkWriter的输出流pageBuffer缓存里写入该page的pageHeader和该子分量的数值内容（即对应ValuePageWriter里的bitmapOut和valueOut缓存），最后重置该TimePageWriter
     try {
       if (numOfPages == 0) { // record the firstPageStatistics
         this.firstPageStatistics = pageWriter.getStatistics();
-        this.sizeWithoutStatistic = pageWriter.writePageHeaderAndDataIntoBuff(pageBuffer, true);
+        this.sizeWithoutStatistic = pageWriter.writePageHeaderAndDataIntoBuff(pageBuffer, true);// 把该pageWriter对象暂存的数据（pageHeader和该子分量的内容bitmapOut和valueOut，需考虑是否经过压缩compress）依次写入该Chunk的TimeChunkWriter的输出流pageBuffer的缓冲数组里（即先写入该Page的PageHeader，再写入该子分量的内容bitmapOut和valueOut），返回的内容是：(1)若要写入的数据所属page是Chunk的第一个page，则返回写入的pageHeader去掉statistics的字节数（2）若不是第一个page，则返回0
       } else if (numOfPages == 1) { // put the firstPageStatistics into pageBuffer
         byte[] b = pageBuffer.toByteArray();
         pageBuffer.reset();
@@ -161,9 +161,9 @@ public class ValueChunkWriter {
     }
   }
 
-  public void writeToFileWriter(TsFileIOWriter tsfileWriter) throws IOException {
-    sealCurrentPage();
-    writeAllPagesOfChunkToTsFile(tsfileWriter);
+  public void writeToFileWriter(TsFileIOWriter tsfileWriter) throws IOException {//1. 封口当前子传感器的ValuePage的内容（即ValuePageWriter对象里输出流bitmapOut和valueOut的缓存数据）到此ValueChunkWriter的输出流pageBuffer缓存里 2. 把当前ValueChunk的ChunkHeader和ValueChunkWriter里pageBuffer缓存的内容（该chunk所有page的pageHeader+bitmapOut和valueOut）写到该TsFileIOWriter对象的out缓存里 ,并初始化当前Chunk的ChunkIndex对象并放到TsFileIOWriter里
+    sealCurrentPage();// 往对应多元传感器Chunk的该子分量的ValueChunkWriter的输出流pageBuffer缓存里写入该page的pageHeader和该子分量的数值内容（即对应ValuePageWriter里的bitmapOut和valueOut缓存），最后重置该TimePageWriter
+    writeAllPagesOfChunkToTsFile(tsfileWriter);//1. 初始化当前要写入的Chunk元数据对象属性currentChunkMetadata，并把该Chunk的ChunkHeader内容写入该TsFileIOWriter对象的out缓存里 2. 把当前ValueChunkWriter里pageBuffer缓存的内容（所有page的pageHeader+bitmapOut和valueOut）写到该TsFileIOWriter对象的out缓存里 3. 往TsFileIOWriter的当前写操作的ChunkGroup对应的所有ChunkIndex类对象列表里加入当前写完的ChunkIndex对象，并把当前Chunk元数据对象清空
 
     // reinit this chunk writer
     pageBuffer.reset();
@@ -191,7 +191,7 @@ public class ValueChunkWriter {
   public void sealCurrentPage() {
     // if the page contains no points, we still need to serialize it
     if (pageWriter != null && pageWriter.getSize() != 0) {
-      writePageToPageBuffer();
+      writePageToPageBuffer();// 往对应多元传感器Chunk的该子分量的ValueChunkWriter的输出流pageBuffer缓存里写入该page的pageHeader和该子分量的数值内容（即对应ValuePageWriter里的bitmapOut和valueOut缓存），最后重置该TimePageWriter
     }
   }
 
@@ -212,14 +212,14 @@ public class ValueChunkWriter {
    *
    * @param writer the specified IOWriter
    * @throws IOException exception in IO
-   */
+   *///1. 初始化当前要写入的Chunk元数据对象属性currentChunkMetadata，并把该Chunk的ChunkHeader内容写入该TsFileIOWriter对象的out缓存里 2. 把当前ValueChunkWriter里pageBuffer缓存的内容（所有page的pageHeader+bitmapOut和valueOut）写到该TsFileIOWriter对象的out缓存里 3. 往TsFileIOWriter的当前写操作的ChunkGroup对应的所有ChunkIndex类对象列表里加入当前写完的ChunkIndex对象，并把当前Chunk元数据对象清空
   public void writeAllPagesOfChunkToTsFile(TsFileIOWriter writer) throws IOException {
     if (statistics.getCount() == 0) {
       return;
     }
 
     // start to write this column chunk
-    writer.startFlushChunk(
+    writer.startFlushChunk(// 初始化该TsFileIOWriter的当前要写入的Chunk元数据对象属性currentChunkMetadata，并把该Chunk的ChunkHeader内容写入该TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里
         measurementId,
         compressionType,
         dataType,
@@ -232,7 +232,7 @@ public class ValueChunkWriter {
     long dataOffset = writer.getPos();
 
     // write all pages of this column
-    writer.writeBytesToStream(pageBuffer);
+    writer.writeBytesToStream(pageBuffer);//把当前ValueChunkWriter里pageBuffer缓存的内容写到该TsFileIOWriter对象的out缓存里
 
     int dataSize = (int) (writer.getPos() - dataOffset);
     if (dataSize != pageBuffer.size()) {
@@ -244,7 +244,7 @@ public class ValueChunkWriter {
               + pageBuffer.size());
     }
 
-    writer.endCurrentChunk();
+    writer.endCurrentChunk();// 结束当前Chunk的写操作后就会调用此方法，往TsFileIOWriter的当前写操作的ChunkGroup对应的所有ChunkIndex类对象列表里加入当前写完的ChunkIndex对象，并把当前Chunk元数据对象清空
   }
 
   /** only used for test */

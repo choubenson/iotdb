@@ -54,7 +54,7 @@ public class TsFileWriter implements AutoCloseable { // 每个TsFile对应的Wri
   protected static final TSFileConfig config = TSFileDescriptor.getInstance().getConfig();
   private static final Logger LOG = LoggerFactory.getLogger(TsFileWriter.class);
   /** schema of this TsFile. */
-  protected final Schema schema;
+  protected final Schema schema;// 每个TsFile都有一个Schema配置类，该配置类里存放了该TsFile里所有的timeseries时间序列的相关信息
   /** IO writer of this TsFile. */
   private final TsFileIOWriter fileWriter;
 
@@ -336,7 +336,7 @@ public class TsFileWriter implements AutoCloseable { // 每个TsFile对应的Wri
         LOG.debug("start to flush chunk groups, memory space occupy:{}", memSize);
         recordCountForNextMemCheck = recordCount * chunkGroupSizeThreshold / memSize; // 101*10/11
         return flushAllChunkGroups(); // 将该TsFileWriter的所有ChunkGroupWriter里的所有ChunkWriter的缓存数据按序缓存到TsFileIOWriter的输出流缓存out里，最后将out输出流给flush到本地对应的TsFile文件。具体的做法如下：
-        // （1）遍历当前TsFileWriter的所有ChunkGroupWriter，将该ChunkGroupWriter的所有ChunkWriter对应的Chunk数据（ChunkHeader+ChunkData）给flush到TsFileIOWriter类对象里的输出缓存流out里。具体做法是遍历该ChunkGroupWriter的所有ChunkWriter做如下操作：首先封口当前page(即把当前Chunk的pageWriter输出流timeOut和valueOut的缓存数据写到该Chunk的ChunkWriterImpl的输出流pageBuffer缓存里,最后重置该pageWriter)，然后往TsFileIOWriter对象的TsFileOutput输出对象的输出流BufferedOutputStream的缓存数组里写入该Chunk的ChunkHeader,最后再写入当前Chunk的所有page数据（pageBuffer输出流的缓存数组内容）.
+        // （1）遍历当前TsFileWriter的所有ChunkGroupWriter，先后将该ChunkGroupHeader和该ChunkGroupWriter的所有ChunkWriter对应的Chunk数据（ChunkHeader+ChunkData）给flush到TsFileIOWriter类对象里的输出缓存流out里。具体做法是遍历该ChunkGroupWriter的所有ChunkWriter做如下操作：首先封口当前page(即把当前Chunk的pageWriter输出流timeOut和valueOut的缓存数据写到该Chunk的ChunkWriterImpl的输出流pageBuffer缓存里,最后重置该pageWriter)，然后往TsFileIOWriter对象的TsFileOutput输出对象的输出流BufferedOutputStream的缓存数组里写入该Chunk的ChunkHeader,最后再写入当前Chunk的所有page数据（pageBuffer输出流的缓存数组内容）.
         // （2）将该TsFile的TsFileIOWriter对象的输出缓存流TsFileOutput的内容给flush到本地对应TsFile文件
         // （3）reset该TsFileWriter的相关属性，完成该次的flush操作
       } else {
@@ -358,7 +358,7 @@ public class TsFileWriter implements AutoCloseable { // 每个TsFile对应的Wri
   public boolean flushAllChunkGroups()
       throws
           IOException { // 将该TsFileWriter的所有ChunkGroupWriter里的所有ChunkWriter的缓存数据按序缓存到TsFileIOWriter的输出流缓存out里，最后将out输出流给flush到本地对应的TsFile文件。具体的做法如下：
-    // （1）遍历当前TsFileWriter的所有ChunkGroupWriter，将该ChunkGroupWriter的所有ChunkWriter对应的Chunk数据（ChunkHeader+ChunkData）给flush到TsFileIOWriter类对象里的输出缓存流out里。具体做法是遍历该ChunkGroupWriter的所有ChunkWriter做如下操作：首先封口当前page(即把当前Chunk的pageWriter输出流timeOut和valueOut的缓存数据写到该Chunk的ChunkWriterImpl的输出流pageBuffer缓存里,最后重置该pageWriter)，然后往TsFileIOWriter对象的TsFileOutput输出对象的输出流BufferedOutputStream的缓存数组里写入该Chunk的ChunkHeader,最后再写入当前Chunk的所有page数据（pageBuffer输出流的缓存数组内容）.
+    // （1）遍历当前TsFileWriter的所有ChunkGroupWriter，先后将该ChunkGroupHeader和该ChunkGroupWriter的所有ChunkWriter对应的Chunk数据（ChunkHeader+ChunkData）给flush到TsFileIOWriter类对象里的输出缓存流out里。具体做法是遍历该ChunkGroupWriter的所有ChunkWriter做如下操作：首先封口当前page(即把当前Chunk的pageWriter输出流timeOut和valueOut的缓存数据写到该Chunk的ChunkWriterImpl的输出流pageBuffer缓存里,最后重置该pageWriter)，然后往TsFileIOWriter对象的TsFileOutput输出对象的输出流BufferedOutputStream的缓存数组里写入该Chunk的ChunkHeader,最后再写入当前Chunk的所有page数据（pageBuffer输出流的缓存数组内容）.
     // （2）将该TsFile的TsFileIOWriter对象的输出缓存流TsFileOutput的内容给flush到本地对应TsFile文件
     // （3）reset该TsFileWriter的相关属性，完成该次的flush操作
     if (recordCount > 0) {

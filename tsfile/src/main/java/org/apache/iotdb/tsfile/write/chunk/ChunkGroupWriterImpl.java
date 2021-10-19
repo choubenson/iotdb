@@ -47,7 +47,7 @@ public class ChunkGroupWriterImpl
   private final String deviceId; // 该ChunkGroupWriter所属的设备ID
 
   /** Map(measurementID, ChunkWriterImpl). */
-  private Map<String, IChunkWriter> chunkWriters = new HashMap<>(); // 存放了每个传感器ID对应的ChunkWriter类对象
+  private Map<String, IChunkWriter> chunkWriters = new HashMap<>(); // 存放了每个传感器ID对应的ChunkWriter类对象，可能包含多元传感器的VectorChunkWriterImpl
 
   public ChunkGroupWriterImpl(String deviceId) {
     this.deviceId = deviceId;
@@ -74,7 +74,7 @@ public class ChunkGroupWriterImpl
 
   @Override
   public void write(long time, List<DataPoint> data)
-      throws WriteProcessException,
+      throws WriteProcessException, //Todo:支持vector
           IOException { // 将所有的数据点写入对应ChunkWriter的PageWriter的缓存里。具体做法是：遍历所有的data数据点（传感器ID，数值），根据每个数据点的传感器ID，将给定的数据点（time,value）交由该Chunk的pageWriter写入到其对应的两个输出流timeOut和valueOut的缓存中，并检查该Chunk的pageWriter的数据点or占用内存的大小情况，判断是否要开启一个新的page，若要开启新的page则往对应Chunk的ChunkWriterImpl的输出流pageBuffer缓存里写入该page的pageHeader和pageData（即pageWriter对象里输出流timeOut和valueOut的缓存数据），最后重置该pageWriter
     for (DataPoint point : data) { // 遍历同一时间戳上每个传感器的数据点（传感器ID，数值）
       String measurementId = point.getMeasurementId(); // 获取传感器ID
@@ -83,6 +83,7 @@ public class ChunkGroupWriterImpl
         throw new NoMeasurementException(
             "time " + time + ", measurement id " + measurementId + " not found!");
       }
+      //Todo:此处貌似已经支持多元的写入了，因为chunkWriters里会存放多元的VectorChunkWriterImpl
       point.writeTo(
           time,
           chunkWriters.get(
@@ -91,7 +92,7 @@ public class ChunkGroupWriterImpl
   }
 
   @Override
-  public void write(Tablet tablet)
+  public void write(Tablet tablet)  //该Tablet里可能有一元或者多元时间序列，若是一元序列则会占用该Tablet的一列，代表是一个一元传感器；若是多元序列，则其有几个子分量传感器就会占用该Tablet几列
       throws
           WriteProcessException { // 依次遍历tablet结构里的每个传感器，然后每次把该传感器上所有时间戳对应的数据交由该Chunk的pageWriter写入到其对应的两个输出流timeOut和valueOut的缓存中，并检查该Chunk的pageWriter的数据点or占用内存的大小情况，判断是否要开启一个新的page，若要开启新的page则往对应Chunk的ChunkWriterImpl的输出流pageBuffer缓存里写入该page的pageHeader和pageData（即pageWriter对象里输出流timeOut和valueOut的缓存数据），最后重置该pageWriter
     List<IMeasurementSchema> timeseries = tablet.getSchemas(); // 获取该Tablet的所有传感器配置类对象
@@ -103,7 +104,7 @@ public class ChunkGroupWriterImpl
         throw new NoMeasurementException("measurement id" + measurementId + " not found!");
       }
       if (dataType.equals(TSDataType.VECTOR)) { // 如果数据类型是多元数据，则
-        writeVectorDataType(tablet, measurementId, i);
+        writeVectorDataType(tablet, measurementId, i);//每次遍历该多元序列的一行数据，先写所有的子传感器的value到对应各自的valuePageWriter缓存里，然后再写入该行的时间戳到对应的TimePageWriter里，并判断是否要开启新的page。具体做法是：（1）然后依次对该行的每个子分列传感器的值写入该多元传感器的VectorChunkWriterImpl里对应分量的ValueChunkWriter里的ValuePageWriter里的valueOut缓存里。（2）写完该行的所有子传感器数据后，再往该多元传感器的TimeChunkWriter的pageWriter写入时间戳到其timeOut缓存里，并判断是否需要开启一个新的page,若需要，则先后将该多元传感器的TimePage的内容（pageHeader和时间戳列，即TimePageWriter对象里输出流timeOut的缓存数据）和每个ValuePage的内容（pageHeader和该子分量的数值内容，即对应ValuePageWriter里的bitmapOut和valueOut缓存）写到对应TimeChunkWriter和各子分量ValueChunkWriter的pageBuffer缓存里。
       } else {
         writeByDataType(
             tablet,
@@ -121,20 +122,20 @@ public class ChunkGroupWriterImpl
    * @param tablet table
    * @param measurement vector measurement
    * @param index measurement start index
-   */
-  private void writeVectorDataType(Tablet tablet, String measurement, int index) {
+   */   //每次遍历该多元序列的一行数据，先写所有的子传感器的value到对应各自的valuePageWriter缓存里，然后再写入该行的时间戳到对应的TimePageWriter里，并判断是否要开启新的page。具体做法是：（1）然后依次对该行的每个子分列传感器的值写入该多元传感器的VectorChunkWriterImpl里对应分量的ValueChunkWriter里的ValuePageWriter里的valueOut缓存里。（2）写完该行的所有子传感器数据后，再往该多元传感器的TimeChunkWriter的pageWriter写入时间戳到其timeOut缓存里，并判断是否需要开启一个新的page,若需要，则将该多元传感器的TimePage的内容（pageHeader和时间戳列，即TimePageWriter对象里输出流timeOut的缓存数据）和每个ValuePage的内容（pageHeader和该子分量的数值内容，即对应ValuePageWriter里的bitmapOut和valueOut缓存）写到对应TimeChunkWriter和各子分量ValueChunkWriter的pageBuffer缓存里。
+  private void writeVectorDataType(Tablet tablet, String measurement, int index) {//该Table里的第index列开始是该多元传感器的子分量传感器，列数的数量为子分量的数量。
     // reference: MemTableFlushTask.java
     int batchSize = tablet.rowSize;
     VectorMeasurementSchema vectorMeasurementSchema =
         (VectorMeasurementSchema) tablet.getSchemas().get(index);
-    List<TSDataType> valueDataTypes = vectorMeasurementSchema.getSubMeasurementsTSDataTypeList();
-    IChunkWriter vectorChunkWriter = chunkWriters.get(measurement);
-    for (int row = 0; row < batchSize; row++) {
-      long time = tablet.timestamps[row];
-      for (int columnIndex = 0; columnIndex < valueDataTypes.size(); columnIndex++) {
+    List<TSDataType> valueDataTypes = vectorMeasurementSchema.getSubMeasurementsTSDataTypeList();//获取该多元传感器里每个子分量的数据类型
+    IChunkWriter vectorChunkWriter = chunkWriters.get(measurement);//获取该多元传感器的ChunkWriter,即VectorChunkWriterImpl对象
+    for (int row = 0; row < batchSize; row++) {//遍历每行数据
+      long time = tablet.timestamps[row];//获取该行时间戳
+      for (int columnIndex = 0; columnIndex < valueDataTypes.size(); columnIndex++) {//遍历该多元传感器的该行的每列子分量，把对应的数值依次写入该多元传感器的VectorChunkWriterImpl里对应分量的ValueChunkWriter里的ValuePageWriter里的valueOut缓存里
         boolean isNull = false;
         // check isNull by bitMap in tablet
-        if (tablet.bitMaps != null
+        if (tablet.bitMaps != null  //判断该行的该列子分量是否为null
             && tablet.bitMaps[columnIndex] != null
             && tablet.bitMaps[columnIndex].isMarked(row)) {
           isNull = true;
@@ -147,7 +148,7 @@ public class ChunkGroupWriterImpl
             vectorChunkWriter.write(time, ((int[]) tablet.values[columnIndex])[row], isNull);
             break;
           case INT64:
-            vectorChunkWriter.write(time, ((long[]) tablet.values[columnIndex])[row], isNull);
+            vectorChunkWriter.write(time, ((long[]) tablet.values[columnIndex])[row], isNull);//把该列子分量的该行数据传过去，第二个参数为是否为Null
             break;
           case FLOAT:
             vectorChunkWriter.write(time, ((float[]) tablet.values[columnIndex])[row], isNull);
@@ -163,7 +164,7 @@ public class ChunkGroupWriterImpl
                 String.format("Data type %s is not supported.", valueDataTypes.get(columnIndex)));
         }
       }
-      vectorChunkWriter.write(time);
+      vectorChunkWriter.write(time);//往该多元传感器的TimeChunkWriter的pageWriter写入时间戳到其timeOut缓存里，并判断是否需要开启一个新的page,若需要，则将该多元传感器的TimePage的内容（pageHeader和时间戳列，即TimePageWriter对象里输出流timeOut的缓存数据）和每个ValuePage的内容（pageHeader和该子分量的数值内容，即对应ValuePageWriter里的bitmapOut和valueOut缓存）写到对应TimeChunkWriter和各子分量ValueChunkWriter的pageBuffer缓存里
     }
   }
 
@@ -229,7 +230,7 @@ public class ChunkGroupWriterImpl
     sealAllChunks(); // 关闭、封口该ChunkGroupWriter里所有ChunkWriter对应的当前page(即把当前Chunk的pageWriter输出流timeOut和valueOut的缓存数据写到该Chunk的ChunkWriterImpl的输出流pageBuffer缓存里,最后重置该pageWriter)
     long currentChunkGroupSize =
         getCurrentChunkGroupSize(); // 获取当前ChunkGroup的字节大小，即其所有Chunk的字节大小(ChunkHeader+ChunkData，ChunkData即缓存pageBuffer）的总和
-    for (IChunkWriter seriesWriter : chunkWriters.values()) { // 遍历所有ChunkWriter
+    for (IChunkWriter seriesWriter : chunkWriters.values()) { // 遍历所有一元或多元传感器的ChunkWriter
       seriesWriter.writeToFileWriter(
           fileWriter); // 首先封口当前page(即把当前Chunk的pageWriter输出流timeOut和valueOut的缓存数据写到该Chunk的ChunkWriterImpl的输出流pageBuffer缓存里,最后重置该pageWriter)，然后往TsFileIOWriter对象的TsFileOutput输出对象的输出流BufferedOutputStream的缓存数组里写入该Chunk的ChunkHeader,最后再写入当前Chunk的所有page数据（pageBuffer输出流的缓存数组内容）
     }

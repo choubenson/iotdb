@@ -222,6 +222,7 @@ public class TsFileIOWriter { // TsFile写入类，在写入操作中，要写�
           int mask)
           throws IOException {
 
+    //Todo:bug?若是VectorChunk呢？
     currentChunkMetadata = // 创建当前Chunk的元数据类对象
         new ChunkMetadata(measurementId, tsDataType, out.getPosition(), statistics);
     currentChunkMetadata.setMask((byte) mask);
@@ -261,10 +262,10 @@ public class TsFileIOWriter { // TsFile写入类，在写入操作中，要写�
   }
 
   /** end chunk and write some log. */
-  public void endCurrentChunk() { // 当结束当前Chunk的写操作后就会调用此方法，做一些善后工作
+  public void endCurrentChunk() { // 当结束当前Chunk的写操作后就会调用此方法，往当前写操作的ChunkGroup对应的所有ChunkIndex类对象列表里加入当前写完的ChunkIndex对象，并把当前Chunk元数据对象清空
     chunkMetadataList.add(
-        currentChunkMetadata); // 往当前写操作的ChunkGroup里的所有Chunk的元数据类对象列表里加入此Chunk元数据对象
-    currentChunkMetadata = null; // 把当前Chunk元数据对象情况
+        currentChunkMetadata); // 往当前写操作的ChunkGroup对应的所有ChunkIndex类对象列表里加入当前写完的ChunkIndex对象
+    currentChunkMetadata = null; // 把当前Chunk元数据对象清空
   }
 
   /**
