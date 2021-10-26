@@ -61,17 +61,17 @@ public class TsFileWriteWithTSRecord {
         }
 
         // construct TSRecord
-//        for (int i = 0; i < 10; i++) {
-//          TSRecord tsRecord = new TSRecord(i, Constant.DEVICE_PREFIX + (i % 4));
-//          DataPoint dPoint1 = new LongDataPoint(Constant.SENSOR_1, i);
-//          DataPoint dPoint2 = new LongDataPoint(Constant.SENSOR_2, i);
-//          //DataPoint dPoint3 = new LongDataPoint(Constant.SENSOR_3, i);
-//          tsRecord.addTuple(dPoint1);
-//          tsRecord.addTuple(dPoint2);
-//         // tsRecord.addTuple(dPoint3);
-//          // write TSRecord
-//          tsFileWriter.write(tsRecord);
-//        }
+        for (int i = 0; i < 10; i++) {
+          TSRecord tsRecord = new TSRecord(i, Constant.DEVICE_PREFIX + (i % 4));
+          DataPoint dPoint1 = new LongDataPoint(Constant.SENSOR_1, i);//若是要插入的是多元
+          DataPoint dPoint2 = new LongDataPoint(Constant.SENSOR_2, i);
+          DataPoint dPoint3 = new LongDataPoint(Constant.SENSOR_3, i);
+          tsRecord.addTuple(dPoint1);
+          tsRecord.addTuple(dPoint2);
+          tsRecord.addTuple(dPoint3);
+          // write TSRecord
+          tsFileWriter.write(tsRecord);
+        }
       }
     } catch (Throwable e) {
       e.printStackTrace();

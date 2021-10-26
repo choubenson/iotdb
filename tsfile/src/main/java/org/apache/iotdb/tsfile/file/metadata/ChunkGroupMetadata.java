@@ -21,7 +21,7 @@ package org.apache.iotdb.tsfile.file.metadata;
 import java.util.List;
 
 /** Only maintained when writing, not serialized to TsFile */
-public class ChunkGroupMetadata { // ChunkGroup的元数据类
+public class ChunkGroupMetadata { // ChunkGroup的元数据类,它存放了该ChunkGroup里所有Chunk对应的ChunkIndex
 
   private String device; // 该ChunkGroup的所属设备
 

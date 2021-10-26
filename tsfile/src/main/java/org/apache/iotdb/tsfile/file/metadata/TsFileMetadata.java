@@ -37,7 +37,7 @@ public class TsFileMetadata { //该类其实就是IndexOfTimeseriesIndex，可�
   private BloomFilter bloomFilter;  //布隆过滤器
 
   // List of <name, offset, childMetadataIndexType>
-  private MetadataIndexNode metadataIndex;  //该TsFile的IndexOfTimeseriesIndexs索引的第一个节点类对象,它一定是设备中间节点类型
+  private MetadataIndexNode metadataIndex;  //该TsFile的IndexOfTimeseriesIndexs索引的第一个节点类对象,它一定是设备节点,可能是中间或者叶子节点
 
   // offset of MetaMarker.SEPARATOR
   private long metaOffset; // 数值为2的metaMarker在该TsFile文件的偏移量，即该TsFile文件的索引区开始的位置,即TimeseriesIndex前面的marker的偏移量
@@ -83,7 +83,7 @@ public class TsFileMetadata { //该类其实就是IndexOfTimeseriesIndex，可�
    * @param outputStream -output stream to determine byte length
    * @return -byte length
    */
-  public int serializeTo(OutputStream outputStream) throws IOException {
+  public int serializeTo(OutputStream outputStream) throws IOException {//把IndexOfTimeseriesIndex里的根节点和metaOffset序列化到outputStream缓存
     int byteLen = 0;
 
     // metadataIndex

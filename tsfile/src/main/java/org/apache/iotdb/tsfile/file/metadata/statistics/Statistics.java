@@ -174,7 +174,7 @@ public abstract class Statistics<T extends Serializable> { // 统计量
    * @throws StatisticsClassException cannot merge statistics
    */
   @SuppressWarnings("unchecked")
-  public void mergeStatistics(Statistics<? extends Serializable> stats) {
+  public void mergeStatistics(Statistics<? extends Serializable> stats) { //把传来的统计量对象里的参数合并到当前统计量对象this
     if (this.getClass() == stats.getClass()) {
       if (stats.startTime < this.startTime) {
         this.startTime = stats.startTime;

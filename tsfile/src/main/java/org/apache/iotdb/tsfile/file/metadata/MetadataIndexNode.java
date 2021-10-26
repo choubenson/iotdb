@@ -74,7 +74,7 @@ public class MetadataIndexNode {  //IndexOfTimeseriesIndex索引节点类，分�
     this.children.add(metadataIndexEntry);
   }
 
-  boolean isFull() {
+  boolean isFull() {  //判断当前节点的子条目的数量是否达到系统配置的上限
     return children.size() >= config.getMaxDegreeOfIndexNode();
   }
 
@@ -85,17 +85,18 @@ public class MetadataIndexNode {  //IndexOfTimeseriesIndex索引节点类，分�
     return children.get(0);
   }
 
-  public int serializeTo(OutputStream outputStream) throws IOException {
+  public int serializeTo(OutputStream outputStream) throws IOException {  //索引节点的序列化
     int byteLen = 0;
-    byteLen += ReadWriteForEncodingUtils.writeUnsignedVarInt(children.size(), outputStream);
+    byteLen += ReadWriteForEncodingUtils.writeUnsignedVarInt(children.size(), outputStream);  //序列化索引条目数量（即孩子数量）
     for (MetadataIndexEntry metadataIndexEntry : children) {
       byteLen += metadataIndexEntry.serializeTo(outputStream);
     }
-    byteLen += ReadWriteIOUtils.write(endOffset, outputStream);
-    byteLen += ReadWriteIOUtils.write(nodeType.serialize(), outputStream);
+    byteLen += ReadWriteIOUtils.write(endOffset, outputStream);//序列化当前节点的最底层的最后一个子节点的末尾在TsFile里的偏移量
+    byteLen += ReadWriteIOUtils.write(nodeType.serialize(), outputStream);//序列化节点类型
     return byteLen;
   }
 
+  //Todo:已经适配Vector？？
   public static MetadataIndexNode deserializeFrom(ByteBuffer buffer) {//将buffer的内容反序列化成索引节点MetadataIndexNode对象,即使用从buffer反序列化读取的节点条目（即子节点索引项）和结束偏移和节点类型创建一个索引节点对象
     List<MetadataIndexEntry> children = new ArrayList<>();
     int size = ReadWriteForEncodingUtils.readUnsignedVarInt(buffer);  //从buffer里读取当前索引节点条目的数量,即当前节点的子节点数量，是一个int型
@@ -104,7 +105,7 @@ public class MetadataIndexNode {  //IndexOfTimeseriesIndex索引节点类，分�
     }
     long offset = ReadWriteIOUtils.readLong(buffer);//从buffer里读取当前节点结束的偏移量，是一个Long型
     MetadataIndexNodeType nodeType =
-        MetadataIndexNodeType.deserialize(ReadWriteIOUtils.readByte(buffer)); //从buffer里读取一个byte，并获得对应的当前索引节点的类型
+        MetadataIndexNodeType.deserialize(ReadWriteIOUtils.readByte(buffer)); //从buffer里读取一个byte，并获得对应的当前索引节点的类型//Todo:bug?没有vector节点
     return new MetadataIndexNode(children, offset, nodeType); //使用读取的节点条目和结束偏移和节点类型创建一个索引节点对象
   }
 

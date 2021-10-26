@@ -34,7 +34,7 @@ public abstract class InsertPlan extends PhysicalPlan {
 
   protected PartialPath prefixPath;
   protected PartialPath originalPrefixPath;
-  protected boolean isAligned; // 是否对齐
+  protected boolean isAligned; // 是否是对多元序列进行插入操作
   protected String[] measurements; // 传感器路径列表
   // get from client
   protected TSDataType[] dataTypes;

@@ -29,7 +29,7 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-public class VectorChunkMetadata implements IChunkMetadata {
+public class VectorChunkMetadata implements IChunkMetadata {//多元序列的VectorChunkIndex
 
   // ChunkMetadata for time column
   private final IChunkMetadata timeChunkMetadata;

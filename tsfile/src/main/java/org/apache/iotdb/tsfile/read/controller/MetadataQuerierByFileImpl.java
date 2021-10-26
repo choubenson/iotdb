@@ -18,6 +18,7 @@
  */
 package org.apache.iotdb.tsfile.read.controller;
 
+import org.apache.iotdb.db.metadata.VectorPartialPath;
 import org.apache.iotdb.tsfile.common.cache.LRUCache;
 import org.apache.iotdb.tsfile.file.metadata.ChunkMetadata;
 import org.apache.iotdb.tsfile.file.metadata.IChunkMetadata;
@@ -40,6 +41,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
+import org.apache.iotdb.tsfile.read.expression.QueryExpression;
 
 public class MetadataQuerierByFileImpl implements IMetadataQuerier { // 某个文件的元数据查询器
 
@@ -87,16 +89,23 @@ public class MetadataQuerierByFileImpl implements IMetadataQuerier { // 某个�
     return fileMetaData;
   }
 
+  //Benson
   @Override
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
-  public void loadChunkMetaDatas(List<Path> paths) throws IOException {//将给定的时间序列路径列表获取其各自对应在该TsFile里的所有ChunkIndex放入chunkMetaDataCache缓存里。具体做法是：1. 首先将整理每个DeviceID对应有哪些MeasurementId  2.遍历每个设备ID和对应的传感器集合：（1）获得对应的TimeseriesIndex列表（2）对每个TimeseriesIndex获取其所有的ChunkIndex依次放入一个列表里（3）遍历所有的ChunkIndex列表，把属于该次遍历的传感器的ChunkIndex对象加入对应时间序列的缓存变量里
+  public void loadChunkMetaDatas( List<Path> paths,Map<String,List<String>> vectorSubMeasurementNames) throws IOException {//将给定的时间序列路径列表获取其各自对应在该TsFile里的所有ChunkIndex放入chunkMetaDataCache缓存里。具体做法是：1. 首先将整理每个DeviceID对应有哪些MeasurementId  2.遍历每个设备ID和对应的传感器集合：（1）获得对应的TimeseriesIndex列表（2）对每个TimeseriesIndex获取其所有的ChunkIndex依次放入一个列表里（3）遍历所有的ChunkIndex列表，把属于该次遍历的传感器的ChunkIndex对象加入对应时间序列的缓存变量里
     // group measurements by device
     TreeMap<String, Set<String>> deviceMeasurementsMap = new TreeMap<>();//根据传来的时间序列路径列表，存放包含了哪些设备，以及每个设备对应了哪些传感器
     for (Path path : paths) { //遍历传来的时间序列路径,整理每个DeviceID对应有哪些MeasureId
       if (!deviceMeasurementsMap.containsKey(path.getDevice())) { //若deviceMeasurementsMap里不包含此设备，则新建一个
         deviceMeasurementsMap.put(path.getDevice(), new HashSet<>());
       }
+
       deviceMeasurementsMap.get(path.getDevice()).add(path.getMeasurement());//往deviceMeasurementsMap里对应设备的传感器集合里加入此传感器ID
+      if(vectorSubMeasurementNames.containsKey(path)){
+        for(String subMeasurement:((VectorPartialPath) path).getSubSensorsList()){
+          deviceMeasurementsMap.get(path.getDevice()).add(subMeasurement);
+        }
+      }
     }
 
     Map<Path, List<ChunkMetadata>> tempChunkMetaDatas = new HashMap<>();//存放了每个时间序列对应的ChunkIndex集合
@@ -112,7 +121,7 @@ public class MetadataQuerierByFileImpl implements IMetadataQuerier { // 某个�
       // s1, s2, s3
       Set<String> selectedMeasurements = deviceMeasurements.getValue(); //当前遍历设备对应的传感器ID集合
       List<String> devices = this.tsFileReader.getAllDevices();//获取该TsFile文件里的所有设备ID，放入list里并返回。具体做法是使用该TsFile的IndexOfTimeseriesIndex的第一个根索引节点进行递归查找其下的所有LEAF_DEVICE子节点，从而获取该根节点下的所有设备ID
-      String[] deviceNames = devices.toArray(new String[0]);//将devices列表转为String数组来存储
+      String[] deviceNames = devices.toArray(new String[0]);//将devices列表转为String数组来存储,该TsFile文件里的所有设备ID
       if (Arrays.binarySearch(deviceNames, selectedDevice) < 0) {//使用二分搜索法对设备数组进行搜索，查看是否存在当前遍历的设备ID，若为负数则不存在
         continue;
       }

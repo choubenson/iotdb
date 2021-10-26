@@ -42,7 +42,7 @@ public class TimeChunkWriter { // 用作多元序列的TimeChunkWriter
 
   private static final Logger logger = LoggerFactory.getLogger(TimeChunkWriter.class);
 
-  private final String measurementId; // 多元序列的传感器ID，eg:vector1.measurement1
+  private final String measurementId; // 多元序列的传感器ID，eg:vector1
 
   private final TSEncoding encodingType;
 
@@ -223,7 +223,7 @@ public class TimeChunkWriter { // 用作多元序列的TimeChunkWriter
    * @throws IOException exception in IO
    */
   public void writeAllPagesOfChunkToTsFile(TsFileIOWriter writer) throws IOException {
-    if (statistics.getCount() == 0) {//1. 初始化当前要写入的Chunk元数据对象属性currentChunkMetadata，并把该Chunk的ChunkHeader内容写入该TsFileIOWriter对象的out缓存里 2. 把当前TimeChunkWriter里pageBuffer缓存的内容（所有page的pageHeader+时间戳列）写到该TsFileIOWriter对象的out缓存里 3. 往TsFileIOWriter的当前写操作的ChunkGroup对应的所有ChunkIndex类对象列表里加入当前写完的ChunkIndex对象，并把当前Chunk元数据对象清空
+    if (statistics.getCount() == 0) {//1. 初始化当前要写入的Chunk元数据对象属性currentChunkMetadata，并把该Chunk的ChunkHeader内容写入该TsFileIOWriter对象的out缓存里 2. 把当前TimeChunkWriter里pageBuffer缓存的内容（所有page的pageHeader+时间戳列）写到该TsFileIOWriter对象的out缓存里 3. 往TsFileIOWriter的当前写操作的ChunkGroup对应的所有ChunkIndex类对象列表里加入当前写完的currentChunkMetadata对象，并把当前Chunk元数据对象清空
       return;
     }
 

@@ -55,14 +55,14 @@ public class MetadataIndexEntry { //节点条目项类，即在IndexOfTimeSeries
     return "<" + name + "," + offset + ">";
   }
 
-  public int serializeTo(OutputStream outputStream) throws IOException {
+  public int serializeTo(OutputStream outputStream) throws IOException {//序列化当前索引条目
     int byteLen = 0;
-    byteLen += ReadWriteIOUtils.writeVar(name, outputStream);
-    byteLen += ReadWriteIOUtils.write(offset, outputStream);
+    byteLen += ReadWriteIOUtils.writeVar(name, outputStream); //索引名称
+    byteLen += ReadWriteIOUtils.write(offset, outputStream);  //索引指向的孩子节点的开始位置
     return byteLen;
   }
 
-  public static MetadataIndexEntry deserializeFrom(ByteBuffer buffer) { //从buffer里反序列化读取名称和偏移量，并用此创建节点条目对象
+  public static MetadataIndexEntry deserializeFrom(ByteBuffer buffer) { //从buffer里反序列化读取名称和偏移量，并用此创建节点条目对象.此处读出来的条目可能是指向Vector的叶子或中间节点的
     String name = ReadWriteIOUtils.readVarIntString(buffer);//从buffer缓存里读取当前节点条目的名称字符串
     long offset = ReadWriteIOUtils.readLong(buffer);  //从buffer缓存里读取当前节点条目的偏移量
     return new MetadataIndexEntry(name, offset);  //使用子节点名称和对应的偏移量创建节点条目对象

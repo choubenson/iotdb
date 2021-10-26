@@ -50,7 +50,7 @@ public class TimeseriesMetadata implements Accountable, ITimeSeriesMetadata { //
    *
    * <p>if the 7th bit is 1, it means it is the value column of a vector series
    */
-  private byte timeSeriesMetadataType;
+  private byte timeSeriesMetadataType; //目前用不到！！
 
   private int chunkMetaDataListDataSize;  //该TimeseriesMetadata包含的所有ChunkMetadata对象的大小总和
 
@@ -70,7 +70,7 @@ public class TimeseriesMetadata implements Accountable, ITimeSeriesMetadata { //
   private boolean isSeq = true;
 
   // used to save chunk metadata list while serializing
-  private PublicBAOS chunkMetadataListBuffer;
+  private PublicBAOS chunkMetadataListBuffer;   //该时间序列包含的所有ChunkIndex的二进制缓存
 
   private ArrayList<IChunkMetadata> chunkMetadataList;  //ChunkMetadata对象列表
 

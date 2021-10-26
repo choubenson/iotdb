@@ -55,8 +55,8 @@ public class TsFileRead {
 
   public static void main(String[] args) throws IOException {
 
-    // file path
-    String path = "C:\\IOTDB\\sourceCode\\choubenson\\iotdb\\test.tsfile";
+    // file path //Todo:bug
+    String path = "C:\\IOTDB\\sourceCode\\annotation\\iotdb\\test.tsfile";
 
     // create reader and get the readTsFile interface
     try (TsFileSequenceReader reader = new TsFileSequenceReader(path);
@@ -64,9 +64,8 @@ public class TsFileRead {
 
       // use these paths(all measurements) for all the queries
       ArrayList<Path> paths = new ArrayList<>(); // 存放了一堆时间序列路径
-//      paths.add(new Path(DEVICE1, "sensor_1"));
-//      paths.add(new Path(DEVICE1, "sensor_2"));
-      paths.add(new Path(DEVICE1, "sensor_77"));
+      paths.add(new Path(DEVICE1, "sensor_1"));
+      paths.add(new Path(DEVICE1, "sensor_2"));
 
       // no filter, should select 1 2 3 4 6 7 8
       queryAndPrint(paths, readTsFile, null);

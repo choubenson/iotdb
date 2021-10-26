@@ -67,7 +67,7 @@ public class TsFileExecutor implements QueryExecutor {  //TsFile执行器，用�
       queryExpression.setSelectSeries(filteredSeriesPath);  //重新设置此次查询表达式queryExpression的时间序列路径列表
     }
 
-    metadataQuerier.loadChunkMetaDatas(queryExpression.getSelectedSeries());//针对给定时间序列路径列表，获取该次查询在该TsFile的每个时间序列对应的所有ChunkIndex放入该TsFile的元数据查询器里的chunkMetaDataCache缓存里。具体做法是：1. 首先将整理每个DeviceID对应有哪些MeasurementId  2.遍历每个设备ID和对应的传感器集合：（1）获得对应的TimeseriesIndex列表（2）对每个TimeseriesIndex获取其所有的ChunkIndex依次放入一个列表里（3）遍历所有的ChunkIndex列表，把属于该次遍历的传感器的ChunkIndex对象加入对应时间序列的缓存变量里
+    metadataQuerier.loadChunkMetaDatas((List<Path>) queryExpression);//针对给定时间序列路径列表，获取该次查询在该TsFile的每个时间序列对应的所有ChunkIndex放入该TsFile的元数据查询器里的chunkMetaDataCache缓存里。具体做法是：1. 首先将整理每个DeviceID对应有哪些MeasurementId  2.遍历每个设备ID和对应的传感器集合：（1）获得对应的TimeseriesIndex列表（2）对每个TimeseriesIndex获取其所有的ChunkIndex依次放入一个列表里（3）遍历所有的ChunkIndex列表，把属于该次遍历的传感器的ChunkIndex对象加入对应时间序列的缓存变量里
     if (queryExpression.hasQueryFilter()) { //若该次查询有查询的条件过滤器，则
       try {
         IExpression expression = queryExpression.getExpression(); //获取该次查询的表达式

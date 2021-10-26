@@ -77,13 +77,13 @@ public class TsFileIOWriter { // TsFile写入类，在写入操作中，要写�
   protected File file; // 该写入类要写入的TSFile文件
 
   // current flushed Chunk
-  private ChunkMetadata currentChunkMetadata; // 当前要写入的ChunkGroup的Chunk的元数据类对象
+  private ChunkMetadata currentChunkMetadata; // 当前要写入的ChunkGroup的Chunk的ChunkIndex对象,可能是多元序列的时间Chunk的ChunkIndex（数据类型为vector）或各数值Chunk的ChunkIndex
   // current flushed ChunkGroup
   protected List<ChunkMetadata> chunkMetadataList =
-      new ArrayList<>(); // 该列表存放当前写操作的ChunkGroup里的所有Chunk的元数据类对象
+      new ArrayList<>(); // 该列表存放当前写操作的ChunkGroup里的所有Chunk的ChunkIndex对象
   // all flushed ChunkGroups
   protected List<ChunkGroupMetadata> chunkGroupMetadataList =
-      new ArrayList<>(); // 该写入类要写入的TsFile的所有ChunkGroup元数据列表
+      new ArrayList<>(); // 该写入类要写入的TsFile的所有ChunkGroup元数据列表，每个ChunkGroupMetedata存放了该ChunkGroup里所有Chunk对应的ChunkIndex，可能包含多元序列的时间Chunk的ChunkIndex（数据类型为vector）或各数值Chunk的ChunkIndex
 
   private long markedPosition;
   private String currentChunkGroupDeviceId; // 当前ChunkGroup对应的设备ID
@@ -214,7 +214,7 @@ public class TsFileIOWriter { // TsFile写入类，在写入操作中，要写�
       startFlushChunk( // 初始化该TsFileIOWriter的当前要写入的Chunk元数据对象属性currentChunkMetadata，并把该Chunk的ChunkHeader内容写入该TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里
           String measurementId,
           CompressionType compressionCodecName,
-          TSDataType tsDataType,
+          TSDataType tsDataType,  //若是多元序列的TimeChunk，则此处的类型是Vector.若是多元序列的ValueChunk，则此处是对应子传感器的数据类型
           TSEncoding encodingType,
           Statistics<? extends Serializable> statistics,
           int dataSize,
@@ -222,7 +222,7 @@ public class TsFileIOWriter { // TsFile写入类，在写入操作中，要写�
           int mask)
           throws IOException {
 
-    //Todo:bug?若是VectorChunk呢？
+    //Todo:bug?若是VectorChunk呢？是否应该VectorChunkMetadata?
     currentChunkMetadata = // 创建当前Chunk的元数据类对象
         new ChunkMetadata(measurementId, tsDataType, out.getPosition(), statistics);
     currentChunkMetadata.setMask((byte) mask);
@@ -264,7 +264,7 @@ public class TsFileIOWriter { // TsFile写入类，在写入操作中，要写�
   /** end chunk and write some log. */
   public void endCurrentChunk() { // 当结束当前Chunk的写操作后就会调用此方法，往当前写操作的ChunkGroup对应的所有ChunkIndex类对象列表里加入当前写完的ChunkIndex对象，并把当前Chunk元数据对象清空
     chunkMetadataList.add(
-        currentChunkMetadata); // 往当前写操作的ChunkGroup对应的所有ChunkIndex类对象列表里加入当前写完的ChunkIndex对象
+        currentChunkMetadata); // 往当前写操作的ChunkGroup对应的所有ChunkIndex类对象列表里加入当前写完的ChunkIndex对象,可能包含多元序列的TimeChunkIndex或者ValueChunkIndex
     currentChunkMetadata = null; // 把当前Chunk元数据对象清空
   }
 
@@ -288,34 +288,34 @@ public class TsFileIOWriter { // TsFile写入类，在写入操作中，要写�
     // group ChunkMetadata by series
     // only contains ordinary path and time column of vector series
     Map<Path, List<IChunkMetadata>> chunkMetadataListMap =
-        new TreeMap<>(); // 传感器Chunk元数据对象列表，存放（传感器Chunk or 时间序列路径对象，Chunk元数据类对象）
+        new TreeMap<>(); // 传感器Chunk元数据对象列表，存放每个时间序列对应的其ChunkIndex列表，即（时间序列路径对象，ChunkIndex列表）。若是多元序列，则存放其TimeChunk的ChunkIndex
 
     // time column -> ChunkMetadataList TreeMap of value columns in vector
-    Map<Path, Map<Path, List<IChunkMetadata>>> vectorToPathsMap = new HashMap<>();
+    Map<Path, Map<Path, List<IChunkMetadata>>> vectorToPathsMap = new HashMap<>();//存放每个多元序列路径对应的每个子分量传感器对应的所有ValueChunk的ChunkIndex列表
 
-    for (ChunkGroupMetadata chunkGroupMetadata : chunkGroupMetadataList) {
-      List<ChunkMetadata> chunkMetadatas = chunkGroupMetadata.getChunkMetadataList();
+    for (ChunkGroupMetadata chunkGroupMetadata : chunkGroupMetadataList) {  //遍历当前TsFile的每个ChunkGroup的ChunkGroupMetedata
+      List<ChunkMetadata> chunkMetadatas = chunkGroupMetadata.getChunkMetadataList(); //获取该ChunkGroup里的所有Chunk的ChunkIndex列表
       int idx = 0;
-      while (idx < chunkMetadatas.size()) {
+      while (idx < chunkMetadatas.size()) { //遍历该ChunkGroup里的每个ChunkIndex，该ChunkIndex也可能是一个多元序列的TimeChunkIndex或ValueChunkIndex
         IChunkMetadata chunkMetadata = chunkMetadatas.get(idx);
-        if (chunkMetadata.getMask() == 0) {
-          Path series = new Path(chunkGroupMetadata.getDevice(), chunkMetadata.getMeasurementUid());
-          chunkMetadataListMap.computeIfAbsent(series, k -> new ArrayList<>()).add(chunkMetadata);
+        if (chunkMetadata.getMask() == 0) {//若是一元Chunk,则
+          Path series = new Path(chunkGroupMetadata.getDevice(), chunkMetadata.getMeasurementUid());//该一元序列的全路径
+          chunkMetadataListMap.computeIfAbsent(series, k -> new ArrayList<>()).add(chunkMetadata);//往chunkMetadataListMap里加入该序列对应的此ChunkIndex
           idx++;
-        } else if (chunkMetadata.isTimeColumn()) {
+        } else if (chunkMetadata.isTimeColumn()) {//若是多元序列的TimeChunk,则
           // time column of a vector series
-          Path series = new Path(chunkGroupMetadata.getDevice(), chunkMetadata.getMeasurementUid());
-          chunkMetadataListMap.computeIfAbsent(series, k -> new ArrayList<>()).add(chunkMetadata);
+          Path series = new Path(chunkGroupMetadata.getDevice(), chunkMetadata.getMeasurementUid());//多元序列的路徑，到传感器
+          chunkMetadataListMap.computeIfAbsent(series, k -> new ArrayList<>()).add(chunkMetadata);  //往chunkMetadataListMap里加入该序列对应的此VectorChunkIndex
           idx++;
-          Map<Path, List<IChunkMetadata>> chunkMetadataListMapInVector =
+          Map<Path, List<IChunkMetadata>> chunkMetadataListMapInVector =//获取该多元序列的每个子分量传感器对应的所有ChunkIndex列表
               vectorToPathsMap.computeIfAbsent(series, key -> new TreeMap<>());
 
           // value columns of a vector series
-          while (idx < chunkMetadatas.size() && chunkMetadatas.get(idx).isValueColumn()) {
-            chunkMetadata = chunkMetadatas.get(idx);
+          while (idx < chunkMetadatas.size() && chunkMetadatas.get(idx).isValueColumn()) {//继续遍历该多元序列后续的ValueChunkIndex
+            chunkMetadata = chunkMetadatas.get(idx);//获取ValueChunkIndex
             Path vectorSeries =
-                new Path(chunkGroupMetadata.getDevice(), chunkMetadata.getMeasurementUid());
-            chunkMetadataListMapInVector
+                new Path(chunkGroupMetadata.getDevice(), chunkMetadata.getMeasurementUid());//此多元序列的该子传感器的全路径
+            chunkMetadataListMapInVector  //往chunkMetadataListMapInVector的该多元序列的该子分量里添加此ValueChunkIndex
                 .computeIfAbsent(vectorSeries, k -> new ArrayList<>())
                 .add(chunkMetadata);
             idx++;
@@ -324,7 +324,8 @@ public class TsFileIOWriter { // TsFile写入类，在写入操作中，要写�
       }
     }
 
-    MetadataIndexNode metadataIndex = flushMetadataIndex(chunkMetadataListMap, vectorToPathsMap);
+    //索引树的根节点
+    MetadataIndexNode metadataIndex = flushMetadataIndex(chunkMetadataListMap, vectorToPathsMap);//（1）遍历每个时间序列路径及其对应的ChunkIndex列表，把该一元或多元时间序列的所有ChunkIndex给flush到临时缓存流，并用该临时缓存流创建对应该序列的TimeseriesIndex,并将其加入deviceTimeseriesMetadataMap对应的该设备的序列索引（2）根据每个设备对应的所有TimeseriesIndex(每个TimeseriesIndex又存放了该序列的所有ChunkIndex)创建一颗树，并把出来TsFileMetadata的其他索引数据按序序列化到out缓存里
     TsFileMetadata tsFileMetaData = new TsFileMetadata();
     tsFileMetaData.setMetadataIndex(metadataIndex);
     tsFileMetaData.setMetaOffset(metaOffset);
@@ -335,21 +336,21 @@ public class TsFileIOWriter { // TsFile写入类，在写入操作中，要写�
     }
 
     // write TsFileMetaData
-    int size = tsFileMetaData.serializeTo(out.wrapAsStream());
+    int size = tsFileMetaData.serializeTo(out.wrapAsStream());//把IndexOfTimeseriesIndex里的根节点和metaOffset序列化到outputStream缓存
     if (logger.isDebugEnabled()) {
       logger.debug("finish flushing the footer {}, file pos:{}", tsFileMetaData, out.getPosition());
     }
 
     // write bloom filter
-    size += tsFileMetaData.serializeBloomFilter(out.wrapAsStream(), chunkMetadataListMap.keySet());
+    size += tsFileMetaData.serializeBloomFilter(out.wrapAsStream(), chunkMetadataListMap.keySet());//序列化bloomFilter
     if (logger.isDebugEnabled()) {
       logger.debug("finish flushing the bloom filter file pos:{}", out.getPosition());
     }
 
-    // write TsFileMetaData size
+    // write TsFileMetaData size  //序列化TsFileMetaData size
     ReadWriteIOUtils.write(size, out.wrapAsStream()); // write the size of the file metadata.
 
-    // write magic string
+    // write magic string   //序列化MAGIC_STRING
     out.write(MAGIC_STRING_BYTES);
 
     // close file
@@ -369,21 +370,21 @@ public class TsFileIOWriter { // TsFile写入类，在写入操作中，要写�
    *     sub chunkMetadataListMap
    * @return MetadataIndexEntry list in TsFileMetadata
    */
-  private MetadataIndexNode flushMetadataIndex(
-      Map<Path, List<IChunkMetadata>> chunkMetadataListMap,
-      Map<Path, Map<Path, List<IChunkMetadata>>> vectorToPathsMap)
+  private MetadataIndexNode flushMetadataIndex(//（1）遍历每个时间序列路径及其对应的ChunkIndex列表，把该一元或多元时间序列的所有ChunkIndex给flush到临时缓存流，并用该临时缓存流创建对应该序列的TimeseriesIndex,并将其加入deviceTimeseriesMetadataMap对应的该设备的序列索引（2）根据每个设备对应的所有TimeseriesIndex(每个TimeseriesIndex又存放了该序列的所有ChunkIndex)创建一颗树，并把出来TsFileMetadata的其他索引数据按序序列化到out缓存里
+      Map<Path, List<IChunkMetadata>> chunkMetadataListMap, //存放了每个时间序列对应的ChunkIndex列表。若是多元序列则只存放其TimeChunkIndex
+      Map<Path, Map<Path, List<IChunkMetadata>>> vectorToPathsMap)  //存放每个多元序列路径对应的所有子传感器对应的所有ValueChunkIndex
       throws IOException {
 
     // convert ChunkMetadataList to this field
-    deviceTimeseriesMetadataMap = new LinkedHashMap<>();
+    deviceTimeseriesMetadataMap = new LinkedHashMap<>();//存放了(设备路径，该设备下所有传感器的TimeseriesMetadata对象列表)
     // create device -> TimeseriesMetaDataList Map
-    for (Map.Entry<Path, List<IChunkMetadata>> entry : chunkMetadataListMap.entrySet()) {
+    for (Map.Entry<Path, List<IChunkMetadata>> entry : chunkMetadataListMap.entrySet()) {//遍历每个时间序列路径及其对应的ChunkIndex列表。若是多元，则会先传"device1.vector1"及其对应的TimeChunkIndex,然后
       // for ordinary path
-      flushOneChunkMetadata(entry.getKey(), entry.getValue(), vectorToPathsMap);
+      flushOneChunkMetadata(entry.getKey(), entry.getValue(), vectorToPathsMap);//把该一元或多元时间序列的所有ChunkIndex给flush到临时缓存流，并用该临时缓存流创建对应该序列的TimeseriesIndex,并将其加入deviceTimeseriesMetadataMap对应的该设备的序列索引
     }
 
     // construct TsFileMetadata and return
-    return MetadataIndexConstructor.constructMetadataIndex(deviceTimeseriesMetadataMap, out);
+    return MetadataIndexConstructor.constructMetadataIndex(deviceTimeseriesMetadataMap, out);//根据每个设备对应的所有TimeseriesIndex(每个TimeseriesIndex又存放了该序列的所有ChunkIndex)创建一颗树，并把出来TsFileMetadata的其他索引数据按序序列化到out缓存里
   }
 
   /**
@@ -393,47 +394,48 @@ public class TsFileIOWriter { // TsFile写入类，在写入操作中，要写�
    * @param chunkMetadataList List of chunkMetadata about path(previous param)
    * @param vectorToPathsMap Key is Path(timeColumn) and Value is it's sub chunkMetadataListMap
    */
-  private void flushOneChunkMetadata(
-      Path path,
-      List<IChunkMetadata> chunkMetadataList,
-      Map<Path, Map<Path, List<IChunkMetadata>>> vectorToPathsMap)
+  private void flushOneChunkMetadata(   //把该一元或多元时间序列的所有ChunkIndex给flush到临时缓存流，并用该临时缓存流创建对应该序列的TimeseriesIndex,并将其加入deviceTimeseriesMetadataMap对应的该设备的序列索引
+      Path path,  //时间序列路径,可能是多元序列路径
+      List<IChunkMetadata> chunkMetadataList, //该序列对应的所有ChunkIndex，若是多元序列则只存放其TimeChunk的ChunkIndex
+      Map<Path, Map<Path, List<IChunkMetadata>>> vectorToPathsMap) //存放每个多元序列路径对应的所有子传感器对应的所有ValueChunkIndex
       throws IOException {
     // create TimeseriesMetaData
-    PublicBAOS publicBAOS = new PublicBAOS();
-    TSDataType dataType = chunkMetadataList.get(chunkMetadataList.size() - 1).getDataType();
-    Statistics seriesStatistics = Statistics.getStatsByType(dataType);
+    PublicBAOS publicBAOS = new PublicBAOS(); //输出缓存流
+    TSDataType dataType = chunkMetadataList.get(chunkMetadataList.size() - 1).getDataType();//获取该序列最后一个Chunk的数据类型。若是多元序列，则第一个TimeChunk的数据类型是Vector，后面几个ValueChunk则对应各自的数据类型。若是一元序列，则所有Chunk的数据类型统一
+    Statistics seriesStatistics = Statistics.getStatsByType(dataType);  //获取该数据类型对应需要的统计量，为该TimeseriesIndex需要的统计量
 
-    int chunkMetadataListLength = 0;
-    boolean serializeStatistic = (chunkMetadataList.size() > 1);
+    int chunkMetadataListLength = 0;//当前时间序列的所有ChunkIndex序列化的字节大小。若是多元，则先跳过序列化TimeChunkIndex，先序列化后续的ValueChunk
+    boolean serializeStatistic = (chunkMetadataList.size() > 1);//判断是否需要序列化统计量，当该序列的Chunk数量大于1的时候，ChunkIndex才需要统计量
     // flush chunkMetadataList one by one
-    for (IChunkMetadata chunkMetadata : chunkMetadataList) {
-      if (!chunkMetadata.getDataType().equals(dataType)) {
+    for (IChunkMetadata chunkMetadata : chunkMetadataList) {//遍历该序列的每个ChunkIndex，序列化当前时间序列的所有ChunkIndex
+      if (!chunkMetadata.getDataType().equals(dataType)) { //Todo:bug??获取该ChunkIndex数据类型不是dataType，则说明该序列是多元序列，且此时是其第一个Chunk，为TimeChunk，要跳过，因为多元序列的第一个Chunk数据类型是Vector
         continue;
       }
-      chunkMetadataListLength += chunkMetadata.serializeTo(publicBAOS, serializeStatistic);
-      seriesStatistics.mergeStatistics(chunkMetadata.getStatistics());
+      chunkMetadataListLength += chunkMetadata.serializeTo(publicBAOS, serializeStatistic);//把当前ChunkIndex的offsetOfChunkHeader变量以及统计量（serializeStatistic为true时）序列化到publicBAOS输出缓存流里
+      seriesStatistics.mergeStatistics(chunkMetadata.getStatistics());//把ChunkIndex的统计量对象里的参数合并到seriesStatistics统计量对象
     }
 
+    //初始化当前时间序列的TimeseriesIndex，把其加入deviceTimeseriesMetadataMap里对应设备里，供后续要序列化TimeseriesIndex使用
     TimeseriesMetadata timeseriesMetadata =
         new TimeseriesMetadata(
             (byte)
-                ((serializeStatistic ? (byte) 1 : (byte) 0) | chunkMetadataList.get(0).getMask()),
-            chunkMetadataListLength,
-            path.getMeasurement(),
-            dataType,
-            seriesStatistics,
-            publicBAOS);
-    deviceTimeseriesMetadataMap
+                ((serializeStatistic ? (byte) 1 : (byte) 0) | chunkMetadataList.get(0).getMask()),  //该ChunkIndex的类型
+            chunkMetadataListLength,//当前时间序列的所有ChunkIndex序列化的字节大小
+            path.getMeasurement(),//当前序列的传感器ID
+            dataType, //数据类型
+            seriesStatistics, //该TimeseriesIndex需要的统计量
+            publicBAOS);  //输出缓存流
+    deviceTimeseriesMetadataMap //往deviceTimeseriesMetadataMap的该序列的设备里加入此序列TimeseriesIndex
         .computeIfAbsent(path.getDevice(), k -> new ArrayList<>())
         .add(timeseriesMetadata);
 
     // for VECTOR
-    for (IChunkMetadata chunkMetadata : chunkMetadataList) {
+    for (IChunkMetadata chunkMetadata : chunkMetadataList) {//再次遍历该序列的每个ChunkIndex
       // chunkMetadata is time column of a vector series
-      if (chunkMetadata.isTimeColumn()) {
-        Map<Path, List<IChunkMetadata>> vectorMap = vectorToPathsMap.get(path);
+      if (chunkMetadata.isTimeColumn()) { //若是时间ChunkIndex,则
+        Map<Path, List<IChunkMetadata>> vectorMap = vectorToPathsMap.get(path);//获取该多元序列路径对应的所有子传感器对应的所有ValueChunkIndex
 
-        for (Map.Entry<Path, List<IChunkMetadata>> entry : vectorMap.entrySet()) {
+        for (Map.Entry<Path, List<IChunkMetadata>> entry : vectorMap.entrySet()) {//遍历该多元序列路径对应的所有子传感器对应的所有ValueChunkIndex
           flushOneChunkMetadata(entry.getKey(), entry.getValue(), vectorToPathsMap);
         }
       }

@@ -38,10 +38,10 @@ public class Schema
    * order of insertion
    */
   private Map<Path, IMeasurementSchema> registeredTimeseries; // 存放了该TsFile里已注册的时间序列，为（全路径，传感器配置类对象）
-
+  //Map<String,对象>
   /** template name -> (measurement -> MeasurementSchema) */
   private Map<String, Map<String, IMeasurementSchema>>
-      schemaTemplates; // 配置模板，即每个模板下有自己的多个传感器ID和对应的传感器配置类对象
+      schemaTemplates; // 配置模板，即每个模板名下有自己的多个传感器ID和对应的传感器配置类对象
 
   public Schema() {
     this.registeredTimeseries = new LinkedHashMap<>();
@@ -51,7 +51,7 @@ public class Schema
     this.registeredTimeseries = knownSchema;
   }
 
-  public void registerTimeseries(Path path, IMeasurementSchema descriptor) {
+  public void registerTimeseries(Path path, IMeasurementSchema descriptor) {  //Todo:多元序列时，此处的path是到vector的一元路径对象
     this.registeredTimeseries.put(path, descriptor); // 往该TsFile里注册一个新的时间序列，存放该序列的全路径和传感器配置类对象
   }
 

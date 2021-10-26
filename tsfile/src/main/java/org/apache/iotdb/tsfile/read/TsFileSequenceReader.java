@@ -456,6 +456,7 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
     return metadataIndexPair;
   }
 
+  //此处若是多元，则传感器ID是各个子分量的，如"GPS"和"GPS.纬度"或者"GPS.精度"
   public List<TimeseriesMetadata> readTimeseriesMetadata(String device, Set<String> measurements)//根据指定的设备ID和对应的传感器ID,获取该TsFile里对应的TimeseriesIndex对象
       throws IOException {
     readFileMetadata();//若当前顺序阅读器的tsFileMetaData为null，则使用tsFileInput对象读取对应TsFile里的IndexOfTimeseriesIndex索引的所有内容读到bytebuffer缓存里，并从buffer里进行读取反序列化成该顺序读取器里的TsFileMetadata对象
@@ -541,10 +542,11 @@ public class TsFileSequenceReader implements AutoCloseable { // TsFile文件的�
 
   public List<String> getAllDevices() throws IOException {//获取该TsFile文件里的所有设备ID，放入list里并返回。具体做法是使用该TsFile的IndexOfTimeseriesIndex的第一个根索引节点进行递归查找其下的所有LEAF_DEVICE子节点，从而获取该根节点下的所有设备ID
     if (tsFileMetaData == null) {
-      readFileMetadata();//使用tsFileInput对象读取对应TsFile里的IndexOfTimeseriesIndex索引的所有内容读到bytebuffer缓存里，并从buffer里进行读取反序列化成该顺序读取器里的TsFileMetadata对象
+      readFileMetadata();//若当前顺序阅读器的tsFileMetaData为null，则使用tsFileInput对象读取对应TsFile里的IndexOfTimeseriesIndex索引的所有内容读到bytebuffer缓存里，并从buffer里进行读取反序列化成该顺序读取器里的TsFileMetadata对象
     }
     return getAllDevices(tsFileMetaData.getMetadataIndex());//获取该索引节点包含的所有设备ID，返回设备ID列表（由于设备信息是在LEAF_DEVICE节点上的，具体做法是进行递归深度遍历每个设备节点，直至当前遍历的索引节点是LEAF_DEVICE节点，则读取该节点的条目内容获得一条条设备ID放入list里）
   }
+
 
   private List<String> getAllDevices(MetadataIndexNode metadataIndexNode) throws IOException {  //获取该索引节点包含的所有设备ID，返回设备ID列表（由于设备信息是在LEAF_DEVICE节点上的，具体做法是进行递归深度遍历每个设备节点，直至当前遍历的索引节点是LEAF_DEVICE节点，则读取该节点的条目内容获得一条条设备ID放入list里）
     List<String> deviceList = new ArrayList<>();

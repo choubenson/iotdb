@@ -56,7 +56,7 @@ public enum MetadataIndexNodeType { //IndexOfTimeseriesIndex的索引节点类�
    * @param i byte number
    * @return MetadataIndexNodeType
    */
-  public static MetadataIndexNodeType deserialize(byte i) {
+  public static MetadataIndexNodeType deserialize(byte i) {//Todo:没有Vector中间和叶子节点？
     switch (i) {
       case 0:
         return MetadataIndexNodeType.INTERNAL_DEVICE;

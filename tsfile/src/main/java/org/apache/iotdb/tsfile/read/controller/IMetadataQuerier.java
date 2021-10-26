@@ -43,7 +43,7 @@ public interface IMetadataQuerier {
    * <p>call this method before calling getChunkMetaDataList() will accelerate the reading of chunk
    * metadata, which will only read TsMetaData once
    */
-  void loadChunkMetaDatas(List<Path> paths) throws IOException;
+  void loadChunkMetaDatas(List<Path> paths,Map<String,List<String>> vectorSubMeasurementNames) throws IOException;
 
   /**
    * @return the corresponding data type.

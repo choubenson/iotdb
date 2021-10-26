@@ -18,6 +18,8 @@
  */
 package org.apache.iotdb.tsfile.read.expression;
 
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import org.apache.iotdb.tsfile.read.common.Path;
 
@@ -27,14 +29,17 @@ import java.util.List;
 
 public class QueryExpression implements Serializable { // 查询表达式类
 
-  private List<Path> selectedSeries; // 该次查询的时间序列路径列表
+  private List<Path> selectedSeries; // 该次查询的时间序列路径列表,若是多元，则只存vectorPath
   private List<TSDataType> dataTypes; // 每个时间序列对应的数据类型
   private IExpression expression; // 表达式
   private boolean hasQueryFilter; // 是否有查询过滤器
 
+  private Map<String,List<String>> vectorSubMeasurements; //存放每个多元序列对应的子传感器名,如"root.sg.d1.vector1"对应有"sensor1","sensor2"
+
   private QueryExpression() {
     selectedSeries = new ArrayList<>();
     hasQueryFilter = false;
+    vectorSubMeasurements=new HashMap<>();
   }
 
   public static QueryExpression create() {
@@ -86,6 +91,24 @@ public class QueryExpression implements Serializable { // 查询表达式类
             .append("\n\t[expression]:")
             .append(expression);
     return stringBuilder.toString();
+  }
+
+  public void addVectorSubMeasurements(String vectorPath, List<String> subMeasurements){
+    vectorSubMeasurements.computeIfAbsent(vectorPath,key -> new ArrayList<String>()).addAll(subMeasurements);
+  }
+
+  public List<String> getSubMeasurementPaths (String vectorPath){  //return "vector1.sensor1","vector1.sensor2"
+    List<String> subMeasurementsPaths=new ArrayList<>();
+    String[] pathArrays=vectorPath.split(".");
+    String vectorPathPrefix=pathArrays[pathArrays.length-1];
+    for(String subMeasurementName: vectorSubMeasurements.get(vectorPath)){
+      subMeasurementsPaths.add(vectorPathPrefix+subMeasurementName);
+    }
+    return subMeasurementsPaths;
+  }
+
+  public Map<String, List<String>> getVectorSubMeasurements() {
+    return vectorSubMeasurements;
   }
 
   public boolean hasQueryFilter() {

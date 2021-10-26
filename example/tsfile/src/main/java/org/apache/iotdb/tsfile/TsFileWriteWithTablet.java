@@ -54,7 +54,7 @@ public class TsFileWriteWithTablet {
       String device = Constant.DEVICE_PREFIX + 1;
       String sensorPrefix = "sensor_";
       // the number of rows to include in the tablet
-      int rowNum = 1000000;
+      int rowNum = 10000;
       // the number of values to include in the tablet
       int sensorNum = 10;
 

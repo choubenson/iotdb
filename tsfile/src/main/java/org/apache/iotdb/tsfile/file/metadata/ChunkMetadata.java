@@ -77,7 +77,7 @@ public class ChunkMetadata
   private boolean isSeq = true;
   private boolean isClosed;
   private String filePath;
-  private byte mask;
+  private byte mask;  //若为0，说明是一元序列的Chunk，否则可能是多元序列的TimeChunk或者ValueChunk
 
   // used for ChunkCache, Eg:"root.sg1/0/0"
   private String tsFilePrefixPath;
@@ -152,7 +152,7 @@ public class ChunkMetadata
    * @return length
    * @throws IOException IOException
    */
-  public int serializeTo(OutputStream outputStream, boolean serializeStatistic) throws IOException {
+  public int serializeTo(OutputStream outputStream, boolean serializeStatistic) throws IOException {  //把当前ChunkIndex的offsetOfChunkHeader变量以及统计量（serializeStatistic为true时）序列化到outputStream输出缓存流里
     int byteLen = 0;
     byteLen += ReadWriteIOUtils.write(offsetOfChunkHeader, outputStream);
     if (serializeStatistic) {

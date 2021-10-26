@@ -135,7 +135,7 @@ public abstract class AbstractMemTable
 
     IMeasurementMNode[] measurementMNodes = insertRowPlan.getMeasurementMNodes();
     int columnIndex = 0; // 用作临时的传感器索引，用于遍历该插入计划的指定设备下的一个个传感器
-    if (insertRowPlan.isAligned()) { // 如果是对齐的
+    if (insertRowPlan.isAligned()) { // 如果是多元序列
       IMeasurementMNode measurementMNode = measurementMNodes[0];
       if (measurementMNode != null) {
         // write vector
