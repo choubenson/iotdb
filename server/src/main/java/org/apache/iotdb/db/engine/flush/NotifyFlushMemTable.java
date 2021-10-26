@@ -21,7 +21,6 @@ package org.apache.iotdb.db.engine.flush;
 import org.apache.iotdb.db.engine.memtable.AbstractMemTable;
 import org.apache.iotdb.db.engine.memtable.IMemTable;
 import org.apache.iotdb.db.engine.memtable.IWritableMemChunk;
-import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
 
 /**
  * Only used in sync flush and async close to start a flush task This memtable is not managed by

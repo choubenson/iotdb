@@ -21,7 +21,6 @@ package org.apache.iotdb.db.qp.physical.sys;
 
 import org.apache.iotdb.db.metadata.PartialPath;
 import org.apache.iotdb.db.qp.logical.Operator;
-import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
 import org.apache.iotdb.tsfile.write.schema.UnaryMeasurementSchema;
 
 import java.io.DataOutputStream;

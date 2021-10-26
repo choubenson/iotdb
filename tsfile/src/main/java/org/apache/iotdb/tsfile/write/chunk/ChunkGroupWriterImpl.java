@@ -18,25 +18,24 @@
  */
 package org.apache.iotdb.tsfile.write.chunk;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.iotdb.tsfile.exception.write.NoMeasurementException;
 import org.apache.iotdb.tsfile.exception.write.UnSupportedDataTypeException;
 import org.apache.iotdb.tsfile.exception.write.WriteProcessException;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import org.apache.iotdb.tsfile.utils.Binary;
+import org.apache.iotdb.tsfile.utils.DeviceInfo;
 import org.apache.iotdb.tsfile.write.record.Tablet;
 import org.apache.iotdb.tsfile.write.record.datapoint.DataPoint;
-import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
+import org.apache.iotdb.tsfile.write.schema.MeasurementSchema;
 import org.apache.iotdb.tsfile.write.schema.UnaryMeasurementSchema;
 import org.apache.iotdb.tsfile.write.schema.VectorMeasurementSchema;
 import org.apache.iotdb.tsfile.write.writer.TsFileIOWriter;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /** a implementation of IChunkGroupWriter. */
 public class ChunkGroupWriterImpl implements IChunkGroupWriter {
@@ -53,7 +52,13 @@ public class ChunkGroupWriterImpl implements IChunkGroupWriter {
   }
 
   @Override
-  public void tryToAddSeriesWriter(IMeasurementSchema schema, int pageSizeThreshold) {
+  public void tryToAddSeriesWriter(DeviceInfo deviceInfo, int pageSizeThreshold) {
+    if (!deviceInfo.isAligned()) {
+
+    } else {
+
+    }
+
     if (!chunkWriters.containsKey(schema.getMeasurementId())) {
       IChunkWriter seriesWriter = null;
       // initialize depend on schema type
@@ -80,7 +85,7 @@ public class ChunkGroupWriterImpl implements IChunkGroupWriter {
 
   @Override
   public void write(Tablet tablet) throws WriteProcessException {
-    List<IMeasurementSchema> timeseries = tablet.getSchemas();
+    List<MeasurementSchema> timeseries = tablet.getSchemas();
     for (int i = 0; i < timeseries.size(); i++) {
       String measurementId = timeseries.get(i).getMeasurementId();
       TSDataType dataType = timeseries.get(i).getType();

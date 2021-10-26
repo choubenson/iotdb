@@ -18,29 +18,30 @@
  */
 package org.apache.iotdb.tsfile.write;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.iotdb.tsfile.common.conf.TSFileConfig;
 import org.apache.iotdb.tsfile.common.conf.TSFileDescriptor;
 import org.apache.iotdb.tsfile.exception.write.NoMeasurementException;
 import org.apache.iotdb.tsfile.exception.write.WriteProcessException;
 import org.apache.iotdb.tsfile.read.common.Path;
+import org.apache.iotdb.tsfile.utils.DeviceInfo;
+import org.apache.iotdb.tsfile.utils.TemplateInfo;
 import org.apache.iotdb.tsfile.write.chunk.ChunkGroupWriterImpl;
 import org.apache.iotdb.tsfile.write.chunk.IChunkGroupWriter;
 import org.apache.iotdb.tsfile.write.record.TSRecord;
 import org.apache.iotdb.tsfile.write.record.Tablet;
 import org.apache.iotdb.tsfile.write.record.datapoint.DataPoint;
-import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
+import org.apache.iotdb.tsfile.write.schema.MeasurementSchema;
 import org.apache.iotdb.tsfile.write.schema.Schema;
 import org.apache.iotdb.tsfile.write.writer.RestorableTsFileIOWriter;
 import org.apache.iotdb.tsfile.write.writer.TsFileIOWriter;
 import org.apache.iotdb.tsfile.write.writer.TsFileOutput;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * TsFileWriter is the entrance for writing processing. It receives a record and send it to
@@ -151,21 +152,58 @@ public class TsFileWriter implements AutoCloseable {
   }
 
   public void registerSchemaTemplate(
-      String templateName, Map<String, IMeasurementSchema> template) {
-    schema.registerSchemaTemplate(templateName, template);
+      String templateName, Map<String, MeasurementSchema> template, boolean isAligned) {
+    schema.registerSchemaTemplate(templateName, new TemplateInfo(template, isAligned));
   }
 
-  public void registerDevice(String deviceId, String templateName) {
+  public void registerDevice(String deviceId, String templateName) throws WriteProcessException {
+    if (!schema.getSchemaTemplates().containsKey(templateName)) {
+      throw new WriteProcessException("given template is not existed! " + templateName);
+    }
     schema.registerDevice(deviceId, templateName);
   }
 
-  public void registerTimeseries(Path path, IMeasurementSchema measurementSchema)
+  public void registerTimeseries(Path devicePath, MeasurementSchema measurementSchema)
       throws WriteProcessException {
-    if (schema.containsTimeseries(path)) {
-      throw new WriteProcessException("given timeseries has exists! " + path);
+    DeviceInfo deviceInfo;
+    if (schema.containsTimeseries(devicePath)) {
+      deviceInfo = schema.getSeriesSchema(devicePath);
+      if (deviceInfo.isAligned()) {
+        throw new WriteProcessException(
+            "given aligned device has existed and should not be expanded! " + devicePath);
+      } else if (deviceInfo
+          .getMeasurementSchemaMap()
+          .containsKey(measurementSchema.getMeasurementId())) {
+        throw new WriteProcessException(
+            "given nonAligned timeseries has existed! "
+                + (devicePath + measurementSchema.getMeasurementId()));
+      }
+    } else {
+      deviceInfo = new DeviceInfo(false);
     }
-    schema.registerTimeseries(path, measurementSchema);
+    deviceInfo
+        .getMeasurementSchemaMap()
+        .put(measurementSchema.getMeasurementId(), measurementSchema);
+    schema.registerTimeseries(devicePath, deviceInfo);
   }
+
+  public void registerAlignedTimeseries(Path devicePath, List<MeasurementSchema> measurementSchemas)
+      throws WriteProcessException {
+    if (schema.containsTimeseries(devicePath)) {
+      throw new WriteProcessException(
+          "given aligned device has existed and should not be expanded! " + devicePath);
+    }
+    DeviceInfo deviceInfo = new DeviceInfo(true);
+    measurementSchemas.forEach(
+        measurementSchema -> {
+          deviceInfo
+              .getMeasurementSchemaMap()
+              .put(measurementSchema.getMeasurementId(), measurementSchema);
+        });
+    schema.registerTimeseries(devicePath, deviceInfo);
+  }
+
+  private boolean checkIsAlignedTimeseriesExist(TSRecord record) {}
 
   /**
    * Confirm whether the record is legal. If legal, add it into this RecordWriter.
@@ -186,13 +224,20 @@ public class TsFileWriter implements AutoCloseable {
     // add all SeriesWriter of measurements in this TSRecord to this ChunkGroupWriter
     for (DataPoint dp : record.dataPointList) {
       String measurementId = dp.getMeasurementId();
-      Path path = new Path(record.deviceId, measurementId);
+      Path path = new Path(record.deviceId);
       if (schema.containsTimeseries(path)) {
-        groupWriter.tryToAddSeriesWriter(schema.getSeriesSchema(path), pageSize);
+        groupWriter.tryToAddSeriesWriter(
+            schema.getSeriesSchema(path).getMeasurementSchemaMap().get(measurementId), pageSize);
       } else if (schema.getSchemaTemplates() != null && schema.getSchemaTemplates().size() == 1) {
         // use the default template without needing to register device
-        Map<String, IMeasurementSchema> template =
-            schema.getSchemaTemplates().entrySet().iterator().next().getValue();
+        Map<String, MeasurementSchema> template =
+            schema
+                .getSchemaTemplates()
+                .entrySet()
+                .iterator()
+                .next()
+                .getValue()
+                .getMeasurementSchemaMap();
         if (template.containsKey(path.getMeasurement())) {
           groupWriter.tryToAddSeriesWriter(template.get(path.getMeasurement()), pageSize);
         }
@@ -221,14 +266,14 @@ public class TsFileWriter implements AutoCloseable {
     String deviceId = tablet.prefixPath;
 
     // add all SeriesWriter of measurements in this Tablet to this ChunkGroupWriter
-    for (IMeasurementSchema timeseries : tablet.getSchemas()) {
+    for (MeasurementSchema timeseries : tablet.getSchemas()) {
       String measurementId = timeseries.getMeasurementId();
       Path path = new Path(deviceId, measurementId);
       if (schema.containsTimeseries(path)) {
         groupWriter.tryToAddSeriesWriter(schema.getSeriesSchema(path), pageSize);
       } else if (schema.getSchemaTemplates() != null && schema.getSchemaTemplates().size() == 1) {
         // use the default template without needing to register device
-        Map<String, IMeasurementSchema> template =
+        Map<String, MeasurementSchema> template =
             schema.getSchemaTemplates().entrySet().iterator().next().getValue();
         if (template.containsKey(path.getMeasurement())) {
           groupWriter.tryToAddSeriesWriter(template.get(path.getMeasurement()), pageSize);

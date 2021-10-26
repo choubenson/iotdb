@@ -28,7 +28,6 @@ import org.apache.iotdb.db.metadata.mnode.MultiMeasurementMNode;
 import org.apache.iotdb.db.metadata.mnode.UnaryMeasurementMNode;
 import org.apache.iotdb.db.query.context.QueryContext;
 import org.apache.iotdb.tsfile.utils.Pair;
-import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
 
 import java.util.LinkedList;
 import java.util.List;

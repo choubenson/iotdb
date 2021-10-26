@@ -18,6 +18,14 @@
  */
 package org.apache.iotdb.tsfile.write.schema;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Serializable;
+import java.nio.ByteBuffer;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 import org.apache.iotdb.tsfile.common.conf.TSFileDescriptor;
 import org.apache.iotdb.tsfile.encoding.encoder.Encoder;
 import org.apache.iotdb.tsfile.encoding.encoder.TSEncodingBuilder;
@@ -26,16 +34,6 @@ import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSEncoding;
 import org.apache.iotdb.tsfile.utils.ReadWriteIOUtils;
 import org.apache.iotdb.tsfile.utils.StringContainer;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.Serializable;
-import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
 /**
  * This class describes a measurement's information registered in {@linkplain Schema FileSchema},
@@ -55,7 +53,7 @@ public class UnaryMeasurementSchema
 
   public UnaryMeasurementSchema() {}
 
-  public UnaryMeasurementSchema(String measurementId, TSDataType tsDataType) {
+  public MeasurementSchema(String measurementId, TSDataType tsDataType) {
     this(
         measurementId,
         tsDataType,
@@ -65,7 +63,7 @@ public class UnaryMeasurementSchema
   }
 
   /** set properties as an empty Map. */
-  public UnaryMeasurementSchema(String measurementId, TSDataType type, TSEncoding encoding) {
+  public MeasurementSchema(String measurementId, TSDataType type, TSEncoding encoding) {
     this(
         measurementId,
         type,
@@ -74,7 +72,7 @@ public class UnaryMeasurementSchema
         null);
   }
 
-  public UnaryMeasurementSchema(
+  public MeasurementSchema(
       String measurementId, TSDataType type, TSEncoding encoding, CompressionType compressionType) {
     this(measurementId, type, encoding, compressionType, null);
   }
@@ -85,7 +83,7 @@ public class UnaryMeasurementSchema
    * <p>props - information in encoding method. For RLE, Encoder.MAX_POINT_NUMBER For PLAIN,
    * Encoder.maxStringLength
    */
-  public UnaryMeasurementSchema(
+  public MeasurementSchema(
       String measurementId,
       TSDataType type,
       TSEncoding encoding,
@@ -98,7 +96,7 @@ public class UnaryMeasurementSchema
     this.compressor = compressionType.serialize();
   }
 
-  public UnaryMeasurementSchema(
+  public MeasurementSchema(
       String measurementId,
       byte type,
       byte encoding,
@@ -112,8 +110,8 @@ public class UnaryMeasurementSchema
   }
 
   /** function for deserializing data from input stream. */
-  public static UnaryMeasurementSchema deserializeFrom(InputStream inputStream) throws IOException {
-    UnaryMeasurementSchema measurementSchema = new UnaryMeasurementSchema();
+  public static MeasurementSchema deserializeFrom(InputStream inputStream) throws IOException {
+    MeasurementSchema measurementSchema = new MeasurementSchema();
 
     measurementSchema.measurementId = ReadWriteIOUtils.readString(inputStream);
 
@@ -139,8 +137,8 @@ public class UnaryMeasurementSchema
   }
 
   /** function for deserializing data from byte buffer. */
-  public static UnaryMeasurementSchema deserializeFrom(ByteBuffer buffer) {
-    UnaryMeasurementSchema measurementSchema = new UnaryMeasurementSchema();
+  public static MeasurementSchema deserializeFrom(ByteBuffer buffer) {
+    MeasurementSchema measurementSchema = new MeasurementSchema();
 
     measurementSchema.measurementId = ReadWriteIOUtils.readString(buffer);
 
@@ -165,8 +163,8 @@ public class UnaryMeasurementSchema
     return measurementSchema;
   }
 
-  public static UnaryMeasurementSchema partialDeserializeFrom(ByteBuffer buffer) {
-    UnaryMeasurementSchema measurementSchema = new UnaryMeasurementSchema();
+  public static MeasurementSchema partialDeserializeFrom(ByteBuffer buffer) {
+    MeasurementSchema measurementSchema = new MeasurementSchema();
 
     measurementSchema.measurementId = ReadWriteIOUtils.readString(buffer);
 
@@ -179,7 +177,6 @@ public class UnaryMeasurementSchema
     return measurementSchema;
   }
 
-  @Override
   public String getMeasurementId() {
     return measurementId;
   }
@@ -188,22 +185,18 @@ public class UnaryMeasurementSchema
     this.measurementId = measurementId;
   }
 
-  @Override
   public Map<String, String> getProps() {
     return props;
   }
 
-  @Override
   public TSEncoding getEncodingType() {
     return TSEncoding.deserialize(encoding);
   }
 
-  @Override
   public TSDataType getType() {
     return TSDataType.deserialize(type);
   }
 
-  @Override
   public TSEncoding getTimeTSEncoding() {
     return TSEncoding.valueOf(TSFileDescriptor.getInstance().getConfig().getTimeEncoder());
   }
@@ -213,32 +206,11 @@ public class UnaryMeasurementSchema
   }
 
   /** function for getting time encoder. */
-  @Override
   public Encoder getTimeEncoder() {
     TSEncoding timeEncoding =
         TSEncoding.valueOf(TSFileDescriptor.getInstance().getConfig().getTimeEncoder());
     TSDataType timeType = TSFileDescriptor.getInstance().getConfig().getTimeSeriesDataType();
     return TSEncodingBuilder.getEncodingBuilder(timeEncoding).getEncoder(timeType);
-  }
-
-  @Override
-  public List<String> getSubMeasurementsList() {
-    throw new UnsupportedOperationException("unsupported method for MeasurementSchema");
-  }
-
-  @Override
-  public List<TSDataType> getSubMeasurementsTSDataTypeList() {
-    throw new UnsupportedOperationException("unsupported method for MeasurementSchema");
-  }
-
-  @Override
-  public List<TSEncoding> getSubMeasurementsTSEncodingList() {
-    throw new UnsupportedOperationException("unsupported method for MeasurementSchema");
-  }
-
-  @Override
-  public List<Encoder> getSubMeasurementsEncoderList() {
-    throw new UnsupportedOperationException("unsupported method for MeasurementSchema");
   }
 
   /**
@@ -256,13 +228,11 @@ public class UnaryMeasurementSchema
     return encodingConverter.getEncoder(TSDataType.deserialize(type));
   }
 
-  @Override
   public CompressionType getCompressor() {
     return CompressionType.deserialize(compressor);
   }
 
   /** function for serializing data to output stream. */
-  @Override
   public int serializeTo(OutputStream outputStream) throws IOException {
     int byteLen = 0;
 
@@ -288,7 +258,6 @@ public class UnaryMeasurementSchema
   }
 
   /** function for serializing data to byte buffer. */
-  @Override
   public int serializeTo(ByteBuffer buffer) {
     int byteLen = 0;
 
@@ -313,7 +282,6 @@ public class UnaryMeasurementSchema
     return byteLen;
   }
 
-  @Override
   public int partialSerializeTo(OutputStream outputStream) throws IOException {
     int byteLen = 0;
 
@@ -326,7 +294,6 @@ public class UnaryMeasurementSchema
     return byteLen;
   }
 
-  @Override
   public int partialSerializeTo(ByteBuffer buffer) {
     int byteLen = 0;
 
@@ -347,7 +314,7 @@ public class UnaryMeasurementSchema
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    UnaryMeasurementSchema that = (UnaryMeasurementSchema) o;
+    MeasurementSchema that = (MeasurementSchema) o;
     return type == that.type
         && encoding == that.encoding
         && Objects.equals(measurementId, that.measurementId)
@@ -361,7 +328,7 @@ public class UnaryMeasurementSchema
 
   /** compare by measurementID. */
   @Override
-  public int compareTo(UnaryMeasurementSchema o) {
+  public int compareTo(MeasurementSchema o) {
     if (equals(o)) {
       return 0;
     } else {
@@ -389,20 +356,5 @@ public class UnaryMeasurementSchema
 
   public void setType(TSDataType type) {
     this.type = type.serialize();
-  }
-
-  @Override
-  public int getSubMeasurementIndex(String measurementId) {
-    return this.measurementId.equals(measurementId) ? 0 : -1;
-  }
-
-  @Override
-  public int getSubMeasurementsCount() {
-    return 1;
-  }
-
-  @Override
-  public boolean containsSubMeasurement(String measurementId) {
-    return this.measurementId.equals(measurementId);
   }
 }

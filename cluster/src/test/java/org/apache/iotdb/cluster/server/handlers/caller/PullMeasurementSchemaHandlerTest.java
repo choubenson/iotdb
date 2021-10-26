@@ -23,7 +23,6 @@ import org.apache.iotdb.cluster.common.TestException;
 import org.apache.iotdb.cluster.common.TestUtils;
 import org.apache.iotdb.cluster.rpc.thrift.Node;
 import org.apache.iotdb.cluster.rpc.thrift.PullSchemaResp;
-import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
 
 import org.junit.Test;
 

@@ -21,7 +21,6 @@ package org.apache.iotdb.db.engine.memtable;
 
 import org.apache.iotdb.db.rescon.TVListAllocator;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
-import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
 
 import java.util.HashMap;
 import java.util.Map;
