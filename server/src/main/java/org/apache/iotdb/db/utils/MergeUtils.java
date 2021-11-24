@@ -31,16 +31,11 @@ import org.apache.iotdb.tsfile.read.common.Chunk;
 import org.apache.iotdb.tsfile.read.common.Path;
 import org.apache.iotdb.tsfile.read.reader.chunk.ChunkReader;
 import org.apache.iotdb.tsfile.write.chunk.ChunkWriterImpl;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.PriorityQueue;
+import java.util.*;
 
 public class MergeUtils {
 
@@ -75,6 +70,7 @@ public class MergeUtils {
     }
   }
 
+  // 获取该TsFile的所有时间序列
   private static List<Path> collectFileSeries(TsFileSequenceReader sequenceReader)
       throws IOException {
     return sequenceReader.getAllPaths();
@@ -132,10 +128,12 @@ public class MergeUtils {
   }
 
   // returns totalChunkNum of a file and the max number of chunks of a series
+  // 获取该TsFile里所有时间序列的Chunk的总数量和以及单时间序列的最大Chunk数量
   public static long[] findTotalAndLargestSeriesChunkNum(
       TsFileResource tsFileResource, TsFileSequenceReader sequenceReader) throws IOException {
     long totalChunkNum = 0;
     long maxChunkNum = Long.MIN_VALUE;
+    // 获取该TsFile的所有时间序列
     List<Path> paths = collectFileSeries(sequenceReader);
 
     for (Path path : paths) {
@@ -151,8 +149,10 @@ public class MergeUtils {
     return new long[] {totalChunkNum, maxChunkNum};
   }
 
+  // 获取该文件的索引区的大小
   public static long getFileMetaSize(TsFileResource seqFile, TsFileSequenceReader sequenceReader) {
-    return seqFile.getTsFileSize() - sequenceReader.getFileMetadataPos();
+    return seqFile.getTsFileSize()
+        - sequenceReader.getFileMetadataPos(); // 文件长度-该TsFile的IndexOfTimeseriesIndex索引的开始处所在的偏移位置
   }
 
   /**

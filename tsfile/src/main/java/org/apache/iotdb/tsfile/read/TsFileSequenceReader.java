@@ -45,7 +45,6 @@ import org.apache.iotdb.tsfile.utils.Pair;
 import org.apache.iotdb.tsfile.utils.ReadWriteIOUtils;
 import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
 import org.apache.iotdb.tsfile.write.schema.UnaryMeasurementSchema;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,7 +68,7 @@ public class TsFileSequenceReader implements AutoCloseable {
       "Something error happened while deserializing MetadataIndexNode of file {}";
   protected String file;
   protected TsFileInput tsFileInput;
-  protected long fileMetadataPos;
+  protected long fileMetadataPos; // 该TsFile的IndexOfTimeseriesIndex索引的开始处所在的偏移位置
   protected int fileMetadataSize;
   private ByteBuffer markerBuffer = ByteBuffer.allocate(Byte.BYTES);
   protected TsFileMetadata tsFileMetaData;
@@ -1052,9 +1051,11 @@ public class TsFileSequenceReader implements AutoCloseable {
    *     be truncated.
    */
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
-  public long selfCheck(
-      Map<Path, IMeasurementSchema> newSchema,
-      List<ChunkGroupMetadata> chunkGroupMetadataList,
+  public long selfCheck( // 文件检查：1）若fastFinish为真则返回是否是完整的TsFile文件
+      // 2）若fastFinish为false，则读取该文件将对应的内容（时间序列的measurementSchema和chunkMetadata）放入第一第二个参数里，并返回待截取的文件位置
+      Map<Path, IMeasurementSchema> newSchema, // 该方法将此次遍历到的该文件里的每个时间序列路径和measurementSchema放入此对象里
+      List<ChunkGroupMetadata>
+          chunkGroupMetadataList, // 该方法将此次遍历到的该文件里的每个ChunkGroup的Metadata（包括该ChunkGroup里每个Chunk的ChunkMetadata）放入此列表里
       boolean fastFinish)
       throws IOException {
     File checkFile = FSFactoryProducer.getFSFactory().getFile(this.file);
@@ -1081,21 +1082,23 @@ public class TsFileSequenceReader implements AutoCloseable {
       return TsFileCheckStatus.INCOMPATIBLE_FILE;
     }
 
-    tsFileInput.position(headerLength);
+    tsFileInput.position(headerLength); // 将tsFileInput读指针移到Version版本号后面
     if (fileSize == headerLength) {
       return headerLength;
-    } else if (isComplete()) {
+    } else if (isComplete()) { // 若TsFile文件是完整的（即前后都有TSFILE字段）
       loadMetadataSize();
       if (fastFinish) {
         return TsFileCheckStatus.COMPLETE_FILE;
       }
     }
     // not a complete file, we will recover it...
-    long truncatedSize = headerLength;
+    long truncatedSize = headerLength; // 待截取的文件位置
     byte marker;
     String lastDeviceId = null;
-    List<IMeasurementSchema> measurementSchemaList = new ArrayList<>();
+    List<IMeasurementSchema> measurementSchemaList =
+        new ArrayList<>(); // 某个ChunkGroup里的所有MeasurementSchema
     try {
+      // 开始从前往后顺序读取文件
       while ((marker = this.readMarker()) != MetaMarker.SEPARATOR) {
         switch (marker) {
           case MetaMarker.CHUNK_HEADER:
@@ -1119,22 +1122,26 @@ public class TsFileSequenceReader implements AutoCloseable {
             Statistics<? extends Serializable> chunkStatistics =
                 Statistics.getStatsByType(dataType);
             int dataSize = chunkHeader.getDataSize();
+            // 这个Chunk可能是TimeChunk、ValueChunk或者普通的Chunk,有多个page
             if (((byte) (chunkHeader.getChunkType() & 0x3F)) == MetaMarker.CHUNK_HEADER) {
               while (dataSize > 0) {
                 // a new Page
-                PageHeader pageHeader = this.readPageHeader(chunkHeader.getDataType(), true);
-                chunkStatistics.mergeStatistics(pageHeader.getStatistics());
-                this.skipPageData(pageHeader);
+                PageHeader pageHeader =
+                    this.readPageHeader(chunkHeader.getDataType(), true); // 读取pageHeader
+                chunkStatistics.mergeStatistics(pageHeader.getStatistics()); // 用page统计量去更新chunk统计量
+                this.skipPageData(pageHeader); // 将tsFileInput读指针跳过pageData
                 dataSize -= pageHeader.getSerializedPageSize();
-                chunkHeader.increasePageNums(1);
+                chunkHeader.increasePageNums(1); // 往ChunkHeader的page计数器+1
               }
-            } else {
+            } else { // 该Chunk只有一个page
               // only one page without statistic, we need to iterate each point to generate
               // statistic
+              // 读取page Header
               PageHeader pageHeader = this.readPageHeader(chunkHeader.getDataType(), false);
               Decoder valueDecoder =
                   Decoder.getDecoderByType(
                       chunkHeader.getEncodingType(), chunkHeader.getDataType());
+              // 读取pageData
               ByteBuffer pageData = readPage(pageHeader, chunkHeader.getCompressionType());
               Decoder timeDecoder =
                   Decoder.getDecoderByType(
@@ -1149,9 +1156,9 @@ public class TsFileSequenceReader implements AutoCloseable {
                       valueDecoder,
                       timeDecoder,
                       null);
-              BatchData batchData = reader.getAllSatisfiedPageData();
+              BatchData batchData = reader.getAllSatisfiedPageData(); // 获取该唯一page的pageData
               while (batchData.hasCurrent()) {
-                switch (dataType) {
+                switch (dataType) { // 根据唯一page里的每个数据点去更新该Chunk的统计量
                   case INT32:
                     chunkStatistics.update(batchData.currentTime(), batchData.getInt());
                     break;
@@ -1175,18 +1182,19 @@ public class TsFileSequenceReader implements AutoCloseable {
                 }
                 batchData.next();
               }
-              chunkHeader.increasePageNums(1);
+              chunkHeader.increasePageNums(1); // 往ChunkHeader的page计数器+1
             }
-            currentChunk =
+            currentChunk = // 根据chunkStatistics和offset等信息创建该Chunk的ChunkMetadata
                 new ChunkMetadata(measurementID, dataType, fileOffsetOfChunk, chunkStatistics);
             chunkMetadataList.add(currentChunk);
             break;
           case MetaMarker.CHUNK_GROUP_HEADER:
             // if there is something wrong with the ChunkGroup Header, we will drop this ChunkGroup
             // because we can not guarantee the correctness of the deviceId.
-            truncatedSize = this.position() - 1;
+            truncatedSize = this.position() - 1; // 更新待截取位置
             if (lastDeviceId != null) {
               // schema of last chunk group
+              // 将上个遍历到的ChunkGroup里的每个Chunk对应的时间序列的路径和measurementSchema放入newSchema里
               if (newSchema != null) {
                 for (IMeasurementSchema tsSchema : measurementSchemaList) {
                   newSchema.putIfAbsent(
@@ -1194,16 +1202,16 @@ public class TsFileSequenceReader implements AutoCloseable {
                 }
               }
               measurementSchemaList = new ArrayList<>();
-              // last chunk group Metadata
+              // last chunk group Metadata ，把上一个ChunkGroupMetadata放入参数列表里
               chunkGroupMetadataList.add(new ChunkGroupMetadata(lastDeviceId, chunkMetadataList));
             }
             // this is a chunk group
             chunkMetadataList = new ArrayList<>();
             ChunkGroupHeader chunkGroupHeader = this.readChunkGroupHeader();
-            lastDeviceId = chunkGroupHeader.getDeviceID();
+            lastDeviceId = chunkGroupHeader.getDeviceID(); // 该文件的最后一个设备ID
             break;
           case MetaMarker.OPERATION_INDEX_RANGE:
-            truncatedSize = this.position() - 1;
+            truncatedSize = this.position() - 1; // 更新待截取位置
             if (lastDeviceId != null) {
               // schema of last chunk group
               if (newSchema != null) {
@@ -1218,9 +1226,9 @@ public class TsFileSequenceReader implements AutoCloseable {
               lastDeviceId = null;
             }
             readPlanIndex();
-            truncatedSize = this.position();
+            truncatedSize = this.position(); // 更新待截取位置
             break;
-          default:
+          default: // 若文件损坏了，则有可能读出的marker是不对的，就会跳到这里
             // the disk file is corrupted, using this file may be dangerous
             throw new IOException("Unexpected marker " + marker);
         }
@@ -1229,15 +1237,16 @@ public class TsFileSequenceReader implements AutoCloseable {
       // ChunkGroupFooter is complete.
       if (lastDeviceId != null) {
         // schema of last chunk group
+        // 将上个遍历到的ChunkGroup里的每个Chunk对应的时间序列的路径和measurementSchema放入newSchema里
         if (newSchema != null) {
           for (IMeasurementSchema tsSchema : measurementSchemaList) {
             newSchema.putIfAbsent(new Path(lastDeviceId, tsSchema.getMeasurementId()), tsSchema);
           }
         }
-        // last chunk group Metadata
+        // last chunk group Metadata，把上一个ChunkGroupMetadata放入参数列表里
         chunkGroupMetadataList.add(new ChunkGroupMetadata(lastDeviceId, chunkMetadataList));
       }
-      truncatedSize = this.position() - 1;
+      truncatedSize = this.position() - 1; // 更新待截取的文件位置
     } catch (Exception e) {
       logger.info(
           "TsFile {} self-check cannot proceed at position {} " + "recovered, because : {}",

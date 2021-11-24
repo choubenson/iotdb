@@ -24,7 +24,6 @@ import org.apache.iotdb.db.engine.compaction.inner.utils.SizeTieredCompactionLog
 import org.apache.iotdb.db.engine.compaction.task.AbstractCompactionTask;
 import org.apache.iotdb.db.engine.storagegroup.TsFileResource;
 import org.apache.iotdb.tsfile.write.writer.RestorableTsFileIOWriter;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+// 空间内合并恢复线程
 public class SizeTieredCompactionRecoverTask extends SizeTieredCompactionTask {
   private static final Logger LOGGER = LoggerFactory.getLogger("COMPACTION");
   protected File compactionLogFile;

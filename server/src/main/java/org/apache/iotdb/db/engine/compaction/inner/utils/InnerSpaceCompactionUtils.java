@@ -19,6 +19,8 @@
 
 package org.apache.iotdb.db.engine.compaction.inner.utils;
 
+import com.google.common.util.concurrent.RateLimiter;
+import org.apache.commons.collections4.keyvalue.DefaultMapEntry;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
 import org.apache.iotdb.db.engine.compaction.cross.inplace.manage.CrossSpaceMergeResource;
 import org.apache.iotdb.db.engine.compaction.cross.inplace.manage.MergeManager;
@@ -45,26 +47,14 @@ import org.apache.iotdb.tsfile.read.reader.chunk.ChunkReaderByTimestamp;
 import org.apache.iotdb.tsfile.utils.Pair;
 import org.apache.iotdb.tsfile.write.chunk.ChunkWriterImpl;
 import org.apache.iotdb.tsfile.write.writer.RestorableTsFileIOWriter;
-
-import com.google.common.util.concurrent.RateLimiter;
-import org.apache.commons.collections4.keyvalue.DefaultMapEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.TreeMap;
 
 import static org.apache.iotdb.db.utils.MergeUtils.writeTVPair;
 import static org.apache.iotdb.db.utils.QueryUtils.modifyChunkMetaData;
@@ -261,9 +251,11 @@ public class InnerSpaceCompactionUtils {
     Map<String, TsFileSequenceReader> tsFileSequenceReaderMap = new HashMap<>();
     RestorableTsFileIOWriter writer = null;
     try {
-      writer = new RestorableTsFileIOWriter(targetResource.getTsFile());
+      writer =
+          new RestorableTsFileIOWriter(
+              targetResource.getTsFile()); // 根据目标文件创建其RestorableTsFileIOWriter
       Map<String, List<Modification>> modificationCache = new HashMap<>();
-      RateLimiter compactionWriteRateLimiter =
+      RateLimiter compactionWriteRateLimiter = // 获取合并写入的流量限制器
           MergeManager.getINSTANCE().getMergeWriteRateLimiter();
       Set<String> tsFileDevicesMap =
           getTsFileDevicesSet(tsFileResources, tsFileSequenceReaderMap, storageGroup);
@@ -562,7 +554,8 @@ public class InnerSpaceCompactionUtils {
     }
   }
 
-  public static ICrossSpaceMergeFileSelector getCrossSpaceFileSelector(
+  public static ICrossSpaceMergeFileSelector
+      getCrossSpaceFileSelector( // 根据系统预设的合并策略，创建获取跨空间合并的文件选择器
       long budget, CrossSpaceMergeResource resource) {
     MergeFileStrategy strategy = IoTDBDescriptor.getInstance().getConfig().getMergeFileStrategy();
     switch (strategy) {

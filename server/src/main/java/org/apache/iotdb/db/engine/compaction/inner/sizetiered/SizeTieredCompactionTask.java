@@ -30,7 +30,6 @@ import org.apache.iotdb.db.engine.storagegroup.TsFileResource;
 import org.apache.iotdb.db.engine.storagegroup.TsFileResourceList;
 import org.apache.iotdb.db.exception.WriteLockFailedException;
 import org.apache.iotdb.db.rescon.TsFileResourceManager;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -105,10 +104,11 @@ public class SizeTieredCompactionTask extends AbstractInnerSpaceCompactionTask {
     long startTime = System.currentTimeMillis();
     // get resource of target file
     String dataDirectory = selectedTsFileResourceList.get(0).getTsFile().getParent();
-    String targetFileName =
+    String targetFileName = // 获取目标新的文件名
+        // 根据待合并的文件列表和是否顺序创建对应合并的新的一个TsFile，命名规则是：（1）若是顺序文件的空间内合并，则新生成的文件是“最小时间戳-最小版本号-空间内合并数+1-跨空间合并数”（2）若是乱序文件的空间内合并，则新生成的文件是“最大时间戳-最大版本号-空间内合并数+1-跨空间合并数”
         TsFileNameGenerator.getInnerCompactionFileName(selectedTsFileResourceList, sequence)
             .getName();
-    TsFileResource targetTsFileResource =
+    TsFileResource targetTsFileResource = // 目标新的TsFileResource
         new TsFileResource(new File(dataDirectory + File.separator + targetFileName));
     LOGGER.info(
         "{} [Compaction] starting compaction task with {} files",
@@ -116,18 +116,20 @@ public class SizeTieredCompactionTask extends AbstractInnerSpaceCompactionTask {
         selectedTsFileResourceList.size());
     File logFile = null;
     try {
-      logFile =
+      logFile = // 新目标文件对应的合并日志文件，“新目标文件名.compaction.log”
           new File(
               dataDirectory
                   + File.separator
                   + targetFileName
                   + SizeTieredCompactionLogger.COMPACTION_LOG_NAME);
-      SizeTieredCompactionLogger sizeTieredCompactionLogger =
+      SizeTieredCompactionLogger sizeTieredCompactionLogger = // 创建该合并任务对应的日志类，用于后续写入日志
           new SizeTieredCompactionLogger(logFile.getPath());
       for (TsFileResource resource : selectedTsFileResourceList) {
+        // 往合并日志里先写入前缀prifix，再写入该待合并TsFile的重要属性（物理存储组名、虚拟存储组名、时间分区、是否顺序、文件名）
         sizeTieredCompactionLogger.logFileInfo(SOURCE_INFO, resource.getTsFile());
       }
       sizeTieredCompactionLogger.logSequence(sequence);
+      // 往日志里写入目标新文件的相关信息
       sizeTieredCompactionLogger.logFileInfo(TARGET_INFO, targetTsFileResource.getTsFile());
       LOGGER.info(
           "{} [Compaction] compaction with {}", fullStorageGroupName, selectedTsFileResourceList);
@@ -212,8 +214,10 @@ public class SizeTieredCompactionTask extends AbstractInnerSpaceCompactionTask {
   public boolean checkValidAndSetMerging() {
     long minVersionNum = Long.MAX_VALUE;
     try {
+      // 判断合并任务里的所有文件状态是否合格（即当文件正在被合并、文件还未被封口、本地文件不存在则说明该任务线程是不合格）
       for (TsFileResource resource : selectedTsFileResourceList) {
-        if (resource.isMerging() | !resource.isClosed() || !resource.getTsFile().exists()) {
+        if (resource.isMerging() | !resource.isClosed()
+            || !resource.getTsFile().exists()) { // Todo:bug
           return false;
         }
         TsFileNameGenerator.TsFileName tsFileName =

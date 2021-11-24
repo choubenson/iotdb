@@ -22,14 +22,15 @@ import org.apache.iotdb.db.engine.compaction.task.AbstractCompactionSelector;
 import org.apache.iotdb.db.engine.storagegroup.TsFileManager;
 import org.apache.iotdb.db.engine.storagegroup.TsFileResourceList;
 
-public abstract class AbstractInnerSpaceCompactionSelector extends AbstractCompactionSelector {
-  protected String logicalStorageGroupName;
-  protected String virtualStorageGroupName;
-  protected long timePartition;
-  protected TsFileResourceList tsFileResources;
-  protected boolean sequence;
+public abstract class AbstractInnerSpaceCompactionSelector
+    extends AbstractCompactionSelector { // 空间内文件合并选择器
+  protected String logicalStorageGroupName; // 存储组名
+  protected String virtualStorageGroupName; // 虚拟存储组名，如0
+  protected long timePartition; // 时间分区
+  protected TsFileResourceList tsFileResources; // 该存储组下的该分区里的所有顺序或乱序文件Resource列表
+  protected boolean sequence; // 顺序or乱序
   protected InnerSpaceCompactionTaskFactory taskFactory;
-  protected TsFileManager tsFileManager;
+  protected TsFileManager tsFileManager; // 该虚拟存储组的文件管理器,Todo:没有用到！
 
   public AbstractInnerSpaceCompactionSelector(
       String logicalStorageGroupName,

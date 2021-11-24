@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.db.engine.compaction;
 
+import com.google.common.collect.MinMaxPriorityQueue;
 import org.apache.iotdb.db.concurrent.IoTDBThreadPoolFactory;
 import org.apache.iotdb.db.concurrent.ThreadName;
 import org.apache.iotdb.db.concurrent.threadpool.WrappedScheduledExecutorService;
@@ -27,38 +28,27 @@ import org.apache.iotdb.db.engine.compaction.task.AbstractCompactionTask;
 import org.apache.iotdb.db.service.IService;
 import org.apache.iotdb.db.service.ServiceType;
 import org.apache.iotdb.db.utils.TestOnly;
-
-import com.google.common.collect.MinMaxPriorityQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** CompactionMergeTaskPoolManager provides a ThreadPool tPro queue and run all compaction tasks. */
 public class CompactionTaskManager implements IService {
   private static final Logger logger = LoggerFactory.getLogger("COMPACTION");
   private static final CompactionTaskManager INSTANCE = new CompactionTaskManager();
-  private WrappedScheduledExecutorService taskExecutionPool;
+  private WrappedScheduledExecutorService taskExecutionPool; // 合并任务的执行线程池，系统预设线程数为10
   public static volatile AtomicInteger currentTaskNum = new AtomicInteger(0);
   // TODO: record the task in time partition
-  private MinMaxPriorityQueue<AbstractCompactionTask> compactionTaskQueue =
+  private MinMaxPriorityQueue<AbstractCompactionTask> compactionTaskQueue = // 合并任务的优先级队列
       MinMaxPriorityQueue.orderedBy(new CompactionTaskComparator()).maximumSize(1000).create();
   private Map<String, Set<Future<Void>>> storageGroupTasks = new ConcurrentHashMap<>();
+  // 每个存储组的每个时间分区的合并任务线程的返回情况Future
   private Map<String, Map<Long, Set<Future<Void>>>> compactionTaskFutures =
       new ConcurrentHashMap<>();
-  private ScheduledExecutorService compactionTaskSubmissionThreadPool;
+  private ScheduledExecutorService compactionTaskSubmissionThreadPool; // 定时获取并执行合并任务的线程池，定时任务的线程数为1
   private final long TASK_SUBMIT_INTERVAL =
       IoTDBDescriptor.getInstance().getConfig().getCompactionSubmissionInterval();
 
@@ -78,6 +68,7 @@ public class CompactionTaskManager implements IService {
       currentTaskNum = new AtomicInteger(0);
       compactionTaskSubmissionThreadPool =
           IoTDBThreadPoolFactory.newScheduledThreadPool(1, ThreadName.COMPACTION_SERVICE.getName());
+      // 定时做以下事情：从合并线程队列里获取第一个线程，并检查该合并任务里的所有待合并TsFile文件是否合格，若是且taskExecutionPool线程池里还有可用线程空间，则将合并任务线程放入线程池里并执行合并
       compactionTaskSubmissionThreadPool.scheduleWithFixedDelay(
           this::submitTaskFromTaskQueue,
           TASK_SUBMIT_INTERVAL,
@@ -188,6 +179,7 @@ public class CompactionTaskManager implements IService {
    * This method will submit task cached in queue with most priority to execution thread pool if
    * there is available thread.
    */
+  // 从合并线程队列里获取第一个线程，并检查该合并任务里的所有待合并TsFile文件是否合格，若是且taskExecutionPool线程池里还有可用线程空间，则将合并任务线程放入线程池里并执行合并
   public synchronized void submitTaskFromTaskQueue() {
     while (currentTaskNum.get()
             < IoTDBDescriptor.getInstance().getConfig().getConcurrentCompactionThread()
@@ -204,11 +196,13 @@ public class CompactionTaskManager implements IService {
    *
    * @throws RejectedExecutionException
    */
+  // 若taskExecutionPool线程池里还有可用线程空间，则将合并任务线程放入线程池里并执行合并
   public synchronized void submitTask(
       String fullStorageGroupName, long timePartition, Callable<Void> compactionMergeTask)
       throws RejectedExecutionException {
     if (taskExecutionPool != null && !taskExecutionPool.isTerminated()) {
       Future<Void> future = taskExecutionPool.submit(compactionMergeTask);
+      // 往当前存储组的当前时间分区里的合并线程数量加1
       CompactionScheduler.addPartitionCompaction(fullStorageGroupName, timePartition);
       compactionTaskFutures
           .computeIfAbsent(fullStorageGroupName, k -> new ConcurrentHashMap<>())

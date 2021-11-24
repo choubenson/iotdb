@@ -21,7 +21,8 @@ package org.apache.iotdb.db.engine.compaction.cross;
 import org.apache.iotdb.db.engine.compaction.task.AbstractCompactionSelector;
 import org.apache.iotdb.db.engine.storagegroup.TsFileResourceList;
 
-public abstract class AbstractCrossSpaceCompactionSelector extends AbstractCompactionSelector {
+public abstract class AbstractCrossSpaceCompactionSelector
+    extends AbstractCompactionSelector { // 跨空间合并选择器
   protected String logicalStorageGroupName;
   protected String virtualGroupId;
   protected String storageGroupDir;

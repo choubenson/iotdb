@@ -27,7 +27,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 
-public class SizeTieredCompactionLogger {
+public class SizeTieredCompactionLogger { // SizeTieredCompaction合并对应的日志类，该日志类可以向该合并任务对应的日志文件里写入日志
 
   public static final String COMPACTION_LOG_NAME = ".compaction.log";
   public static final String SOURCE_NAME = "source";
@@ -58,10 +58,11 @@ public class SizeTieredCompactionLogger {
     logStream.close();
   }
 
+  // 往合并日志里先写入前缀prifix，再写入该TsFile的重要属性（物理存储组名、虚拟存储组名、时间分区、是否顺序、文件名）
   public void logFileInfo(String prefix, File file) throws IOException {
     logStream.write(prefix);
     logStream.newLine();
-    logStream.write(
+    logStream.write( // 写入该TsFile的文件识别器的重要属性
         TsFileIdentifier.getFileIdentifierFromFilePath(file.getAbsolutePath()).toString());
     logStream.newLine();
     logStream.flush();

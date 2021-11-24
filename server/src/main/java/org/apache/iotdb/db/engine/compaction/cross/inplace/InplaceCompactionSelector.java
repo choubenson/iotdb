@@ -31,7 +31,6 @@ import org.apache.iotdb.db.engine.compaction.task.AbstractCompactionTask;
 import org.apache.iotdb.db.engine.storagegroup.TsFileResource;
 import org.apache.iotdb.db.engine.storagegroup.TsFileResourceList;
 import org.apache.iotdb.db.exception.MergeException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -95,18 +94,21 @@ public class InplaceCompactionSelector extends AbstractCrossSpaceCompactionSelec
     if (seqFileList.isEmpty() || unSeqFileList.isEmpty()) {
       return false;
     }
+    // 若该存储组下该时间分区的乱序文件数量大于系统预设值（10个），则获取前面10个
     if (unSeqFileList.size() > config.getMaxCompactionCandidateFileNum()) {
       unSeqFileList = unSeqFileList.subList(0, config.getMaxCompactionCandidateFileNum());
     }
-    long budget = config.getMergeMemoryBudget();
+    long budget = config.getMergeMemoryBudget(); // 每个合并线程可以使用的内存大小
     long timeLowerBound = System.currentTimeMillis() - Long.MAX_VALUE;
-    CrossSpaceMergeResource mergeResource =
+    CrossSpaceMergeResource mergeResource = // 创建跨空间合并的资源管理器
         new CrossSpaceMergeResource(seqFileList, unSeqFileList, timeLowerBound);
 
-    ICrossSpaceMergeFileSelector fileSelector =
+    ICrossSpaceMergeFileSelector
+        fileSelector = // 根据系统预设的合并策略(MAX_FILE_NUM或者MAX_SERIES_NUM)，创建获取跨空间合并的文件选择器
         InnerSpaceCompactionUtils.getCrossSpaceFileSelector(budget, mergeResource);
     try {
-      List[] mergeFiles = fileSelector.select();
+      // 针对每个乱序文件查找与其Overlap且还未被此次合并任务选中的顺序文件列表，每找到一个乱序文件及其对应的Overlap顺序文件列表后就预估他们进行合并可能增加的额外内存开销，若未超过系统给合并线程预设的内存开销，则把他们放入到此合并任务选中的顺序和乱序文件里。并更新该虚拟存储组下该时间分区的跨空间合并资源管理器里的顺序文件和乱序文件列表，移除其未被选中的文件的SequenceReader,清缓存
+      List[] mergeFiles = fileSelector.select(); // 待合并文件数组，有两个元素，第一个存放的是顺序文件列表，第二个存放的是乱序文件列表
       if (mergeFiles.length == 0) {
         LOGGER.warn(
             "{} cannot select merge candidates under the budget {}",
@@ -124,6 +126,7 @@ public class InplaceCompactionSelector extends AbstractCrossSpaceCompactionSelec
       // cached during selection
       mergeResource.setCacheDeviceMeta(true);
 
+      // 用工厂类创建InplaceCompaction任务线程
       AbstractCompactionTask compactionTask =
           taskFactory.createTask(
               logicalStorageGroupName,
@@ -133,8 +136,8 @@ public class InplaceCompactionSelector extends AbstractCrossSpaceCompactionSelec
               storageGroupDir,
               sequenceFileList,
               unsequenceFileList,
-              mergeFiles[0],
-              mergeFiles[1],
+              mergeFiles[0], // 顺序文件的TsFileResource
+              mergeFiles[1], // 乱序文件的TsFileResource
               fileSelector.getConcurrentMergeNum());
       CompactionTaskManager.getInstance().addTaskToWaitingQueue(compactionTask);
       taskSubmitted = true;

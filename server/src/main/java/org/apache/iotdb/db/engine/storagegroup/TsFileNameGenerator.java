@@ -102,6 +102,7 @@ public class TsFileNameGenerator {
         + TsFileConstant.TSFILE_SUFFIX;
   }
 
+  // 根据本地TsFile文件的文件名获取对应的TsFileName对象
   public static TsFileName getTsFileName(String fileName) throws IOException {
     Matcher matcher = TsFileName.FILE_NAME_MATCHER.matcher(fileName);
     if (matcher.find()) {
@@ -157,6 +158,7 @@ public class TsFileNameGenerator {
             + TSFILE_SUFFIX);
   }
 
+  // 根据待合并的文件列表和是否顺序创建对应合并的新的一个TsFile，命名规则是：（1）若是顺序文件的空间内合并，则新生成的文件是“最小时间戳-最小版本号-空间内合并数+1-跨空间合并数”（2）若是乱序文件的空间内合并，则新生成的文件是“最大时间戳-最大版本号-空间内合并数+1-跨空间合并数”
   public static File getInnerCompactionFileName(
       List<TsFileResource> tsFileResources, boolean sequence) throws IOException {
     long minTime = Long.MAX_VALUE;
@@ -166,6 +168,7 @@ public class TsFileNameGenerator {
     long maxInnerMergeCount = Long.MIN_VALUE;
     long maxCrossMergeCount = Long.MIN_VALUE;
     for (TsFileResource resource : tsFileResources) {
+      // 根据本地TsFile文件的文件名获取对应的TsFileName对象
       TsFileName tsFileName = getTsFileName(resource.getTsFile().getName());
       minTime = Math.min(tsFileName.time, minTime);
       maxTime = Math.max(tsFileName.time, maxTime);
@@ -175,7 +178,7 @@ public class TsFileNameGenerator {
       maxCrossMergeCount = Math.max(tsFileName.crossCompactionCnt, maxCrossMergeCount);
     }
     return sequence
-        ? new File(
+        ? new File( // 若是顺序文件的空间内合并，则新生成的文件是“最小时间戳-最小版本号-空间内合并数+1-跨空间合并数”
             tsFileResources.get(0).getTsFile().getParent(),
             minTime
                 + FILE_NAME_SEPARATOR
@@ -185,7 +188,7 @@ public class TsFileNameGenerator {
                 + FILE_NAME_SEPARATOR
                 + maxCrossMergeCount
                 + TSFILE_SUFFIX)
-        : new File(
+        : new File( // 若是乱序文件的空间内合并，则新生成的文件是“最大时间戳-最大版本号-空间内合并数+1-跨空间合并数”
             tsFileResources.get(0).getTsFile().getParent(),
             maxTime
                 + FILE_NAME_SEPARATOR
@@ -201,10 +204,10 @@ public class TsFileNameGenerator {
     private static final String FILE_NAME_PATTERN = "(\\d+)-(\\d+)-(\\d+)-(\\d+).tsfile$";
     private static final Pattern FILE_NAME_MATCHER = Pattern.compile(TsFileName.FILE_NAME_PATTERN);
 
-    private long time;
-    private long version;
-    private int innerCompactionCnt;
-    private int crossCompactionCnt;
+    private long time; // 时间戳
+    private long version; // 版本号
+    private int innerCompactionCnt; // 空间内合并次数
+    private int crossCompactionCnt; // 跨空间合并次数
 
     public TsFileName(long time, long version, int innerCompactionCnt, int crossCompactionCnt) {
       this.time = time;

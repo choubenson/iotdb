@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.db.engine.compaction.cross.inplace.manage;
 
+import com.google.common.util.concurrent.RateLimiter;
 import org.apache.iotdb.db.concurrent.IoTDBThreadPoolFactory;
 import org.apache.iotdb.db.concurrent.ThreadName;
 import org.apache.iotdb.db.conf.IoTDBConstant;
@@ -27,26 +28,12 @@ import org.apache.iotdb.db.engine.compaction.cross.inplace.task.MergeMultiChunkT
 import org.apache.iotdb.db.service.IService;
 import org.apache.iotdb.db.service.JMXService;
 import org.apache.iotdb.db.service.ServiceType;
-
-import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -60,7 +47,8 @@ public class MergeManager implements IService, MergeManagerMBean {
   private final String mbeanName =
       String.format(
           "%s:%s=%s", IoTDBConstant.IOTDB_PACKAGE, IoTDBConstant.JMX_TYPE, getID().getJmxName());
-  private final RateLimiter mergeWriteRateLimiter = RateLimiter.create(Double.MAX_VALUE);
+  private final RateLimiter mergeWriteRateLimiter =
+      RateLimiter.create(Double.MAX_VALUE); // 合并写入的流量限制器
 
   private AtomicInteger threadCnt = new AtomicInteger();
   private ThreadPoolExecutor mergeChunkSubTaskPool;

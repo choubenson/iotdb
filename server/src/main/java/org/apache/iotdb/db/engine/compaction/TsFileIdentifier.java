@@ -29,7 +29,7 @@ import java.io.File;
  * storage group id, time partition id and file name. <b>This class cannot be initialized
  * directly.</b> We provide some static methods to create instance of this class.
  */
-public class TsFileIdentifier {
+public class TsFileIdentifier { // 每个待合并的TsFile都有着自己的文件识别器，存放了该TsFile的几个重要属性
   private final String logicalStorageGroupName;
   private final String virtualStorageGroupId;
   private final String timePartitionId;

@@ -24,6 +24,6 @@ package org.apache.iotdb.db.engine.compaction.task;
  * compaction task to {@link org.apache.iotdb.db.engine.compaction.CompactionTaskManager} and
  * increase the global compaction task count.
  */
-public abstract class AbstractCompactionSelector {
+public abstract class AbstractCompactionSelector { // 合并的文件选择器
   public abstract boolean selectAndSubmit();
 }

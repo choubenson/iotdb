@@ -22,7 +22,6 @@ package org.apache.iotdb.db.engine.compaction.inner;
 import org.apache.iotdb.db.engine.compaction.task.AbstractCompactionTask;
 import org.apache.iotdb.db.engine.storagegroup.TsFileNameGenerator;
 import org.apache.iotdb.db.engine.storagegroup.TsFileResource;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,9 +32,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public abstract class AbstractInnerSpaceCompactionTask extends AbstractCompactionTask {
   private static final Logger LOGGER = LoggerFactory.getLogger("COMPACTION");
 
-  protected List<TsFileResource> selectedTsFileResourceList;
-  protected boolean sequence;
-  protected long selectedFileSize;
+  protected List<TsFileResource> selectedTsFileResourceList; // 此次合并任务线程里待被合并的TsFileResource列表
+  protected boolean sequence; // 是否顺序
+  protected long selectedFileSize; // 待合并文件的总大小
   protected int sumOfCompactionCount;
   protected long maxFileVersion;
   protected int maxCompactionCount;

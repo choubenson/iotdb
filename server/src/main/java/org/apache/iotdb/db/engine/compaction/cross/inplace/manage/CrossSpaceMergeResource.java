@@ -36,14 +36,7 @@ import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
 import org.apache.iotdb.tsfile.write.writer.RestorableTsFileIOWriter;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -54,11 +47,12 @@ import static org.apache.iotdb.db.engine.compaction.cross.inplace.task.CrossSpac
  * CrossSpaceMergeResource manages files and caches of readers, writers, MeasurementSchemas and
  * modifications to avoid unnecessary object creations and file openings.
  */
-public class CrossSpaceMergeResource {
+public class CrossSpaceMergeResource { // 跨空间合并的资源管理器
 
   private List<TsFileResource> seqFiles;
   private List<TsFileResource> unseqFiles;
 
+  // 每个TsFile对应的TsFileSequenceReader
   private Map<TsFileResource, TsFileSequenceReader> fileReaderCache = new HashMap<>();
   private Map<TsFileResource, RestorableTsFileIOWriter> fileWriterCache = new HashMap<>();
   private Map<TsFileResource, List<Modification>> modificationCache = new HashMap<>();
@@ -242,9 +236,11 @@ public class CrossSpaceMergeResource {
     this.unseqFiles = unseqFiles;
   }
 
+  // 移除此次合并任务里未被选中的文件的SequenceReader,清缓存
   public void removeOutdatedSeqReaders() throws IOException {
     Iterator<Entry<TsFileResource, TsFileSequenceReader>> entryIterator =
         fileReaderCache.entrySet().iterator();
+    // 该虚拟存储组下该时间分区的跨空间合并资源管理器的顺序文件列表
     HashSet<TsFileResource> fileSet = new HashSet<>(seqFiles);
     while (entryIterator.hasNext()) {
       Entry<TsFileResource, TsFileSequenceReader> entry = entryIterator.next();

@@ -18,6 +18,7 @@
  */
 package org.apache.iotdb.db.engine.storagegroup;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.conf.IoTDBConstant;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
@@ -44,14 +45,7 @@ import org.apache.iotdb.db.engine.upgrade.UpgradeCheckStatus;
 import org.apache.iotdb.db.engine.upgrade.UpgradeLog;
 import org.apache.iotdb.db.engine.version.SimpleFileVersionController;
 import org.apache.iotdb.db.engine.version.VersionController;
-import org.apache.iotdb.db.exception.BatchProcessException;
-import org.apache.iotdb.db.exception.DiskSpaceInsufficientException;
-import org.apache.iotdb.db.exception.LoadFileException;
-import org.apache.iotdb.db.exception.StorageGroupProcessorException;
-import org.apache.iotdb.db.exception.TriggerExecutionException;
-import org.apache.iotdb.db.exception.TsFileProcessorException;
-import org.apache.iotdb.db.exception.WriteProcessException;
-import org.apache.iotdb.db.exception.WriteProcessRejectException;
+import org.apache.iotdb.db.exception.*;
 import org.apache.iotdb.db.exception.metadata.IllegalPathException;
 import org.apache.iotdb.db.exception.metadata.MetadataException;
 import org.apache.iotdb.db.exception.query.OutOfTTLException;
@@ -83,8 +77,6 @@ import org.apache.iotdb.tsfile.fileSystem.fsFactory.FSFactory;
 import org.apache.iotdb.tsfile.read.filter.basic.Filter;
 import org.apache.iotdb.tsfile.utils.Pair;
 import org.apache.iotdb.tsfile.write.writer.RestorableTsFileIOWriter;
-
-import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -93,20 +85,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -285,6 +265,7 @@ public class StorageGroupProcessor {
    */
   private String insertWriteLockHolder = "";
 
+  // 定时执行合并线程的服务
   private ScheduledExecutorService timedCompactionScheduleTask =
       Executors.newSingleThreadScheduledExecutor();
 
@@ -437,6 +418,7 @@ public class StorageGroupProcessor {
             logicalStorageGroupName, virtualStorageGroupId));
 
     try {
+      // 执行顺序、乱序空间内合并恢复线程
       recoverInnerSpaceCompaction(true);
       recoverInnerSpaceCompaction(false);
     } catch (Exception e) {
@@ -511,7 +493,7 @@ public class StorageGroupProcessor {
     }
 
     // recover and start timed compaction thread
-    initCompaction();
+    initCompaction(); // 执行跨空间合并的恢复线程
 
     logger.info(
         String.format(
@@ -519,6 +501,7 @@ public class StorageGroupProcessor {
             logicalStorageGroupName, virtualStorageGroupId));
   }
 
+  // 创建跨空间合并恢复线程，并交由CompactionTaskManager去执行跨空间合并的恢复
   private void initCompaction() {
     CompactionTaskManager.getInstance()
         .submitTask(
@@ -531,6 +514,7 @@ public class StorageGroupProcessor {
                 virtualStorageGroupId));
   }
 
+  // 创建乱序或顺序空间内的合并恢复线程，并交由CompactionTaskManager去执行空间内合并的恢复
   private void recoverInnerSpaceCompaction(boolean isSequence) throws Exception {
     // search compaction log for SizeTieredCompaction
     List<String> dirs;
@@ -539,7 +523,7 @@ public class StorageGroupProcessor {
     } else {
       dirs = DirectoryManager.getInstance().getAllUnSequenceFileFolders();
     }
-    for (String dir : dirs) {
+    for (String dir : dirs) { // 顺序文件目录列表，其实就一个，为sequence
       File storageGroupDir =
           new File(
               dir
@@ -550,14 +534,15 @@ public class StorageGroupProcessor {
       if (!storageGroupDir.exists()) {
         return;
       }
-      File[] timePartitionDirs = storageGroupDir.listFiles();
+      File[] timePartitionDirs = storageGroupDir.listFiles(); // 虚拟存储组目录下的所有时间分区目录
       if (timePartitionDirs == null) {
         return;
       }
       for (File timePartitionDir : timePartitionDirs) {
-        File[] compactionLogs =
+        File[] compactionLogs = // 每个分区下的所有合并日志文件
             InnerSpaceCompactionUtils.findInnerSpaceCompactionLogs(timePartitionDir.getPath());
         for (File compactionLog : compactionLogs) {
+          // 根据合并日志和对应的存储组创建空间内合并恢复线程并执行合并的恢复，此处创建的其实是空间内合并的任务SizeTieredCompactionRecoverTask
           IoTDBDescriptor.getInstance()
               .getConfig()
               .getInnerCompactionStrategy()
@@ -597,6 +582,7 @@ public class StorageGroupProcessor {
     }
   }
 
+  // 执行完顺序和乱序空间内合并恢复和跨空间合并恢复后，就会调用此方法，定时执行以下操作：（1）从该虚拟存储组下的每个时间分区里依次选择一批批待合并文件并为每批文件创建一个合并任务线程放进CompactionTaskManager里的线程等待队列里（2）从等待队列里获取第一个合并线程并执行
   private void submitTimedCompactionTask() {
     timedCompactionScheduleTask.scheduleWithFixedDelay(
         this::executeCompaction,
@@ -2162,13 +2148,16 @@ public class StorageGroupProcessor {
         logicalStorageGroupName + "-" + virtualStorageGroupId);
   }
 
+  // （1）从该虚拟存储组下的每个时间分区里依次选择一批批待合并文件并为每批文件创建一个合并任务线程放进CompactionTaskManager里的线程等待队列里（2）从等待队列里获取第一个合并线程并执行
   private void executeCompaction() {
     List<Long> timePartitions = new ArrayList<>(tsFileManager.getTimePartitions());
     // sort the time partition from largest to smallest
     timePartitions.sort((o1, o2) -> (int) (o2 - o1));
     for (long timePartition : timePartitions) {
+      // 根据该虚拟存储组下的TsFileManager和时间分区，根据系统预设的合并优先级策略选取文件创建一个或多个合并任务线程并放入CompactionTaskManager的等待队列里
       CompactionScheduler.scheduleCompaction(tsFileManager, timePartition);
     }
+    // 从合并线程等待队列里获取第一个线程，并检查该合并任务里的所有待合并TsFile文件是否合格，若是且taskExecutionPool线程池里还有可用线程空间，则将合并任务线程放入线程池里并执行合并
     CompactionTaskManager.getInstance().submitTaskFromTaskQueue();
   }
 

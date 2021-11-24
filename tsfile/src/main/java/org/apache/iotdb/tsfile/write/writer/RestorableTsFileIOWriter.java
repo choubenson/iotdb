@@ -29,7 +29,6 @@ import org.apache.iotdb.tsfile.read.TsFileCheckStatus;
 import org.apache.iotdb.tsfile.read.TsFileSequenceReader;
 import org.apache.iotdb.tsfile.read.common.Path;
 import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,7 +90,8 @@ public class RestorableTsFileIOWriter extends TsFileIOWriter {
 
     if (file.exists()) {
       try (TsFileSequenceReader reader = new TsFileSequenceReader(file.getAbsolutePath(), false)) {
-
+        // 文件检查：1）若fastFinish为真则返回是否是完整的TsFile文件
+        // 2）若fastFinish为false，则读取该文件将对应的内容（时间序列的measurementSchema和chunkMetadata）放入第一第二个参数里，并返回待截取的文件位置
         truncatedSize = reader.selfCheck(knownSchemas, chunkGroupMetadataList, true);
         minPlanIndex = reader.getMinPlanIndex();
         maxPlanIndex = reader.getMaxPlanIndex();
@@ -107,7 +107,7 @@ public class RestorableTsFileIOWriter extends TsFileIOWriter {
           crashed = true;
           canWrite = true;
           // remove broken data
-          out.truncate(truncatedSize);
+          out.truncate(truncatedSize); // 把该文件truncatedSize位置之后的内容清掉
         }
       }
     }

@@ -27,7 +27,7 @@ import org.apache.iotdb.db.engine.storagegroup.TsFileResourceList;
 
 import java.util.List;
 
-public class CrossSpaceCompactionTaskFactory {
+public class CrossSpaceCompactionTaskFactory { // CrossSpaceCompactionTask任务线程的创建工厂类
 
   public AbstractCompactionTask createTask(
       String logicalStorageGroupName,
