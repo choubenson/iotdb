@@ -18,6 +18,7 @@
  */
 package org.apache.iotdb.db.engine.memtable;
 
+import org.apache.iotdb.db.engine.modification.Modification;
 import org.apache.iotdb.db.engine.querycontext.ReadOnlyMemChunk;
 import org.apache.iotdb.db.exception.WriteProcessException;
 import org.apache.iotdb.db.exception.metadata.MetadataException;
@@ -25,7 +26,7 @@ import org.apache.iotdb.db.exception.query.QueryProcessException;
 import org.apache.iotdb.db.metadata.path.PartialPath;
 import org.apache.iotdb.db.qp.physical.crud.InsertRowPlan;
 import org.apache.iotdb.db.qp.physical.crud.InsertTabletPlan;
-import org.apache.iotdb.tsfile.read.common.TimeRange;
+import org.apache.iotdb.tsfile.utils.Pair;
 import org.apache.iotdb.tsfile.write.schema.IMeasurementSchema;
 
 import java.io.IOException;
@@ -42,12 +43,13 @@ import java.util.Map;
  */
 public interface IMemTable {
 
-  Map<String, Map<String, IWritableMemChunk>> getMemTableMap();
+  Map<String, IWritableMemChunkGroup> getMemTableMap();
 
-  void write(String deviceId, IMeasurementSchema schema, long insertTime, Object objectValue);
+  void write(
+      String deviceId, List<IMeasurementSchema> schemaList, long insertTime, Object[] objectValue);
 
   void writeAlignedRow(
-      String deviceId, IMeasurementSchema schema, long insertTime, Object[] objectValue);
+      String deviceId, List<IMeasurementSchema> schemaList, long insertTime, Object[] objectValue);
   /**
    * write data in the range [start, end). Null value in each column values will be replaced by the
    * subsequent non-null value, e.g., {1, null, 3, null, 5} will be {1, 3, 5, null, 5}
@@ -106,7 +108,8 @@ public interface IMemTable {
   void insertAlignedTablet(InsertTabletPlan insertTabletPlan, int start, int end)
       throws WriteProcessException;
 
-  ReadOnlyMemChunk query(PartialPath fullPath, long ttlLowerBound, List<TimeRange> deletionList)
+  ReadOnlyMemChunk query(
+      PartialPath fullPath, long ttlLowerBound, List<Pair<Modification, IMemTable>> modsToMemtable)
       throws IOException, QueryProcessException, MetadataException;
 
   /** putBack all the memory resources. */
@@ -145,7 +148,7 @@ public interface IMemTable {
   boolean checkIfChunkDoesNotExist(String deviceId, String measurement);
 
   /** only used when mem control enabled */
-  int getCurrentChunkPointNum(String deviceId, String measurement);
+  long getCurrentChunkPointNum(String deviceId, String measurement);
 
   /** only used when mem control enabled */
   void addTextDataSize(long textDataIncrement);

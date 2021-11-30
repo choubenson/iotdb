@@ -253,7 +253,7 @@ public class IoTDBConfig {
   private int concurrentFlushThread = Runtime.getRuntime().availableProcessors();
 
   /** How many threads can concurrently query. When <= 0, use CPU core number. */
-  private int concurrentQueryThread = Runtime.getRuntime().availableProcessors();
+  private int concurrentQueryThread = 8;
 
   /** How many threads can concurrently evaluate windows. When <= 0, use CPU core number. */
   private int concurrentWindowEvaluationThread = Runtime.getRuntime().availableProcessors();
@@ -1012,9 +1012,9 @@ public class IoTDBConfig {
   }
 
   public void setTimestampPrecision(String timestampPrecision) {
-    if (!(timestampPrecision.equals("ms")
-        || timestampPrecision.equals("us")
-        || timestampPrecision.equals("ns"))) {
+    if (!("ms".equals(timestampPrecision)
+        || "us".equals(timestampPrecision)
+        || "ns".equals(timestampPrecision))) {
       logger.error(
           "Wrong timestamp precision, please set as: ms, us or ns ! Current is: "
               + timestampPrecision);
@@ -1272,7 +1272,7 @@ public class IoTDBConfig {
   }
 
   public String getIoTDBMajorVersion(String version) {
-    return version.equals("UNKNOWN")
+    return "UNKNOWN".equals(version)
         ? "UNKNOWN"
         : version.split("\\.")[0] + "." + version.split("\\.")[1];
   }

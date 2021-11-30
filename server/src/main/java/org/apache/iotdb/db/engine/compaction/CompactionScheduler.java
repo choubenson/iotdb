@@ -109,7 +109,8 @@ public class CompactionScheduler {
     // 系统预设的合并任务线程的最大并行数量
     int concurrentCompactionThread = config.getConcurrentCompactionThread();
     while (taskSubmitted
-        && CompactionTaskManager.getInstance().getTaskCount() < concurrentCompactionThread) {
+        && CompactionTaskManager.getInstance().getExecutingTaskCount()
+            < concurrentCompactionThread) {
       taskSubmitted =
           tryToSubmitInnerSpaceCompactionTask(
               logicalStorageGroupName,

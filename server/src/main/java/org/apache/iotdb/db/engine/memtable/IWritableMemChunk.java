@@ -60,7 +60,8 @@ public interface IWritableMemChunk {
 
   void write(long insertTime, Object objectValue);
 
-  void writeAlignedValue(long insertTime, Object[] objectValue, IMeasurementSchema schema);
+  void writeAlignedValue(
+      long insertTime, Object[] objectValue, List<IMeasurementSchema> schemaList);
 
   /**
    * write data in the range [start, end). Null value in the valueList will be replaced by the
@@ -73,7 +74,7 @@ public interface IWritableMemChunk {
       long[] times,
       Object[] valueList,
       BitMap[] bitMaps,
-      IMeasurementSchema schema,
+      List<IMeasurementSchema> schemaList,
       int start,
       int end);
 
@@ -123,10 +124,13 @@ public interface IWritableMemChunk {
   /** @return how many points are deleted */
   int delete(long lowerBound, long upperBound);
 
-  // For delete one column in the vector
-  int delete(long lowerBound, long upperBound, String measurementId);
-
   IChunkWriter createIChunkWriter();
 
   void encode(IChunkWriter chunkWriter);
+
+  void release();
+
+  long getFirstPoint();
+
+  long getLastPoint();
 }

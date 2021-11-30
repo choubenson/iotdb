@@ -20,7 +20,7 @@
 package org.apache.iotdb.db.engine.querycontext;
 
 import org.apache.iotdb.db.exception.query.QueryProcessException;
-import org.apache.iotdb.db.query.reader.chunk.MemChunkLoader;
+import org.apache.iotdb.db.query.reader.chunk.MemAlignedChunkLoader;
 import org.apache.iotdb.db.utils.datastructure.AlignedTVList;
 import org.apache.iotdb.db.utils.datastructure.TVList;
 import org.apache.iotdb.tsfile.common.conf.TSFileDescriptor;
@@ -45,7 +45,7 @@ import java.util.List;
 public class AlignedReadOnlyMemChunk extends ReadOnlyMemChunk {
 
   // deletion list for this chunk
-  private final List<TimeRange> deletionList;
+  private final List<List<TimeRange>> deletionList;
 
   private String measurementUid;
   private TSDataType dataType;
@@ -68,7 +68,7 @@ public class AlignedReadOnlyMemChunk extends ReadOnlyMemChunk {
    * @param deletionList The timeRange of deletionList
    */
   public AlignedReadOnlyMemChunk(
-      IMeasurementSchema schema, TVList tvList, int size, List<TimeRange> deletionList)
+      IMeasurementSchema schema, TVList tvList, int size, List<List<TimeRange>> deletionList)
       throws IOException, QueryProcessException {
     super();
     this.measurementUid = schema.getMeasurementId();
@@ -151,7 +151,7 @@ public class AlignedReadOnlyMemChunk extends ReadOnlyMemChunk {
     }
     IChunkMetadata vectorChunkMetadata =
         new AlignedChunkMetadata(timeChunkMetadata, valueChunkMetadataList);
-    vectorChunkMetadata.setChunkLoader(new MemChunkLoader(this));
+    vectorChunkMetadata.setChunkLoader(new MemAlignedChunkLoader(this));
     vectorChunkMetadata.setVersion(Long.MAX_VALUE);
     cachedMetaData = vectorChunkMetadata;
   }

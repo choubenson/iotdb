@@ -78,7 +78,7 @@ public class SizeTieredCompactionSelector extends AbstractInnerSpaceCompactionSe
         IoTDBDescriptor.getInstance().getConfig().getTargetCompactionFileSize(),
         IoTDBDescriptor.getInstance().getConfig().getMaxCompactionCandidateFileNum(),
         CompactionTaskManager.currentTaskNum.get(),
-        CompactionTaskManager.getInstance().getTaskCount(),
+        CompactionTaskManager.getInstance().getExecutingTaskCount(),
         IoTDBDescriptor.getInstance().getConfig().getConcurrentCompactionThread());
     tsFileResources.readLock();
     PriorityQueue<Pair<List<TsFileResource>, Long>>
