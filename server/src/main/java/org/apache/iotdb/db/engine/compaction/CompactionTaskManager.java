@@ -68,6 +68,7 @@ public class CompactionTaskManager implements IService {
       currentTaskNum = new AtomicInteger(0);
       compactionTaskSubmissionThreadPool =
           IoTDBThreadPoolFactory.newScheduledThreadPool(1, ThreadName.COMPACTION_SERVICE.getName());
+
       // 定时做以下事情：从合并线程队列里获取第一个线程，并检查该合并任务里的所有待合并TsFile文件是否合格，若是且taskExecutionPool线程池里还有可用线程空间，则将合并任务线程放入线程池里并执行合并
       compactionTaskSubmissionThreadPool.scheduleWithFixedDelay(
           this::submitTaskFromTaskQueue,
