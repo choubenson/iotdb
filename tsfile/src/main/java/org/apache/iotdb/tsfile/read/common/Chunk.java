@@ -67,6 +67,8 @@ public class Chunk {
     this.deleteIntervalList = list;
   }
 
+  //将参数的chunk的内容合并到当前chunk对象，即把待合并的参数chunk的chunkData部分追加到当前chunk的chunkData后，并更新该chunk的ChunkHeader。要注意的是，若参数chunk或者当前chunk只有一个page，则需要为其补上自己的pageStatistics，因为合并后的当前新chunk一定会至少有两个page（若当前Chunk只有一个page，则合并是把新的chunk的page追加当作新的page追加到当前chunk的原有page后）
+  //具体做法是：（1）分别判断参数chunk和当前chunk是有一个或大于1个page（2）创建新的newChunkData，往里依次写入当前Chunk的更新后的
   public void mergeChunk(Chunk chunk) throws IOException {
     int dataSize = 0;
     // from where the page data of the merged chunk starts, if -1, it means the merged chunk has
@@ -81,8 +83,8 @@ public class Chunk {
       ReadWriteForEncodingUtils.readUnsignedVarInt(chunk.chunkData);
       ReadWriteForEncodingUtils.readUnsignedVarInt(chunk.chunkData);
       // record the position from which we can reuse
-      offset1 = chunk.chunkData.position();
-      chunk.chunkData.flip();
+      offset1 = chunk.chunkData.position(); //offset1为当前pageData的起始处（pageHeader后）
+      chunk.chunkData.flip(); //切换到读模式，position转为0
       // the actual size should add another page statistics size
       dataSize += (chunk.chunkData.array().length + chunk.chunkStatistic.getSerializedSize());
     } else {
@@ -97,13 +99,13 @@ public class Chunk {
     // than page
     // so we should add page statistics for it
     if (((byte) (chunkHeader.getChunkType() & 0x3F)) == MetaMarker.ONLY_ONE_PAGE_CHUNK_HEADER) {
-      // change the chunk type
+      // change the chunk type,因为当前参数Chunk要合并到当前Chunk（this）对象，因此当前对象的page数量一定会大于1
       chunkHeader.setChunkType(MetaMarker.CHUNK_HEADER);
       // read the uncompressedSize and compressedSize of this page
       ReadWriteForEncodingUtils.readUnsignedVarInt(chunkData);
       ReadWriteForEncodingUtils.readUnsignedVarInt(chunkData);
       // record the position from which we can reuse
-      offset2 = chunkData.position();
+      offset2 = chunkData.position(); //offset2为当前pageData的起始处（pageHeader后）
       chunkData.flip();
       // the actual size should add another page statistics size
       dataSize += (chunkData.array().length + chunkStatistic.getSerializedSize());
@@ -116,11 +118,12 @@ public class Chunk {
     ByteBuffer newChunkData = ByteBuffer.allocate(dataSize);
     // the current chunk has more than one page, we can use its data part directly without any
     // changes
+    //若该Chunk有多个page
     if (offset2 == -1) {
       newChunkData.put(chunkData.array());
-    } else { // the current chunk has only one page, we need to add one page statistics for it
+    } else { //该Chunk只有一个page the current chunk has only one page, we need to add one page statistics for it
       byte[] b = chunkData.array();
-      // put the uncompressedSize and compressedSize of this page
+      //put the uncompressedSize and compressedSize of this page
       newChunkData.put(b, 0, offset2);
       // add page statistics
       PublicBAOS a = new PublicBAOS();

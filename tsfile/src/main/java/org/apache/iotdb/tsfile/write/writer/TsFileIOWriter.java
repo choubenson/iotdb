@@ -202,6 +202,7 @@ public class TsFileIOWriter {
     header.serializeTo(out.wrapAsStream());
   }
 
+  //将指定的Chunk（header+data）写入到该TsFile的out输出流里，并把该Chunk的ChunkMetadata加到当前写操作的ChunkGroup对应的所有ChunkMetadata类对象列表里
   /** Write a whole chunk in another file into this file. Providing fast merge for IoTDB. */
   public void writeChunk(Chunk chunk, ChunkMetadata chunkMetadata) throws IOException {
     ChunkHeader chunkHeader = chunk.getHeader();
@@ -222,6 +223,7 @@ public class TsFileIOWriter {
     }
   }
 
+  // 当结束当前Chunk的写操作后就会调用此方法，往当前写操作的ChunkGroup对应的所有ChunkIndex类对象列表里加入当前写完的ChunkIndex对象，并把当前Chunk元数据对象清空
   /** end chunk and write some log. */
   public void endCurrentChunk() {
     chunkMetadataList.add(currentChunkMetadata);

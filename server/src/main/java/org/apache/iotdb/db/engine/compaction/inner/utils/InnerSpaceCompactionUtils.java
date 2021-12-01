@@ -77,6 +77,7 @@ public class InnerSpaceCompactionUtils {
       TsFileSequenceReader reader = entry.getKey();
       List<ChunkMetadata> chunkMetadataList = entry.getValue();
       for (ChunkMetadata chunkMetadata : chunkMetadataList) {
+        //根据ChunkMetadata读取其对应的Chunk
         Chunk chunk = reader.readMemChunk(chunkMetadata);
         if (newChunkMetadata == null) {
           newChunkMetadata = chunkMetadata;
@@ -118,14 +119,15 @@ public class InnerSpaceCompactionUtils {
    * When chunk is large enough, we do not have to merge them any more. Just read chunks and write
    * them to the new file directly.
    */
+  // 当该sensor传感器在原先待合并的所有TsFile里的所有Chunk的数据点数量都大于系统预设Chunk数据点数量，则直接往目标文件里依次追加写入该sensor的这些Chunk，写入的同时用限制器限流，并更新目标文件该设备的开始和结束时间
   public static void writeByAppendChunkMerge(
       String device,
       RateLimiter compactionWriteRateLimiter,
-      Entry<String, Map<TsFileSequenceReader, List<ChunkMetadata>>> entry,
+      Entry<String, Map<TsFileSequenceReader, List<ChunkMetadata>>> entry, //某一个measurementId对应的在不同文件的<TsFileSequenceReader,chunkmetadataList>
       TsFileResource targetResource,
       RestorableTsFileIOWriter writer)
       throws IOException {
-    Map<TsFileSequenceReader, List<ChunkMetadata>> readerListMap = entry.getValue();
+    Map<TsFileSequenceReader, List<ChunkMetadata>> readerListMap = entry.getValue() ;
     for (Entry<TsFileSequenceReader, List<ChunkMetadata>> readerListEntry :
         readerListMap.entrySet()) {
       TsFileSequenceReader reader = readerListEntry.getKey();
@@ -138,7 +140,9 @@ public class InnerSpaceCompactionUtils {
         MergeManager.mergeRateLimiterAcquire(
             compactionWriteRateLimiter,
             (long) chunk.getHeader().getDataSize() + chunk.getData().position());
+        //将指定的Chunk（header+data）写入到该TsFile的out输出流里，并把该Chunk的ChunkMetadata加到当前写操作的ChunkGroup对应的所有ChunkMetadata类对象列表里
         writer.writeChunk(chunk, chunkMetadata);
+        //更新目标文件里该设备的开始和结束时间
         targetResource.updateStartTime(device, chunkMetadata.getStartTime());
         targetResource.updateEndTime(device, chunkMetadata.getEndTime());
       }
@@ -148,7 +152,7 @@ public class InnerSpaceCompactionUtils {
   public static void writeByAppendPageMerge(
       String device,
       RateLimiter compactionWriteRateLimiter,
-      Entry<String, Map<TsFileSequenceReader, List<ChunkMetadata>>> entry,
+      Entry<String, Map<TsFileSequenceReader, List<ChunkMetadata>>> entry, //某一个measurementId对应的在不同文件的<TsFileSequenceReader,chunkmetadataList>
       TsFileResource targetResource,
       RestorableTsFileIOWriter writer)
       throws IOException {
@@ -385,6 +389,8 @@ public class InnerSpaceCompactionUtils {
                 long totalChunkNum = 0; //所有文件下该sensor的Chunk总数量
                 long maxChunkPointNum = Long.MIN_VALUE; //某Chunk最大数据点数量
                 long minChunkPointNum = Long.MAX_VALUE; //某Chunk最小数据点数量
+
+                //判断每个待被合并文件里的该sensor的每个Chunk里数据点数量是否超过系统预设的Chunk或者page数据点数量，分别用isChunkEnoughLarge和isPageEnoughLarge标记
                 //遍历每个待被合并文件里该sensor传感器的ChunkMetadata列表
                 for (List<ChunkMetadata> chunkMetadatas : readerChunkMetadataListMap.values()) {
                   //遍历该文件的该设备下的该sensor的每个ChunkMetadata
@@ -439,6 +445,7 @@ public class InnerSpaceCompactionUtils {
                       storageGroup,
                       sensor);
                   // append page in chunks, so we do not have to deserialize a chunk
+                  // 当该sensor传感器在原先待合并的所有TsFile里的所有Chunk的数据点数量都大于系统预设Chunk数据点数量，则直接往目标文件里依次追加写入该sensor的这些Chunk，写入的同时用限制器限流，并更新目标文件该设备的开始和结束时间
                   writeByAppendChunkMerge(
                       device,
                       compactionWriteRateLimiter,

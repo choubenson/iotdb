@@ -35,8 +35,8 @@ public abstract class AbstractInnerSpaceCompactionTask extends AbstractCompactio
   protected List<TsFileResource> selectedTsFileResourceList; // 此次合并任务线程里待被合并的TsFileResource列表
   protected boolean sequence; // 是否顺序
   protected long selectedFileSize; // 待合并文件的总大小
-  protected int sumOfCompactionCount;
-  protected long maxFileVersion;
+  protected int sumOfCompactionCount; //该空间内合并任务待被合并的所有TsFile文件的空间内合并次数总和
+  protected long maxFileVersion;  //该任务里的所有待合并文件中的最大的version
   protected int maxCompactionCount;
 
   public AbstractInnerSpaceCompactionTask(

@@ -185,15 +185,18 @@ public class SizeTieredCompactionSelector extends AbstractInnerSpaceCompactionSe
             TsFileNameGenerator.getTsFileName(resourceOfO1.getTsFile().getName());
         TsFileNameGenerator.TsFileName fileNameOfO2 =
             TsFileNameGenerator.getTsFileName(resourceOfO2.getTsFile().getName());
+        //第一个待合并文件的空间内合并次数大的任务的优先级高
         if (fileNameOfO1.getInnerCompactionCnt() != fileNameOfO2.getInnerCompactionCnt()) {
           return fileNameOfO2.getInnerCompactionCnt() - fileNameOfO1.getInnerCompactionCnt();
         }
       } catch (IOException e) {
         return 0;
       }
+      //选中待合并文件数量少的任务的优先级高
       if (o1.left.size() != o2.left.size()) {
         return o1.left.size() - o2.left.size();
       } else {
+        //选中的待合并的文件总大小较大的任务的优先级高
         return ((int) (o2.right - o1.right));
       }
     }

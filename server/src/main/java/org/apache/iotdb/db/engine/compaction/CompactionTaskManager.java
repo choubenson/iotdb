@@ -54,14 +54,17 @@ public class CompactionTaskManager implements IService {
   private WrappedScheduledExecutorService taskExecutionPool; // 合并任务的执行线程池，系统预设线程数为10
   public static volatile AtomicInteger currentTaskNum = new AtomicInteger(0);
   // TODO: record the task in time partition
+  //优先级队列，队列容量为1000，放入该队列里的任务会由比较器的结果从小到大进行排序，即比较器结果越小的，优先级越高。当队列满时，此时若放入一个任务且该任务的比较器结果小于该队列里的某最大比较器结果任务，则会把队列里该比较器结果较大的任务踢出去，并把新的任务放到队列里合适的位置
   private MinMaxPriorityQueue<AbstractCompactionTask> candidateCompactionTaskQueue =
       MinMaxPriorityQueue.orderedBy(new CompactionTaskComparator()).maximumSize(1000).create();
   private Map<String, Set<Future<Void>>> storageGroupTasks = new ConcurrentHashMap<>();
   // 每个存储组的每个时间分区的合并任务线程的返回情况Future
   private Map<String, Map<Long, Set<Future<Void>>>> compactionTaskFutures =
       new ConcurrentHashMap<>();
-  // 定时获取并执行合并任务的线程池，定时任务的线程数为1
+
   private List<AbstractCompactionTask> runningCompactionTaskList = new ArrayList<>();
+
+  // 定时获取并执行合并任务的线程池，定时任务的线程数为1
   private ScheduledExecutorService compactionTaskSubmissionThreadPool;
   private final long TASK_SUBMIT_INTERVAL =
       IoTDBDescriptor.getInstance().getConfig().getCompactionSubmissionInterval();
