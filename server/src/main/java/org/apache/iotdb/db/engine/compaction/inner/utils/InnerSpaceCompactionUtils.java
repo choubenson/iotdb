@@ -132,7 +132,9 @@ public class InnerSpaceCompactionUtils {
       List<ChunkMetadata> chunkMetadataList = readerListEntry.getValue();
       // read chunk and write it to new file directly
       for (ChunkMetadata chunkMetadata : chunkMetadataList) {
+        //根据ChunkMetadata读取其对应的Chunk
         Chunk chunk = reader.readMemChunk(chunkMetadata);
+        //通过限制器的令牌数，来限制访问流量
         MergeManager.mergeRateLimiterAcquire(
             compactionWriteRateLimiter,
             (long) chunk.getHeader().getDataSize() + chunk.getData().position());
@@ -210,25 +212,29 @@ public class InnerSpaceCompactionUtils {
     chunkWriter.writeToFileWriter(writer);
   }
 
+  //对subLevelResources列表里每个TsFile初始化其对应的顺序读取器放入tsFileSequenceReaderMap对象（<TsFile绝对路径，顺序读取器对象>）里，并获取并返回所有TsFile包含的所有设备ID
   private static Set<String> getTsFileDevicesSet(
       List<TsFileResource> subLevelResources,
-      Map<String, TsFileSequenceReader> tsFileSequenceReaderMap,
+      Map<String, TsFileSequenceReader> tsFileSequenceReaderMap,//<TsFile绝对路径，顺序读取器对象>
       String storageGroup)
       throws IOException {
     Set<String> tsFileDevicesSet = new HashSet<>();
     for (TsFileResource levelResource : subLevelResources) {
+      //根据指定TsFileResource，创建其对应的TsFileSequenceReader对象放进tsFileSequenceReaderMap里<TsFile绝对路径，顺序读取器对象>
       TsFileSequenceReader reader =
           buildReaderFromTsFileResource(levelResource, tsFileSequenceReaderMap, storageGroup);
       if (reader == null) {
         continue;
       }
+      //将该TsFile里的所有设备ID放入tsFileDevicesSet对象里
       tsFileDevicesSet.addAll(reader.getAllDevices());
     }
     return tsFileDevicesSet;
   }
 
+  //返回该设备ID下是否存在下一个传感器ID和对应的ChunkMetadata列表，若某个文件的该设备还存在下个传感器，则返回true
   private static boolean hasNextChunkMetadataList(
-      Collection<Iterator<Map<String, List<ChunkMetadata>>>> iteratorSet) {
+      Collection<Iterator<Map<String, List<ChunkMetadata>>>> iteratorSet) { //参数是每个待合并文件在该设备ID下的传感器遍历器
     boolean hasNextChunkMetadataList = false;
     for (Iterator<Map<String, List<ChunkMetadata>>> iterator : iteratorSet) {
       hasNextChunkMetadataList = hasNextChunkMetadataList || iterator.hasNext();
@@ -248,6 +254,7 @@ public class InnerSpaceCompactionUtils {
       String storageGroup,
       boolean sequence)
       throws IOException, IllegalPathException {
+    //<TsFile绝对路径，顺序读取器对象>
     Map<String, TsFileSequenceReader> tsFileSequenceReaderMap = new HashMap<>();
     RestorableTsFileIOWriter writer = null;
     try {
@@ -257,17 +264,22 @@ public class InnerSpaceCompactionUtils {
       Map<String, List<Modification>> modificationCache = new HashMap<>();
       RateLimiter compactionWriteRateLimiter = // 获取合并写入的流量限制器
           MergeManager.getINSTANCE().getMergeWriteRateLimiter();
+      //对subLevelResources列表里每个TsFile初始化其对应的顺序读取器放入tsFileSequenceReaderMap对象（<TsFile绝对路径，顺序读取器对象>）里，并获取并返回所有TsFile包含的所有设备ID
       Set<String> tsFileDevicesMap =
           getTsFileDevicesSet(tsFileResources, tsFileSequenceReaderMap, storageGroup);
+
+      //遍历所有待合并的TsFile的所有设备ID
       for (String device : tsFileDevicesMap) {
         writer.startChunkGroup(device);
         // tsfile -> measurement -> List<ChunkMetadata>
+        //该设备ID下待被合并的Chunk，存放每个待合并文件的顺序读取器，以及每个待合并文件在该设备ID下的传感器ID和对应的ChunkMetadata列表
         Map<TsFileSequenceReader, Map<String, List<ChunkMetadata>>> chunkMetadataListCacheForMerge =
             new TreeMap<>(
                 (o1, o2) ->
                     TsFileManager.compareFileName(
                         new File(o1.getFileName()), new File(o2.getFileName())));
         // tsfile -> iterator to get next Map<Measurement, List<ChunkMetadata>>
+        //存放每个待合并文件的顺序读取器，以及每个待合并文件在该设备ID下的传感器遍历器，使用该遍历器可以获取该文件的该设备下的下一个传感器ID和对应的ChunkMetadata列表
         Map<TsFileSequenceReader, Iterator<Map<String, List<ChunkMetadata>>>>
             chunkMetadataListIteratorCache =
                 new TreeMap<>(
@@ -275,34 +287,46 @@ public class InnerSpaceCompactionUtils {
                         TsFileManager.compareFileName(
                             new File(o1.getFileName()), new File(o2.getFileName())));
         for (TsFileResource tsFileResource : tsFileResources) {
+          //根据指定TsFileResource，创建其对应的TsFileSequenceReader对象放进tsFileSequenceReaderMap里<TsFile绝对路径，顺序读取器对象>,并返回指定TsFile的SequenceReader
           TsFileSequenceReader reader =
               buildReaderFromTsFileResource(tsFileResource, tsFileSequenceReaderMap, storageGroup);
           if (reader == null) {
             throw new IOException();
           }
+          //返回指定设备ID下每个传感器ID和对应的ChunkMetadata列表的遍历器，使用该遍历器可以获取该文件的该设备下的下一个传感器ID和对应的ChunkMetadata列表
           Iterator<Map<String, List<ChunkMetadata>>> iterator =
               reader.getMeasurementChunkMetadataListMapIterator(device);
+          //将该待合并文件的 顺序读取器 和 对应的设备下的每个传感器ID和对应的ChunkMetadata列表的遍历器 放入chunkMetadataListIteratorCache
           chunkMetadataListIteratorCache.put(reader, iterator);
           chunkMetadataListCacheForMerge.put(reader, new TreeMap<>());
         }
+        //返回该设备ID下是否存在下一个传感器ID和对应的ChunkMetadata列表，若某个文件的该设备还存在下个传感器，则返回true
         while (hasNextChunkMetadataList(chunkMetadataListIteratorCache.values())) {
           String lastSensor = null;
           Set<String> allSensors = new HashSet<>();
+          //遍历每个待合并文件的顺序读取器，以及每个待合并文件在该设备ID下的传感器ID和对应的ChunkMetadata列表
           for (Entry<TsFileSequenceReader, Map<String, List<ChunkMetadata>>>
               chunkMetadataListCacheForMergeEntry : chunkMetadataListCacheForMerge.entrySet()) {
+            //该待被合并TsFile的顺序读取器
             TsFileSequenceReader reader = chunkMetadataListCacheForMergeEntry.getKey();
+            //该文件的该设备下的所有传感器ID和各自对应的ChunkMetadataList
             Map<String, List<ChunkMetadata>> sensorChunkMetadataListMap =
                 chunkMetadataListCacheForMergeEntry.getValue();
+
+            //获取or初始化该文件的该设备ID下的下一个传感器ID和对应的ChunkMetadataList 放入chunkMetadataListCacheForMerge里
             if (sensorChunkMetadataListMap.size() <= 0) {
+              //通过该TsFile在该设备下的遍历器，判断该设备下是否还存在下个传感器，若还存在，则
               if (chunkMetadataListIteratorCache.get(reader).hasNext()) {
+                //获取该文件的该设备的下个传感器ID和对应的ChunkMetadata列表，并放进chunkMetadataListCacheForMerge里
                 sensorChunkMetadataListMap = chunkMetadataListIteratorCache.get(reader).next();
                 chunkMetadataListCacheForMerge.put(reader, sensorChunkMetadataListMap);
               } else {
                 continue;
               }
             }
+
             // get the min last sensor in the current chunkMetadata cache list for merge
-            String maxSensor = Collections.max(sensorChunkMetadataListMap.keySet());
+            String maxSensor = Collections.max(sensorChunkMetadataListMap.keySet()); //获取最大的measurementId
             if (lastSensor == null) {
               lastSensor = maxSensor;
             } else {
@@ -314,13 +338,16 @@ public class InnerSpaceCompactionUtils {
             allSensors.addAll(sensorChunkMetadataListMap.keySet());
           }
 
+          //返回该设备ID下是否存在下一个传感器ID和对应的ChunkMetadata列表，若某个文件的该设备还存在下个传感器，则返回true
           // if there is no more chunkMetaData, merge all the sensors
           if (!hasNextChunkMetadataList(chunkMetadataListIteratorCache.values())) {
             lastSensor = Collections.max(allSensors);
           }
 
+          //遍历该设备下所有的设备传感器ID
           for (String sensor : allSensors) {
             if (sensor.compareTo(lastSensor) <= 0) {
+              //存放每个TsFile顺序读取器和对应待被合并的此sensor传感器的ChunkMetadata列表
               Map<TsFileSequenceReader, List<ChunkMetadata>> readerChunkMetadataListMap =
                   new TreeMap<>(
                       (o1, o2) ->
@@ -337,9 +364,11 @@ public class InnerSpaceCompactionUtils {
                   sensorChunkMetadataListMap.remove(sensor);
                 }
               }
+              //<measurementID，<TsFileSequenceReader,ChunkMetadataList>>
               Entry<String, Map<TsFileSequenceReader, List<ChunkMetadata>>>
                   sensorReaderChunkMetadataListEntry =
                       new DefaultMapEntry<>(sensor, readerChunkMetadataListMap);
+              //若是乱序空间内合并
               if (!sequence) {
                 writeByDeserializePageMerge(
                     device,
@@ -348,21 +377,26 @@ public class InnerSpaceCompactionUtils {
                     targetResource,
                     writer,
                     modificationCache);
-              } else {
+              } else { //顺序空间内合并
+                //那些待被合并TsFile的该sensor下的
                 boolean isChunkEnoughLarge = true;
                 boolean isPageEnoughLarge = true;
-                BigInteger totalChunkPointNum = new BigInteger("0");
-                long totalChunkNum = 0;
-                long maxChunkPointNum = Long.MIN_VALUE;
-                long minChunkPointNum = Long.MAX_VALUE;
+                BigInteger totalChunkPointNum = new BigInteger("0");  //该sensor的总数据点数量
+                long totalChunkNum = 0; //所有文件下该sensor的Chunk总数量
+                long maxChunkPointNum = Long.MIN_VALUE; //某Chunk最大数据点数量
+                long minChunkPointNum = Long.MAX_VALUE; //某Chunk最小数据点数量
+                //遍历每个待被合并文件里该sensor传感器的ChunkMetadata列表
                 for (List<ChunkMetadata> chunkMetadatas : readerChunkMetadataListMap.values()) {
+                  //遍历该文件的该设备下的该sensor的每个ChunkMetadata
                   for (ChunkMetadata chunkMetadata : chunkMetadatas) {
+                    //只要有某一Chunk的数据点数量小于系统预设的一个page的数据点数量，则isPageEnoughLarge为false
                     if (chunkMetadata.getNumOfPoints()
                         < IoTDBDescriptor.getInstance()
                             .getConfig()
                             .getMergePagePointNumberThreshold()) {
                       isPageEnoughLarge = false;
                     }
+                    //只要有某一Chunk的数据点数量小于系统预设的一个Chunk的数据点数量，则isChunkEnoughLarge为false
                     if (chunkMetadata.getNumOfPoints()
                         < IoTDBDescriptor.getInstance()
                             .getConfig()
@@ -390,7 +424,9 @@ public class InnerSpaceCompactionUtils {
                     minChunkPointNum,
                     totalChunkPointNum.divide(BigInteger.valueOf(totalChunkNum)).longValue(),
                     isChunkEnoughLarge ? "flushing chunk" : isPageEnoughLarge ? "merge chunk" : "");
-                if (isFileListHasModifications(
+
+                //根据指定TsFile获取其对应.mods文件里的所有修改（删除）操作列表，并存入modificationCache里<TsFile文件名，修改操作列表>。判断该文件是否有存在对指定device+sensor序列存在删除修改操作
+                if (isFileListHasModifications(//若有对该device+sensor序列存在删除操作，则把下面两个置为false，因为可能删掉数据后数据点数量就没有那么多了
                     readerChunkMetadataListMap.keySet(), modificationCache, device, sensor)) {
                   isPageEnoughLarge = false;
                   isChunkEnoughLarge = false;
@@ -459,6 +495,7 @@ public class InnerSpaceCompactionUtils {
     }
   }
 
+  //根据指定TsFileResource，创建其对应的TsFileSequenceReader对象放进tsFileSequenceReaderMap里<TsFile绝对路径，顺序读取器对象>,并返回指定TsFile的SequenceReader
   private static TsFileSequenceReader buildReaderFromTsFileResource(
       TsFileResource levelResource,
       Map<String, TsFileSequenceReader> tsFileSequenceReaderMap,
@@ -504,6 +541,7 @@ public class InnerSpaceCompactionUtils {
     modifyChunkMetaData(chunkMetadataList, seriesModifications);
   }
 
+  //根据指定TsFile获取其对应.mods文件里的所有修改（删除）操作列表，并存入modificationCache里<TsFile文件名，修改操作列表>。判断该文件是否有存在对指定device+sensor序列存在删除修改操作
   private static boolean isFileListHasModifications(
       Set<TsFileSequenceReader> readers,
       Map<String, List<Modification>> modificationCache,
@@ -512,6 +550,7 @@ public class InnerSpaceCompactionUtils {
       throws IllegalPathException {
     PartialPath path = new PartialPath(device, sensor);
     for (TsFileSequenceReader reader : readers) {
+      //根据指定TsFile获取其对应.mods文件里的所有修改（删除）操作列表，并存入modificationCache里<TsFile文件名，修改操作列表>
       List<Modification> modifications = getModifications(reader, modificationCache);
       for (Modification modification : modifications) {
         if (modification.getPath().matchFullPath(path)) {
@@ -522,6 +561,7 @@ public class InnerSpaceCompactionUtils {
     return false;
   }
 
+  //根据指定TsFile获取其对应.mods文件里的所有修改（删除）操作列表，存入modificationCache里<TsFile文件名，修改操作列表>
   private static List<Modification> getModifications(
       TsFileSequenceReader reader, Map<String, List<Modification>> modificationCache) {
     return modificationCache.computeIfAbsent(

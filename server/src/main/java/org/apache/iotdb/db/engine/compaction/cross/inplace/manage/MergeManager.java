@@ -67,7 +67,7 @@ public class MergeManager implements IService, MergeManagerMBean {
   /** wait by throughoutMbPerSec limit to avoid continuous Write Or Read */
   public static void mergeRateLimiterAcquire(RateLimiter limiter, long bytesLength) {
     while (bytesLength >= Integer.MAX_VALUE) {
-      limiter.acquire(Integer.MAX_VALUE);
+      limiter.acquire(Integer.MAX_VALUE); //从rateLimiter限制器里获取MAX_VALUE个令牌，若没有那么多则会被阻塞直到获取到
       bytesLength -= Integer.MAX_VALUE;
     }
     if (bytesLength > 0) {
@@ -75,6 +75,7 @@ public class MergeManager implements IService, MergeManagerMBean {
     }
   }
 
+  //设置限制器每秒产生8*1024*1024个令牌
   private void setWriteMergeRate(final double throughoutMbPerSec) {
     double throughout = throughoutMbPerSec * 1024.0 * 1024.0;
     // if throughout = 0, disable rate limiting

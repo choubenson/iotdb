@@ -1443,6 +1443,7 @@ public class TsFileSequenceReader implements AutoCloseable {
    *     always larger than the last measurement of the linked hashmap of the previous iteration in
    *     lexicographic order.
    */
+  //返回指定设备ID下每个传感器ID和对应的ChunkMetadata列表的遍历器，使用该遍历器可以获取该文件的该设备下的下一个传感器ID和对应的ChunkMetadata列表
   public Iterator<Map<String, List<ChunkMetadata>>> getMeasurementChunkMetadataListMapIterator(
       String device) throws IOException {
     readFileMetadata();
@@ -1477,7 +1478,7 @@ public class TsFileSequenceReader implements AutoCloseable {
         return !queue.isEmpty();
       }
 
-      @Override
+      @Override //获取该文件的该设备下的下一个传感器ID和对应的ChunkMetadata列表
       public LinkedHashMap<String, List<ChunkMetadata>> next() {
         if (!hasNext()) {
           throw new NoSuchElementException();

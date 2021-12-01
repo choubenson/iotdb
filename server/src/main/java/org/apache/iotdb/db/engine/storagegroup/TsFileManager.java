@@ -292,6 +292,7 @@ public class TsFileManager {
     return unsequenceRecoverTsFileResources;
   }
 
+  // 两个文件名的比较，先比较SystemTime，若两者相同再比较versionNum，若相同则比较innerCompactionNum
   // ({systemTime}-{versionNum}-{innerCompactionNum}-{crossCompactionNum}.tsfile)
   public static int compareFileName(File o1, File o2) {
     String[] items1 = o1.getName().replace(TSFILE_SUFFIX, "").split(FILE_NAME_SEPARATOR);
