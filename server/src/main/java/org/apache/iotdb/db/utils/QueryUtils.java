@@ -45,6 +45,7 @@ public class QueryUtils {
    * @param chunkMetaData the original chunkMetaData.
    * @param modifications all possible modifications.
    */
+  //根据给定的对该序列的删除操作列表和该序列的ChunkMetadata列表，若chunkmetadata对应chunk的数据被完全删除了，则从列表中移除此chunkMetadata，否则将其setModified(true)
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
   public static void modifyChunkMetaData(
       List<? extends IChunkMetadata> chunkMetaData, List<Modification> modifications) {
@@ -62,17 +63,19 @@ public class QueryUtils {
         // The case modification.getFileOffset() == metaData.getOffsetOfChunkHeader()
         // is not supposed to exist as getFileOffset() is offset containing full chunk,
         // while getOffsetOfChunkHeader() returns the chunk header offset
+        //若删除offset大于chunkmetadata指向Chunk的起始便宜位置，则往chunkMetadata的deleteInterval成员里添加此删除操作的时间范围
         if (modification.getFileOffset() > metaData.getOffsetOfChunkHeader()) {
           doModifyChunkMetaData(modification, metaData);
         }
       }
     }
+    // 若chunkmetadata对应chunk的数据被完全删除了，则从列表中移除此chunkMetadata，否则将其setModified(true)
     // remove chunks that are completely deleted
     chunkMetaData.removeIf(
         metaData -> {
           if (metaData.getDeleteIntervalList() != null) {
             for (TimeRange range : metaData.getDeleteIntervalList()) {
-              if (range.contains(metaData.getStartTime(), metaData.getEndTime())) {
+              if (range.contains(metaData.getStartTime(), metaData.getEndTime())) { //Todo:what if metadata is(0,100), while delete interval is(0,50]&&[50,100)
                 return true;
               } else {
                 if (!metaData.isModified()
@@ -155,6 +158,7 @@ public class QueryUtils {
         });
   }
 
+  //往chunkMetadata的deleteInterval成员里添加此删除操作的时间范围
   private static void doModifyChunkMetaData(Modification modification, IChunkMetadata metaData) {
     if (modification instanceof Deletion) {
       Deletion deletion = (Deletion) modification;

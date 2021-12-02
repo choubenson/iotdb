@@ -68,7 +68,7 @@ public class Chunk {
   }
 
   //将参数的chunk的内容合并到当前chunk对象，即把待合并的参数chunk的chunkData部分追加到当前chunk的chunkData后，并更新该chunk的ChunkHeader。要注意的是，若参数chunk或者当前chunk只有一个page，则需要为其补上自己的pageStatistics，因为合并后的当前新chunk一定会至少有两个page（若当前Chunk只有一个page，则合并是把新的chunk的page追加当作新的page追加到当前chunk的原有page后）
-  //具体做法是：（1）分别判断参数chunk和当前chunk是有一个或大于1个page（2）创建新的newChunkData，往里依次写入当前Chunk的更新后的
+  //具体做法是：（1）分别判断参数chunk和当前chunk是有一个或大于1个page（2）创建新的newChunkData，往里依次写入当前Chunk的更新后的ChunkHeader,和当前Chunk的chunkData和参数chunk的chunkData
   public void mergeChunk(Chunk chunk) throws IOException {
     int dataSize = 0;
     // from where the page data of the merged chunk starts, if -1, it means the merged chunk has

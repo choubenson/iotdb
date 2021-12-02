@@ -68,6 +68,7 @@ public class InnerSpaceCompactionUtils {
     throw new IllegalStateException("Utility class");
   }
 
+  //根据每个待合并TsFile顺序读取器和其某sensor传感器的对应ChunkMetadataList，将该sensor在不同待合并文件里的所有Chunk和ChunkMetadata合并到第一个Chunk和第一个chunkMetadata里，返回合并后的chunk和chunkMetadata
   private static Pair<ChunkMetadata, Chunk> readByAppendPageMerge(
       Map<TsFileSequenceReader, List<ChunkMetadata>> readerChunkMetadataMap) throws IOException {
     ChunkMetadata newChunkMetadata = null;
@@ -83,6 +84,7 @@ public class InnerSpaceCompactionUtils {
           newChunkMetadata = chunkMetadata;
           newChunk = chunk;
         } else {
+          //将参数的chunk的内容合并到当前chunk对象，即把待合并的参数chunk的chunkData部分追加到当前chunk的chunkData后，并更新该chunk的ChunkHeader。要注意的是，若参数chunk或者当前chunk只有一个page，则需要为其补上自己的pageStatistics，因为合并后的当前新chunk一定会至少有两个page（若当前Chunk只有一个page，则合并是把新的chunk的page追加当作新的page追加到当前chunk的原有page后）
           newChunk.mergeChunk(chunk);
           newChunkMetadata.mergeChunkMetadata(chunkMetadata);
         }
@@ -91,22 +93,32 @@ public class InnerSpaceCompactionUtils {
     return new Pair<>(newChunkMetadata, newChunk);
   }
 
+  //依次遍历每个待合并TsFile：
+  // （1）获取对该TsFile对该序列的所有删除操作，并修改chunkMetadataList（若chunkmetadata对应chunk的数据被完全删除了，则从列表中移除此chunkMetadata，否则将其setModified(true)）
+  // （2）遍历该文件里的该sensor的所有ChunkMetadata，获取该Chunk对应的读取器和该Chunk每个page里的数据点读取器，把该Chunk所有符合条件（未被删除、满足过滤器）的数据点读取出来装进timeValuePairMap
   private static void readByDeserializePageMerge(
       Map<TsFileSequenceReader, List<ChunkMetadata>> readerChunkMetadataMap,
       Map<Long, TimeValuePair> timeValuePairMap,
       Map<String, List<Modification>> modificationCache,
       PartialPath seriesPath)
       throws IOException {
+    //遍历每个待被合并文件的顺序读取器和该sensor的ChunkMetadataList
     for (Entry<TsFileSequenceReader, List<ChunkMetadata>> entry :
         readerChunkMetadataMap.entrySet()) {
       TsFileSequenceReader reader = entry.getKey();
       List<ChunkMetadata> chunkMetadataList = entry.getValue();
+      //获取该TsFile对该序列的所有删除操作，然后修改或删除chunkMetadata，具体操作是：若chunkmetadata对应chunk的数据被完全删除了，则从列表中移除此chunkMetadata，否则将其setModified(true)
       modifyChunkMetaDataWithCache(reader, chunkMetadataList, modificationCache, seriesPath);
       for (ChunkMetadata chunkMetadata : chunkMetadataList) {
+        //创建该TsFile的该Chunk对应的读取器
         IChunkReader chunkReader = new ChunkReaderByTimestamp(reader.readMemChunk(chunkMetadata));
+        //若该Chunk还有下个page
         while (chunkReader.hasNextSatisfiedPage()) {
+          //获取该page每个数据点的读取器
           IPointReader batchIterator = chunkReader.nextPageData().getBatchDataIterator();
+          //若该page还有下个数据点
           while (batchIterator.hasNextTimeValuePair()) {
+            //读取下个数据点并放入timeValuePairMap里
             TimeValuePair timeValuePair = batchIterator.nextTimeValuePair();
             timeValuePairMap.put(timeValuePair.getTimestamp(), timeValuePair);
           }
@@ -149,6 +161,7 @@ public class InnerSpaceCompactionUtils {
     }
   }
 
+  // 当该sensor传感器在原先待合并的所有TsFile里存在一个以上Chunk的数据点数量小于系统预设Chunk数据点数量 但是 所有Chunk的数据点数量都大于系统预设page数据点数量，则把该sensor在不同待合并文件里的所有Chunk和ChunkMetadata合并到第一个Chunk和ChunkMetadata里，并用目标文件的writer将合并后的新Chunk写入到目标文件里
   public static void writeByAppendPageMerge(
       String device,
       RateLimiter compactionWriteRateLimiter,
@@ -156,14 +169,17 @@ public class InnerSpaceCompactionUtils {
       TsFileResource targetResource,
       RestorableTsFileIOWriter writer)
       throws IOException {
+    //根据每个待合并TsFile顺序读取器和其某sensor传感器的对应ChunkMetadataList，将该sensor在不同待合并文件里的所有Chunk和ChunkMetadata合并到第一个Chunk和第一个chunkMetadata里，返回合并后的chunk和chunkMetadata
     Pair<ChunkMetadata, Chunk> chunkPair = readByAppendPageMerge(entry.getValue());
     ChunkMetadata newChunkMetadata = chunkPair.left;
     Chunk newChunk = chunkPair.right;
     if (newChunkMetadata != null && newChunk != null) {
       // wait for limit write
+      //通过限制器的令牌数，来限制访问流量
       MergeManager.mergeRateLimiterAcquire(
           compactionWriteRateLimiter,
           (long) newChunk.getHeader().getDataSize() + newChunk.getData().position());
+      //将指定的newChunk（header+data）写入到该TsFile的out输出流里，并把该Chunk的ChunkMetadata加到当前写操作的ChunkGroup对应的所有ChunkMetadata类对象列表里
       writer.writeChunk(newChunk, newChunkMetadata);
       targetResource.updateStartTime(device, newChunkMetadata.getStartTime());
       targetResource.updateEndTime(device, newChunkMetadata.getEndTime());
@@ -173,13 +189,16 @@ public class InnerSpaceCompactionUtils {
   public static void writeByDeserializePageMerge(
       String device,
       RateLimiter compactionRateLimiter,
-      Entry<String, Map<TsFileSequenceReader, List<ChunkMetadata>>> entry,
+      Entry<String, Map<TsFileSequenceReader, List<ChunkMetadata>>> entry, //某一个measurementId对应的在不同文件的<TsFileSequenceReader,chunkmetadataList>
       TsFileResource targetResource,
       RestorableTsFileIOWriter writer,
       Map<String, List<Modification>> modificationCache)
       throws IOException, IllegalPathException {
     Map<Long, TimeValuePair> timeValuePairMap = new TreeMap<>();
     Map<TsFileSequenceReader, List<ChunkMetadata>> readerChunkMetadataMap = entry.getValue();
+    //依次遍历每个待合并TsFile：
+    // （1）获取对该TsFile对该序列的所有删除操作，并修改chunkMetadataList（若chunkmetadata对应chunk的数据被完全删除了，则从列表中移除此chunkMetadata，否则将其setModified(true)）
+    // （2）遍历该文件里的该sensor的所有ChunkMetadata，获取该Chunk对应的读取器和该Chunk每个page里的数据点读取器，把该Chunk所有符合条件（未被删除、满足过滤器）的数据点读取出来装进timeValuePairMap
     readByDeserializePageMerge(
         readerChunkMetadataMap,
         timeValuePairMap,
@@ -265,6 +284,7 @@ public class InnerSpaceCompactionUtils {
       writer =
           new RestorableTsFileIOWriter(
               targetResource.getTsFile()); // 根据目标文件创建其RestorableTsFileIOWriter
+      //用于后续存放每个待合并TsFile对应各自的所有删除操作
       Map<String, List<Modification>> modificationCache = new HashMap<>();
       RateLimiter compactionWriteRateLimiter = // 获取合并写入的流量限制器
           MergeManager.getINSTANCE().getMergeWriteRateLimiter();
@@ -458,6 +478,7 @@ public class InnerSpaceCompactionUtils {
                       storageGroup,
                       sensor);
                   // append page in chunks, so we do not have to deserialize a chunk
+                  // 当该sensor传感器在原先待合并的所有TsFile里存在一个以上Chunk的数据点数量小于系统预设Chunk数据点数量 但是 所有Chunk的数据点数量都大于系统预设page数据点数量，则把该sensor在不同待合并文件里的所有Chunk和ChunkMetadata合并到第一个Chunk和ChunkMetadata里，并用目标文件的writer将合并后的新Chunk写入到目标文件里
                   writeByAppendPageMerge(
                       device,
                       compactionWriteRateLimiter,
@@ -527,11 +548,13 @@ public class InnerSpaceCompactionUtils {
         });
   }
 
+  //获取该TsFile对该序列的所有删除操作，然后修改或删除chunkMetadata，具体操作是：若chunkmetadata对应chunk的数据被完全删除了，则从列表中移除此chunkMetadata，否则将其setModified(true)
   private static void modifyChunkMetaDataWithCache(
       TsFileSequenceReader reader,
       List<ChunkMetadata> chunkMetadataList,
       Map<String, List<Modification>> modificationCache,
       PartialPath seriesPath) {
+    //获取该顺序阅读器对应TsFile的所有删除操作
     List<Modification> modifications =
         modificationCache.computeIfAbsent(
             reader.getFileName(),
@@ -540,11 +563,13 @@ public class InnerSpaceCompactionUtils {
                     new ModificationFile(fileName + ModificationFile.FILE_SUFFIX)
                         .getModifications()));
     List<Modification> seriesModifications = new LinkedList<>();
+    //获取该TsFile文件里对该序列的所有删除操作
     for (Modification modification : modifications) {
       if (modification.getPath().matchFullPath(seriesPath)) {
         seriesModifications.add(modification);
       }
     }
+    //根据给定的对该序列的删除操作列表和该序列的ChunkMetadata列表，若chunkmetadata对应chunk的数据被完全删除了，则从列表中移除此chunkMetadata，否则将其setModified(true)
     modifyChunkMetaData(chunkMetadataList, seriesModifications);
   }
 
