@@ -130,6 +130,7 @@ public class TsFileIOWriter {
     out.write(VERSION_NUMBER_BYTE);
   }
 
+  // 开启一个新的设备ChunkGroup，并把该新的ChunkGroupHeader的内容（marker（为0）和设备ID）写入该TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里
   public void startChunkGroup(String deviceId) throws IOException {
     this.currentChunkGroupDeviceId = deviceId;
     if (logger.isDebugEnabled()) {
@@ -143,6 +144,7 @@ public class TsFileIOWriter {
   /**
    * end chunk and write some log. If there is no data in the chunk group, nothing will be flushed.
    */
+  // 结束currentChunkGroupDeviceId对应ChunkGroup，即把其ChunkGroupMeatadata元数据加入该写入类的chunkGroupMetadataList列表缓存里，并把该写入类的相关属性（设备ID和ChunkMetadataList清空），并将该TsFile的TsFileIOWriter对象的输出缓存流TsFileOutput的内容给flush到本地对应TsFile文件
   public void endChunkGroup() throws IOException {
     if (currentChunkGroupDeviceId == null || chunkMetadataList.isEmpty()) {
       return;
@@ -235,6 +237,7 @@ public class TsFileIOWriter {
    *
    * @throws IOException if I/O error occurs
    */
+  // 在向该TsFileIOWriter的TsFileOutput的缓存输出流BufferedOutputStream的数组里写完数据区的内容并flush到本地后，再往该缓存里写对应索引区的内容，以及剩余的小内容（如TsFile结尾的Magic String等），最后关闭该TsFileIOWriter的TsFileOutput的两个输出流BufferedOutputStream和FileOutputStream，会往对应的本地TsFile写入该TsFileIOWriter缓存里的数据（即索引区和小内容等，数据区之前已经flush到本地文件了）
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
   public void endFile() throws IOException {
     long metaOffset = out.getPosition();

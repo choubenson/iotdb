@@ -212,6 +212,7 @@ public class TsFileResource {
     this.timeIndexType = 1;
   }
 
+  // 将该TsFile文件对应的TsFileResource对象里的内容序列化写到本地的.resource文件里
   public synchronized void serialize() throws IOException {
     try (OutputStream outputStream =
         fsFactory.getBufferedOutputStream(file + RESOURCE_SUFFIX + TEMP_SUFFIX)) {

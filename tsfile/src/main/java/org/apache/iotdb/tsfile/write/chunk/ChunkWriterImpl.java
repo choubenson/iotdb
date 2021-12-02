@@ -145,6 +145,7 @@ public class ChunkWriterImpl implements IChunkWriter {
     }
   }
 
+  // 将给定的数据点交由该Chunk的pageWriter写入到其对应的两个输出流timeOut和valueOut的缓存中，并检查该Chunk的pageWriter的数据点or占用内存的大小情况，判断是否要开启一个新的page，若要开启新的page则往对应Chunk的ChunkWriterImpl的输出流pageBuffer缓存里写入该page的pageHeader和pageData（即pageWriter对象里输出流timeOut和valueOut的缓存数据），最后重置该pageWriter
   public void write(long time, long value) {
     // store last point for sdtEncoding, it still needs to go through encoding process
     // in case it exceeds compdev and needs to store second last point
@@ -306,6 +307,7 @@ public class ChunkWriterImpl implements IChunkWriter {
     }
   }
 
+  // 首先封口当前page(即把当前Chunk的pageWriter输出流timeOut和valueOut的缓存数据写到该Chunk的ChunkWriterImpl的输出流pageBuffer缓存里,最后重置该pageWriter)，然后往TsFileIOWriter对象的TsFileOutput输出对象的输出流BufferedOutputStream的缓存数组里写入该Chunk的ChunkHeader,最后再写入当前Chunk的所有page数据（pageBuffer输出流的缓存数组内容）
   @Override
   public void writeToFileWriter(TsFileIOWriter tsfileWriter) throws IOException {
     sealCurrentPage();

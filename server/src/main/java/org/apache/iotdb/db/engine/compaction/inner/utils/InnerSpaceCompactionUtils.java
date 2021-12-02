@@ -186,6 +186,7 @@ public class InnerSpaceCompactionUtils {
     }
   }
 
+  //获取每个待合并文件的删除操作，根据每个文件对该序列的删除操作获取该sensor所有符合条件的数据点，然后创建目标文件对应该sensor的chunkWriterImpl，依次把所有数据点写入，最后刷到目标文件writer里的缓存里
   public static void writeByDeserializePageMerge(
       String device,
       RateLimiter compactionRateLimiter,
@@ -205,6 +206,7 @@ public class InnerSpaceCompactionUtils {
         modificationCache,
         new PartialPath(device, entry.getKey()));
     boolean isChunkMetadataEmpty = true;
+    //判断每个待合并TsFile的该sensor的ChunkMetadataList是否未空，若为空，则说明该文件不存在此sensor。只要有一个待合并文件的该sensor的ChunkmetadataList不为空，则会继续往下做写操作
     for (List<ChunkMetadata> chunkMetadataList : readerChunkMetadataMap.values()) {
       if (!chunkMetadataList.isEmpty()) {
         isChunkMetadataEmpty = false;
@@ -214,6 +216,7 @@ public class InnerSpaceCompactionUtils {
     if (isChunkMetadataEmpty) {
       return;
     }
+    //若存在某个待合并文件的该sensor的ChunkmetadataList不为空，则创建目标文件的该sensor的ChunkWriterImpl写入对象
     ChunkWriterImpl chunkWriter;
     try {
       chunkWriter =
@@ -224,7 +227,9 @@ public class InnerSpaceCompactionUtils {
       logger.error("{} get schema {} error, skip this sensor", device, entry.getKey(), e);
       return;
     }
+    //遍历该sensor的每个数据点，把所有的数据点写到对应的pageWriter的缓存，并判断是否开启新的page
     for (TimeValuePair timeValuePair : timeValuePairMap.values()) {
+      // 使用ChunkWriter将给定的数据点交由该Chunk的pageWriter写入到其对应的两个输出流timeOut和valueOut的缓存中，并检查该Chunk的pageWriter的数据点or占用内存的大小情况，判断是否要开启一个新的page，若要开启新的page则往对应Chunk的ChunkWriterImpl的输出流pageBuffer缓存里写入该page的pageHeader和pageData（即pageWriter对象里输出流timeOut和valueOut的缓存数据），最后重置该pageWriter
       writeTVPair(timeValuePair, chunkWriter);
       targetResource.updateStartTime(device, timeValuePair.getTimestamp());
       targetResource.updateEndTime(device, timeValuePair.getTimestamp());
@@ -232,10 +237,11 @@ public class InnerSpaceCompactionUtils {
     // wait for limit write
     MergeManager.mergeRateLimiterAcquire(
         compactionRateLimiter, chunkWriter.estimateMaxSeriesMemSize());
+    // 首先封口当前page(即把当前Chunk的pageWriter输出流timeOut和valueOut的缓存数据写到该Chunk的ChunkWriterImpl的输出流pageBuffer缓存里,最后重置该pageWriter)，然后往TsFileIOWriter对象的TsFileOutput输出对象的输出流BufferedOutputStream的缓存数组里写入该Chunk的ChunkHeader,最后再写入当前Chunk的所有page数据（pageBuffer输出流的缓存数组内容）
     chunkWriter.writeToFileWriter(writer);
   }
 
-  //对subLevelResources列表里每个TsFile初始化其对应的顺序读取器放入tsFileSequenceReaderMap对象（<TsFile绝对路径，顺序读取器对象>）里，并获取并返回所有TsFile包含的所有设备ID
+  //对TsFileResource列表里每个TsFile初始化其对应的顺序读取器放入tsFileSequenceReaderMap对象（<TsFile绝对路径，顺序读取器对象>）里，并获取并返回所有TsFile包含的所有设备ID
   private static Set<String> getTsFileDevicesSet(
       List<TsFileResource> subLevelResources,
       Map<String, TsFileSequenceReader> tsFileSequenceReaderMap,//<TsFile绝对路径，顺序读取器对象>
@@ -272,8 +278,8 @@ public class InnerSpaceCompactionUtils {
    */
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
   public static void compact(
-      TsFileResource targetResource,
-      List<TsFileResource> tsFileResources,
+      TsFileResource targetResource,  //目标TsFile
+      List<TsFileResource> tsFileResources, //待被合并的所有TsFile
       String storageGroup,
       boolean sequence)
       throws IOException, IllegalPathException {
@@ -288,15 +294,16 @@ public class InnerSpaceCompactionUtils {
       Map<String, List<Modification>> modificationCache = new HashMap<>();
       RateLimiter compactionWriteRateLimiter = // 获取合并写入的流量限制器
           MergeManager.getINSTANCE().getMergeWriteRateLimiter();
-      //对subLevelResources列表里每个TsFile初始化其对应的顺序读取器放入tsFileSequenceReaderMap对象（<TsFile绝对路径，顺序读取器对象>）里，并获取并返回所有TsFile包含的所有设备ID
+      //对TsFileResource列表里每个TsFile初始化其对应的顺序读取器放入tsFileSequenceReaderMap对象（<TsFile绝对路径，顺序读取器对象>）里，并获取并返回所有TsFile包含的所有设备ID
       Set<String> tsFileDevicesMap =
           getTsFileDevicesSet(tsFileResources, tsFileSequenceReaderMap, storageGroup);
 
       //遍历所有待合并的TsFile的所有设备ID
       for (String device : tsFileDevicesMap) {
+        // 开启一个新的设备ChunkGroup，并把该新的ChunkGroupHeader的内容（marker（为0）和设备ID）写入该TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里
         writer.startChunkGroup(device);
         // tsfile -> measurement -> List<ChunkMetadata>
-        //该设备ID下待被合并的Chunk，存放每个待合并文件的顺序读取器，以及每个待合并文件在该设备ID下的传感器ID和对应的ChunkMetadata列表
+        //该设备ID下待被合并的Chunk，存放每个待合并文件的顺序读取器，以及每个待合并文件在该设备ID下的传感器ID和对应的ChunkMetadata列表,即<TsFileSequenceReader,<measurementId,ChunkMetadataList>>
         Map<TsFileSequenceReader, Map<String, List<ChunkMetadata>>> chunkMetadataListCacheForMerge =
             new TreeMap<>(
                 (o1, o2) ->
@@ -310,6 +317,10 @@ public class InnerSpaceCompactionUtils {
                     (o1, o2) ->
                         TsFileManager.compareFileName(
                             new File(o1.getFileName()), new File(o2.getFileName())));
+
+        //遍历每个待合并文件：
+        // （1）创建每个待合并文件的“顺序读取器”和“指定设备下每个传感器ID和对应的ChunkMetadata列表的遍历器”放入chunkMetadataListIteratorCache里
+        // （2）将每个待合并文件的“顺序读取器”和一个空map放进chunkMetadataListCacheForMerge里
         for (TsFileResource tsFileResource : tsFileResources) {
           //根据指定TsFileResource，创建其对应的TsFileSequenceReader对象放进tsFileSequenceReaderMap里<TsFile绝对路径，顺序读取器对象>,并返回指定TsFile的SequenceReader
           TsFileSequenceReader reader =
@@ -324,17 +335,20 @@ public class InnerSpaceCompactionUtils {
           chunkMetadataListIteratorCache.put(reader, iterator);
           chunkMetadataListCacheForMerge.put(reader, new TreeMap<>());
         }
+
         //返回该设备ID下是否存在下一个传感器ID和对应的ChunkMetadata列表，若某个文件的该设备还存在下个传感器，则返回true
         while (hasNextChunkMetadataList(chunkMetadataListIteratorCache.values())) {
           String lastSensor = null;
           Set<String> allSensors = new HashSet<>();
-          //遍历每个待合并文件的顺序读取器，以及每个待合并文件在该设备ID下的传感器ID和对应的ChunkMetadata列表
+          //遍历每个待合并文件：
+          //（1）若chunkMetadataListCacheForMerge里该文件对应的仍为空，则使用chunkMetadataListIteratorCache里该文件对应的遍历器获取下一个该文件的该设备下的“所有传感器对应各自的ChunkMetadataList”，放进chunkMetadataListCacheForMerge里该文件对应的值
+          //（2）获取所有文件中该设备下最小的measurementId放入lastSensor，并把所有待合并文件的该设备下所有传感器放入allsensors变量里
           for (Entry<TsFileSequenceReader, Map<String, List<ChunkMetadata>>>
               chunkMetadataListCacheForMergeEntry : chunkMetadataListCacheForMerge.entrySet()) {
             //该待被合并TsFile的顺序读取器
             TsFileSequenceReader reader = chunkMetadataListCacheForMergeEntry.getKey();
-            //该文件的该设备下的所有传感器ID和各自对应的ChunkMetadataList
-            Map<String, List<ChunkMetadata>> sensorChunkMetadataListMap =
+            //该待合并文件的该设备ID下的所有传感器ID和各自对应的ChunkMetadataList
+            Map<String, List<ChunkMetadata>> sensorChunkMetadataListMap =  //Todo:此处应该是空，没必要写！
                 chunkMetadataListCacheForMergeEntry.getValue();
 
             //获取or初始化该文件的该设备ID下的下一个传感器ID和对应的ChunkMetadataList 放入chunkMetadataListCacheForMerge里
@@ -394,6 +408,7 @@ public class InnerSpaceCompactionUtils {
                       new DefaultMapEntry<>(sensor, readerChunkMetadataListMap);
               //若是乱序空间内合并
               if (!sequence) {
+                //获取每个待合并文件的删除操作，根据每个文件对该序列的删除操作获取该sensor所有符合条件的数据点，然后创建目标文件对应该sensor的chunkWriterImpl，依次把所有数据点写入，最后刷到目标文件writer里的缓存里
                 writeByDeserializePageMerge(
                     device,
                     compactionWriteRateLimiter,
@@ -491,6 +506,7 @@ public class InnerSpaceCompactionUtils {
                       storageGroup,
                       sensor);
                   // we have to deserialize chunks to merge pages
+                  //获取每个待合并文件的删除操作，根据每个文件对该序列的删除操作获取该sensor所有符合条件的数据点，然后创建目标文件对应该sensor的chunkWriterImpl，依次把所有数据点写入，最后刷到目标文件writer里的缓存里
                   writeByDeserializePageMerge(
                       device,
                       compactionWriteRateLimiter,
@@ -503,13 +519,16 @@ public class InnerSpaceCompactionUtils {
             }
           }
         }
+        // 结束currentChunkGroupDeviceId对应ChunkGroup，即把其ChunkGroupMeatadata元数据加入该写入类的chunkGroupMetadataList列表缓存里，并把该写入类的相关属性（设备ID和ChunkMetadataList清空），并将该TsFile的TsFileIOWriter对象的输出缓存流TsFileOutput的内容给flush到本地对应TsFile文件
         writer.endChunkGroup();
       }
 
       for (TsFileResource tsFileResource : tsFileResources) {
         targetResource.updatePlanIndexes(tsFileResource);
       }
+      // 将该TsFile文件对应的TsFileResource对象里的内容序列化写到本地的.resource文件里
       targetResource.serialize();
+      // 在向该TsFileIOWriter的TsFileOutput的缓存输出流BufferedOutputStream的数组里写完数据区的内容并flush到本地后，再往该缓存里写对应索引区的内容，以及剩余的小内容（如TsFile结尾的Magic String等），最后关闭该TsFileIOWriter的TsFileOutput的两个输出流BufferedOutputStream和FileOutputStream，会往对应的本地TsFile写入该TsFileIOWriter缓存里的数据（即索引区和小内容等，数据区之前已经flush到本地文件了）
       writer.endFile();
       targetResource.close();
 

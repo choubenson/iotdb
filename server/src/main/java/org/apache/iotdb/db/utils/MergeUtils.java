@@ -45,6 +45,7 @@ public class MergeUtils {
     // util class
   }
 
+  // 使用ChunkWriter将给定的数据点交由该Chunk的pageWriter写入到其对应的两个输出流timeOut和valueOut的缓存中，并检查该Chunk的pageWriter的数据点or占用内存的大小情况，判断是否要开启一个新的page，若要开启新的page则往对应Chunk的ChunkWriterImpl的输出流pageBuffer缓存里写入该page的pageHeader和pageData（即pageWriter对象里输出流timeOut和valueOut的缓存数据），最后重置该pageWriter
   public static void writeTVPair(TimeValuePair timeValuePair, ChunkWriterImpl chunkWriter) {
     switch (chunkWriter.getDataType()) {
       case TEXT:
