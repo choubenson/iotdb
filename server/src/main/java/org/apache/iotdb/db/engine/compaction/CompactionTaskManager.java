@@ -57,10 +57,9 @@ public class CompactionTaskManager implements IService {
   //优先级队列，队列容量为1000，放入该队列里的任务会由比较器的结果从小到大进行排序，即比较器结果越小的，优先级越高。当队列满时，此时若放入一个任务且该任务的比较器结果小于该队列里的某最大比较器结果任务，则会把队列里该比较器结果较大的任务踢出去，并把新的任务放到队列里合适的位置
   private MinMaxPriorityQueue<AbstractCompactionTask> candidateCompactionTaskQueue =
       MinMaxPriorityQueue.orderedBy(new CompactionTaskComparator()).maximumSize(1000).create();
+
+  //存放每个虚拟存储组下 合并任务的执行情况，其作用是用于停止该存储组下的所有正在执行的合并任务
   private Map<String, Set<Future<Void>>> storageGroupTasks = new ConcurrentHashMap<>();
-  // 每个存储组的每个时间分区的合并任务线程的返回情况Future
-  private Map<String, Map<Long, Set<Future<Void>>>> compactionTaskFutures =
-      new ConcurrentHashMap<>();
 
   private List<AbstractCompactionTask> runningCompactionTaskList = new ArrayList<>();
 
@@ -193,7 +192,7 @@ public class CompactionTaskManager implements IService {
    * This method will submit task cached in queue with most priority to execution thread pool if
    * there is available thread.
    */
-  // 从合并线程队列里获取第一个线程，并检查该合并任务里的所有待合并TsFile文件是否合格，若是且taskExecutionPool线程池里还有可用线程空间，则将合并任务线程放入线程池里并执行合并
+  // 从合并线程队列里获取第一个（优先级最高）线程，并检查该合并任务里的所有待合并TsFile文件是否合格，若是且taskExecutionPool线程池里还有可用线程空间，则将合并任务线程放入线程池里并执行合并
   public synchronized void submitTaskFromTaskQueue() {
     while (currentTaskNum.get()
             < IoTDBDescriptor.getInstance().getConfig().getConcurrentCompactionThread()
@@ -223,10 +222,6 @@ public class CompactionTaskManager implements IService {
       Future<Void> future = taskExecutionPool.submit(compactionMergeTask);
       // 往当前存储组的当前时间分区里的合并线程数量加1
       CompactionScheduler.addPartitionCompaction(fullStorageGroupName, timePartition);
-      compactionTaskFutures
-          .computeIfAbsent(fullStorageGroupName, k -> new ConcurrentHashMap<>())
-          .computeIfAbsent(timePartition, k -> new HashSet<>())
-          .add(future);
       return;
     }
     logger.warn(

@@ -539,7 +539,7 @@ public class StorageGroupProcessor {
         return;
       }
       for (File timePartitionDir : timePartitionDirs) {
-        File[] compactionLogs = // 每个分区下的所有合并日志文件
+        File[] compactionLogs = // 当前分区下的所有合并日志文件
             InnerSpaceCompactionUtils.findInnerSpaceCompactionLogs(timePartitionDir.getPath());
         for (File compactionLog : compactionLogs) {
           // 根据合并日志和对应的存储组创建空间内合并恢复线程并执行合并的恢复，此处创建的其实是空间内合并的任务SizeTieredCompactionRecoverTask

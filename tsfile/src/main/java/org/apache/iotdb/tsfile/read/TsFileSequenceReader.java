@@ -1478,7 +1478,7 @@ public class TsFileSequenceReader implements AutoCloseable {
         return !queue.isEmpty();
       }
 
-      @Override //获取该文件的该设备下的下一个传感器ID和对应的ChunkMetadata列表
+      @Override //获取该文件的该设备下的所有传感器ID和各自对应的ChunkMetadata列表
       public LinkedHashMap<String, List<ChunkMetadata>> next() {
         if (!hasNext()) {
           throw new NoSuchElementException();
