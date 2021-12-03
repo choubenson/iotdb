@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public abstract class AbstractCompactionTask implements Callable<Void> {
   private static final Logger LOGGER = LoggerFactory.getLogger("COMPACTION");
-  protected String fullStorageGroupName;
+  protected String fullStorageGroupName;//此处是 logicalStorageGroupName + "-" + virtualStorageGroupName，比如"root.sg-0"
   protected long timePartition;
   protected final AtomicInteger currentTaskNum;
 
