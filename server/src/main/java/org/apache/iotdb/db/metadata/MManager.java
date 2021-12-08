@@ -1239,6 +1239,7 @@ public class MManager {
     return new ArrayList<>(res);
   }
 
+  //在该MTree树下根据前缀获取其下的所有传感器的<完整路径,MeasurementSchema>
   public Map<PartialPath, IMeasurementSchema> getAllMeasurementSchemaByPrefix(
       PartialPath prefixPath) throws MetadataException {
     return mtree.getAllMeasurementSchemaByPrefix(prefixPath);

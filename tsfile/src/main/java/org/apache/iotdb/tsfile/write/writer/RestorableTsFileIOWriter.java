@@ -61,7 +61,7 @@ public class RestorableTsFileIOWriter extends TsFileIOWriter {
 
   private int lastFlushedChunkGroupIndex = 0;
 
-  private boolean crashed;
+  private boolean crashed; //该文件是否损坏，不完整则说明是损坏
 
   private long minPlanIndex = Long.MAX_VALUE;
   private long maxPlanIndex = Long.MIN_VALUE;
@@ -130,7 +130,9 @@ public class RestorableTsFileIOWriter extends TsFileIOWriter {
 
     if (file.exists()) {
       try (TsFileSequenceReader reader = new TsFileSequenceReader(file.getAbsolutePath(), false)) {
-
+        // 文件检查：1）若该文件长度小于文件头（magicString+version）长度且文件头不符合规范，则直接返回long型变量说明不完整
+        //         2）若该文件完整（前后都有TSFILE字段），若：（1）fashFinish为true，则返回变量说明是完整的（2）否则读取该文件将对应的内容（时间序列的measurementSchema和chunkMetadataList）放入第一第二个参数里，并返回待截取的文件位置
+        //         3）若文件尾不完整（头部符合规范，可是尾部没有TsFile字段），则读取该文件将对应的内容（时间序列的measurementSchema和chunkMetadataList）放入第一第二个参数里，并返回待截取的文件位置
         truncatedSize = reader.selfCheck(knownSchemas, chunkGroupMetadataList, true);
         minPlanIndex = reader.getMinPlanIndex();
         maxPlanIndex = reader.getMaxPlanIndex();

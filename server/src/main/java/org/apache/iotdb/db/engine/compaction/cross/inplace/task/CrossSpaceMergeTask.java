@@ -51,14 +51,20 @@ public class CrossSpaceMergeTask implements Callable<Void> {
   public static final String MERGE_SUFFIX = ".merge";
   private static final Logger logger = LoggerFactory.getLogger(CrossSpaceMergeTask.class);
 
+  // 跨空间合并的资源管理器，里面存放了待被合并的顺序和乱序文件
   CrossSpaceMergeResource resource;
   String storageGroupSysDir;
+  //logicalStorageGroupName
   String storageGroupName;
   InplaceCompactionLogger inplaceCompactionLogger;
+  //跨空间合并的上下文
   CrossSpaceMergeContext mergeContext = new CrossSpaceMergeContext();
+  //跨空间 允许并行合并序列的线程数量
   int concurrentMergeSeriesNum;
   String taskName;
+  //是否是fullMerge
   boolean fullMerge;
+  //跨空间合并的状态
   States states = States.START;
   MergeMultiChunkTask chunkTask;
   MergeFileTask fileTask;
@@ -121,6 +127,7 @@ public class CrossSpaceMergeTask implements Callable<Void> {
   }
 
   private void doMerge() throws IOException, MetadataException {
+    //若待被合并顺序文件数量为0，则
     if (resource.getSeqFiles().isEmpty()) {
       logger.info("{} no sequence file to merge into, so will abort task.", taskName);
       abort();
@@ -134,29 +141,37 @@ public class CrossSpaceMergeTask implements Callable<Void> {
           resource.getUnseqFiles());
     }
     long startTime = System.currentTimeMillis();
+    //获取顺序和乱序文件的总文件大小
     long totalFileSize =
         MergeUtils.collectFileSizes(resource.getSeqFiles(), resource.getUnseqFiles());
+    //空间内合并的日志类，用于后续写入日志
     inplaceCompactionLogger = new InplaceCompactionLogger(storageGroupSysDir);
 
+    //往跨空间合并日志里依次写入待合并顺序和乱序文件的重要属性
     inplaceCompactionLogger.logFiles(resource);
 
+    //在该元数据MTree树下根据前缀获取该存储组下的所有传感器的<完整路径,MeasurementSchema>
     Map<PartialPath, IMeasurementSchema> measurementSchemaMap =
         IoTDB.metaManager.getAllMeasurementSchemaByPrefix(new PartialPath(storageGroupName));
+    //该存储组下的所有时间序列完整路径，他们被视为是尚未被合并的序列
     List<PartialPath> unmergedSeries = new ArrayList<>(measurementSchemaMap.keySet());
     resource.setMeasurementSchemaMap(measurementSchemaMap);
 
+    //写入日志，代表开始跨空间合并
     inplaceCompactionLogger.logMergeStart();
 
+    //创建合并多个Chunk的工具类
     chunkTask =
         new MergeMultiChunkTask(
             mergeContext,
             taskName,
             inplaceCompactionLogger,
-            resource,
+            resource, //跨空间合并资源管理器
             fullMerge,
             unmergedSeries,
             concurrentMergeSeriesNum,
             storageGroupName);
+    //跨空间合并状态
     states = States.MERGE_CHUNKS;
     chunkTask.mergeSeries();
     if (Thread.interrupted()) {

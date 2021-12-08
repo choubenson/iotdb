@@ -68,12 +68,12 @@ public class SizeTieredCompactionRecoverTask extends SizeTieredCompactionTask {
    * Clear unfinished compaction task, there are several situations:
    *
    * <ol>
-   *   <li><b>Target file is uncompleted</b>: delete the target file and compaction log.
-   *   <li><b>Target file is completed, not all source files have been deleted</b>: delete the
+   *   <li><b>Target file is uncompleted（目标文件不完整，说明目标文件还未封口、正在被合并写入，因此源待合并文件还存在，此时删除目标文件和日志）</b>: delete the target file and compaction log.
+   *   <li><b>Target file is completed, not all source files have been deleted（目标文件已经完整、封口，源待合并文件没有被全部删掉，则删除还存在的源待合并文件和日志文件）</b>: delete the
    *       source files and compaction logs
-   *   <li><b>Target file is completed, all source files have been deleted, compaction log file
+   *   <li><b>Target file is completed, all source files have been deleted, compaction log file （目标文件已经完整、封口，源待合并文件被全部删掉，而日志还存在，则删除日志）
    *       exists</b>: delete the compaction log
-   *   <li><b>No compaction log file exists</b>: do nothing
+   *   <li><b>No compaction log file exists（啥都不做）</b>: do nothing
    * </ol>
    */
   @Override
@@ -88,10 +88,14 @@ public class SizeTieredCompactionRecoverTask extends SizeTieredCompactionTask {
             logicalStorageGroupName,
             virtualStorageGroup,
             compactionLogFile);
+        //根据合并日志创建合并日志分析器
         SizeTieredCompactionLogAnalyzer logAnalyzer =
             new SizeTieredCompactionLogAnalyzer(compactionLogFile);
+        //对该合并日志进行分析
         logAnalyzer.analyze();
+        //待合并文件识别器列表
         List<TsFileIdentifier> sourceFileIdentifiers = logAnalyzer.getSourceFileInfos();
+        //目标文件识别区
         TsFileIdentifier targetFileIdentifier = logAnalyzer.getTargetFileInfo();
         if (targetFileIdentifier == null || sourceFileIdentifiers.isEmpty()) {
           LOGGER.info(
@@ -100,6 +104,7 @@ public class SizeTieredCompactionRecoverTask extends SizeTieredCompactionTask {
               virtualStorageGroup);
           return;
         }
+        //目标文件
         File targetFile = targetFileIdentifier.getFileFromDataDirs();
         if (targetFile == null) {
           // cannot find target file from data dirs
@@ -110,9 +115,12 @@ public class SizeTieredCompactionRecoverTask extends SizeTieredCompactionTask {
               targetFileIdentifier);
           return;
         }
+        //目标文件的TsFileResource
         File resourceFile = new File(targetFile.getPath() + ".resource");
 
+        //创建文件恢复writer，他会检查该目标文件是否已经损坏（不完整），此处第二个参数是false，代表不会截取文件
         RestorableTsFileIOWriter writer = new RestorableTsFileIOWriter(targetFile, false);
+        //若目标文件不完整、损坏，则删除本地目标文件和对应的.resource文件
         if (writer.hasCrashed()) {
           LOGGER.info(
               "{}-{} [Compaction][Recover] target file {} crash, start to delete it",
@@ -136,6 +144,7 @@ public class SizeTieredCompactionRecoverTask extends SizeTieredCompactionTask {
                 resourceFile);
           }
         } else {
+          //目标文件是完整的，则
           // the target tsfile is completed
           LOGGER.info(
               "{}-{} [Compaction][Recover] target file {} is completed, delete source files {}",
@@ -143,6 +152,7 @@ public class SizeTieredCompactionRecoverTask extends SizeTieredCompactionTask {
               virtualStorageGroup,
               targetFile,
               sourceFileIdentifiers);
+          //初始化待合并文件的TsFileResource列表和目标文件的TsFileResource
           TsFileResource targetResource = new TsFileResource(targetFile);
           List<TsFileResource> sourceTsFileResources = new ArrayList<>();
           for (TsFileIdentifier sourceFileIdentifier : sourceFileIdentifiers) {
@@ -152,14 +162,17 @@ public class SizeTieredCompactionRecoverTask extends SizeTieredCompactionTask {
             }
           }
 
+          //移除并关闭指定待合并TsFile文件的顺序阅读器，并删除所有TsFile的本地文件
           InnerSpaceCompactionUtils.deleteTsFilesInDisk(
               sourceTsFileResources, fullStorageGroupName);
+          //将所有的待合并文件在合并过程中产生的删除.compaction.mods文件里的内容读取出来写到目标文件的新.mods文件里
           combineModsInCompaction(sourceTsFileResources, targetResource);
         }
       }
     } catch (IOException e) {
       LOGGER.error("recover inner space compaction error", e);
     } finally {
+      //将合并日志删除掉
       if (compactionLogFile.exists()) {
         if (!compactionLogFile.delete()) {
           LOGGER.warn(

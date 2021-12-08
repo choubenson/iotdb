@@ -54,6 +54,7 @@ public class InplaceCompactionLogger {
     logStream.close();
   }
 
+  //往日志里写入当前正准备被合并的时间序列路径
   public void logTSStart(List<PartialPath> paths) throws IOException {
     logStream.write(STR_START);
     for (PartialPath path : paths) {
@@ -102,6 +103,7 @@ public class InplaceCompactionLogger {
     logStream.flush();
   }
 
+  //往跨空间合并日志里依次写入待合并顺序和乱序文件的重要属性
   public void logFiles(CrossSpaceMergeResource resource) throws IOException {
     logSeqFiles(resource.getSeqFiles());
     logUnseqFiles(resource.getUnseqFiles());
@@ -111,6 +113,7 @@ public class InplaceCompactionLogger {
     logStream.write(STR_SEQ_FILES);
     logStream.newLine();
     for (TsFileResource tsFileResource : seqFiles) {
+      // 写入该顺序TsFile的文件识别器的重要属性
       logStream.write(
           TsFileIdentifier.getFileIdentifierFromFilePath(
                   tsFileResource.getTsFile().getAbsolutePath())
@@ -124,6 +127,7 @@ public class InplaceCompactionLogger {
     logStream.write(STR_UNSEQ_FILES);
     logStream.newLine();
     for (TsFileResource tsFileResource : unseqFiles) {
+      // 写入该乱序TsFile的文件识别器的重要属性
       logStream.write(
           TsFileIdentifier.getFileIdentifierFromFilePath(
                   tsFileResource.getTsFile().getAbsolutePath())
@@ -133,6 +137,7 @@ public class InplaceCompactionLogger {
     logStream.flush();
   }
 
+  //写入日志，代表开始跨空间合并
   public void logMergeStart() throws IOException {
     logStream.write(STR_MERGE_START);
     logStream.newLine();

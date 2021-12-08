@@ -59,9 +59,9 @@ public class CompactionScheduler {
   public static void scheduleCompaction(TsFileManager tsFileManager, long timePartition) {
     tsFileManager.readLock();
     try {
-      TsFileResourceList sequenceFileList = // 该存储组下顺序文件列表
+      TsFileResourceList sequenceFileList = // 该存储组下顺序文件列表 //Todo:此处是空的
           tsFileManager.getSequenceListByTimePartition(timePartition);
-      TsFileResourceList unsequenceFileList = // 该存储组下乱序文件列表
+      TsFileResourceList unsequenceFileList = // 该存储组下乱序文件列表  //Todo:此处是空的
           tsFileManager.getUnsequenceListByTimePartition(timePartition);
       CompactionPriority compactionPriority = config.getCompactionPriority();
       if (compactionPriority == CompactionPriority.BALANCE) {

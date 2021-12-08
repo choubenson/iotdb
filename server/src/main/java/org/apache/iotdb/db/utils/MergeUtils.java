@@ -77,6 +77,7 @@ public class MergeUtils {
     return sequenceReader.getAllPaths();
   }
 
+  //获取顺序和乱序文件的总文件大小
   public static long collectFileSizes(
       List<TsFileResource> seqFiles, List<TsFileResource> unseqFiles) {
     long totalSize = 0;
@@ -163,46 +164,56 @@ public class MergeUtils {
    *
    * @param paths names of the timeseries
    */
+  //按照序列在列表的位置i，把所有的时间序列在所有乱序文件里的所有Chunk,追加放到数组的第i个元素里，该元素是列表类型，依次存放着该位置的序列在所有乱序文件里的所有Chunk（可能出现某乱序文件不存在此序列），最后返回该数组
   public static List<Chunk>[] collectUnseqChunks(
-      List<PartialPath> paths,
-      List<TsFileResource> unseqResources,
-      CrossSpaceMergeResource mergeResource)
+      List<PartialPath> paths,  //时间序列路径列表
+      List<TsFileResource> unseqResources,  //待被合并的乱序文件
+      CrossSpaceMergeResource mergeResource)  //跨空间合并资源管理器
       throws IOException {
+    //该数组里每个元素存放了每个时间序列的所有Chunk
     List<Chunk>[] ret = new List[paths.size()];
     for (int i = 0; i < paths.size(); i++) {
       ret[i] = new ArrayList<>();
     }
     PriorityQueue<MetaListEntry> chunkMetaHeap = new PriorityQueue<>();
 
+    //遍历每个乱序待合并文件
     for (TsFileResource tsFileResource : unseqResources) {
-
+      //获取该乱序待合并文件的顺序阅读器
       TsFileSequenceReader tsFileReader = mergeResource.getFileReader(tsFileResource);
       // prepare metaDataList
+      //遍历每个时间序列，获取他们在指定乱序文件里的所有ChunkMetadataList，并根据相应删除操作过滤和修改（若chunkmetadata对应chunk的数据被完全删除了，则从列表中移除此chunkMetadata，否则将其setModified(true)），然后把“每个时间序列是在列表中的第几个，以及他们对应ChunkMetadataList”封装到MetaListEntry对象，并放入chunkMetaHeap队列
       buildMetaHeap(paths, tsFileReader, mergeResource, tsFileResource, chunkMetaHeap);
 
       // read chunks order by their position
+      //将每个序列在该乱序文件里的所有Chunk追加放入ret数组里，该序列在列表里是第几个，就追加放到ret里第几个位置，因此ret可能出现某位置元素为null，因为该乱序文件里没有该序列
       collectUnseqChunks(chunkMetaHeap, tsFileReader, ret);
     }
     return ret;
   }
 
+  //遍历每个时间序列，获取他们在指定乱序文件里的所有ChunkMetadataList，并根据相应删除操作过滤和修改（若chunkmetadata对应chunk的数据被完全删除了，则从列表中移除此chunkMetadata，否则将其setModified(true)），然后把“每个时间序列是在列表中的第几个，以及他们对应ChunkMetadataList”封装到MetaListEntry对象，并放入chunkMetaHeap队列
   private static void buildMetaHeap(
-      List<PartialPath> paths,
-      TsFileSequenceReader tsFileReader,
+      List<PartialPath> paths,  //时间序列路径列表
+      TsFileSequenceReader tsFileReader,  //乱序待合并文件的顺序阅读器
       CrossSpaceMergeResource resource,
-      TsFileResource tsFileResource,
+      TsFileResource tsFileResource,  //乱序待合并文件
       PriorityQueue<MetaListEntry> chunkMetaHeap)
       throws IOException {
     for (int i = 0; i < paths.size(); i++) {
       PartialPath path = paths.get(i);
+      //根据给定的时间序列path，获取其TimeseriesMetadata对象里的所有ChunkMetadata，并按照每个ChunkMetadata的开始时间戳从小到大进行排序并返回
       List<ChunkMetadata> metaDataList = tsFileReader.getChunkMetadataList(path, true);
       if (metaDataList.isEmpty()) {
         continue;
       }
+      //获取该TsFile对该序列的所有删除操作
       List<Modification> pathModifications = resource.getModifications(tsFileResource, path);
       if (!pathModifications.isEmpty()) {
+        //根据给定的对该序列的删除操作列表和该序列的ChunkMetadata列表，若chunkmetadata对应chunk的数据被完全删除了，则从列表中移除此chunkMetadata，否则将其setModified(true)
         QueryUtils.modifyChunkMetaData(metaDataList, pathModifications);
       }
+      //存放了当前序列是在列表中的第几个，并把它的ChunkMetadataList封装到MetaListEntry对象
       MetaListEntry entry = new MetaListEntry(i, metaDataList);
       if (entry.hasNext()) {
         entry.next();
@@ -211,6 +222,7 @@ public class MergeUtils {
     }
   }
 
+  //将每个序列在该乱序文件里的所有Chunk放入ret数组里，该序列在列表里是第几个，就放到ret里第几个位置，因此ret可能出现某位置元素为null，因为该乱序文件里没有该序列
   private static void collectUnseqChunks(
       PriorityQueue<MetaListEntry> chunkMetaHeap,
       TsFileSequenceReader tsFileReader,
@@ -219,6 +231,7 @@ public class MergeUtils {
     while (!chunkMetaHeap.isEmpty()) {
       MetaListEntry metaListEntry = chunkMetaHeap.poll();
       ChunkMetadata currMeta = metaListEntry.current();
+      //根据ChunkMetadata获取其在对应乱序TsFile里的所有Chunk
       Chunk chunk = tsFileReader.readMemChunk(currMeta);
       ret[metaListEntry.pathId].add(chunk);
       if (metaListEntry.hasNext()) {
@@ -228,10 +241,12 @@ public class MergeUtils {
     }
   }
 
+  //判断给定待合并序列的在乱序文件里的当前数据点是否与顺序目标文件里的该序列的该ChunkMetadata指向的Chunk重叠（若该序列的 乱序数据点时间<=顺序Chunk的结束时间，则为有重叠）
   public static boolean isChunkOverflowed(TimeValuePair timeValuePair, ChunkMetadata metaData) {
     return timeValuePair != null && timeValuePair.getTimestamp() <= metaData.getEndTime();
   }
 
+  //判断当前顺序目标文件里的该Chunk的数据点数量是否太少，小于系统预设的数量100000
   public static boolean isChunkTooSmall(
       int ptWritten, ChunkMetadata chunkMetaData, boolean isLastChunk, int minChunkPointNum) {
     return ptWritten > 0
@@ -240,6 +255,7 @@ public class MergeUtils {
             && !isLastChunk);
   }
 
+  //根据设备种类把传来的序列路径进行分开存放
   public static List<List<PartialPath>> splitPathsByDevice(List<PartialPath> paths) {
     if (paths.isEmpty()) {
       return Collections.emptyList();
@@ -268,9 +284,10 @@ public class MergeUtils {
   }
 
   public static class MetaListEntry implements Comparable<MetaListEntry> {
-
+    //该序列路径是队列中第几个
     private int pathId;
     private int listIdx;
+    //该时间序列对应在某文件里的所有ChunkMetadata
     private List<ChunkMetadata> chunkMetadataList;
 
     public MetaListEntry(int pathId, List<ChunkMetadata> chunkMetadataList) {

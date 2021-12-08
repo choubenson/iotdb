@@ -42,12 +42,16 @@ import static org.apache.iotdb.db.engine.compaction.cross.inplace.task.CrossSpac
 
 public class InplaceCompactionTask extends AbstractCrossSpaceCompactionTask {
   private static final Logger LOGGER = LoggerFactory.getLogger("COMPACTION");
+  // 跨空间合并的资源管理器
   protected CrossSpaceMergeResource mergeResource;
   protected String storageGroupDir;
+  //Todo:重复了，此处是选中的待合并顺序和乱序文件
   protected List<TsFileResource> selectedSeqTsFileResourceList;
   protected List<TsFileResource> selectedUnSeqTsFileResourceList;
+  //该存储组该时间分区下的顺序和乱序文件列表
   protected TsFileResourceList seqTsFileResourceList;
   protected TsFileResourceList unSeqTsFileResourceList;
+  //跨空间 允许并行合并序列的线程数量
   protected int concurrentMergeCount;
   protected String logicalStorageGroupName;
   protected String virtualStorageGroupName;
@@ -83,6 +87,7 @@ public class InplaceCompactionTask extends AbstractCrossSpaceCompactionTask {
 
   @Override
   protected void doCompaction() throws Exception {
+    //此处是 logicalStorageGroupName + "-" + virtualStorageGroupName+"-"+currentTimestamps，比如"root.sg-0-1000210"
     String taskName = fullStorageGroupName + "-" + System.currentTimeMillis();
     CrossSpaceMergeTask mergeTask =
         new CrossSpaceMergeTask(

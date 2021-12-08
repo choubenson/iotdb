@@ -1071,9 +1071,11 @@ public class TsFileSequenceReader implements AutoCloseable {
    * @return the position of the file that is fine. All data after the position in the file should
    *     be truncated.
    */
+  // 文件检查：1）若该文件长度小于文件头（magicString+version）长度且文件头不符合规范，则直接返回long型变量说明不完整
+  //         2）若该文件完整（前后都有TSFILE字段），若：（1）fashFinish为true，则返回变量说明是完整的（2）否则读取该文件将对应的内容（时间序列的measurementSchema和chunkMetadataList）放入第一第二个参数里，并返回待截取的文件位置
+  //         3）若文件尾不完整（头部符合规范，可是尾部没有TsFile字段），则读取该文件将对应的内容（时间序列的measurementSchema和chunkMetadataList）放入第一第二个参数里，并返回待截取的文件位置
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
-  public long selfCheck( // 文件检查：1）若fastFinish为真则返回是否是完整的TsFile文件
-      // 2）若fastFinish为false，则读取该文件将对应的内容（时间序列的measurementSchema和chunkMetadata）放入第一第二个参数里，并返回待截取的文件位置
+  public long selfCheck(
       Map<Path, IMeasurementSchema> newSchema, // 该方法将此次遍历到的该文件里的每个时间序列路径和measurementSchema放入此对象里
       List<ChunkGroupMetadata>
           chunkGroupMetadataList, // 该方法将此次遍历到的该文件里的每个ChunkGroup的Metadata（包括该ChunkGroup里每个Chunk的ChunkMetadata）放入此列表里
@@ -1095,6 +1097,7 @@ public class TsFileSequenceReader implements AutoCloseable {
     List<ChunkMetadata> chunkMetadataList = new ArrayList<>();
 
     int headerLength = TSFileConfig.MAGIC_STRING.getBytes().length + Byte.BYTES;
+    //若该文件长度小于文件头（magicString+version）长度，则说明不完整
     if (fileSize < headerLength) {
       return TsFileCheckStatus.INCOMPATIBLE_FILE;
     }
@@ -1443,7 +1446,7 @@ public class TsFileSequenceReader implements AutoCloseable {
    *     always larger than the last measurement of the linked hashmap of the previous iteration in
    *     lexicographic order.
    */
-  //返回指定设备ID下每个传感器ID和对应的ChunkMetadata列表的遍历器，使用该遍历器可以获取该文件的该设备下的下一个传感器ID和对应的ChunkMetadata列表
+  //返回指定设备ID下每个传感器ID和对应的ChunkMetadata列表的遍历器，使用该遍历器可以获取该文件的该设备在泽嵩树的下一个TimeseriesMetadata节点上的所有一条条TimeseriesMetadata对应传感器measurementId和各自对应的ChunkMetadata列表
   public Iterator<Map<String, List<ChunkMetadata>>> getMeasurementChunkMetadataListMapIterator(
       String device) throws IOException {
     readFileMetadata();
@@ -1468,7 +1471,9 @@ public class TsFileSequenceReader implements AutoCloseable {
     }
 
     Queue<Pair<Long, Long>> queue = new LinkedList<>();
+    //指定设备的下一层传感器节点的内容
     ByteBuffer buffer = readData(metadataIndexPair.left.getOffset(), metadataIndexPair.right);
+    //根据指定设备的下一层传感器节点的内容，获取其下所有TimeseriesMetadata节点的起始和结束偏移位置，放入queue里
     collectEachLeafMeasurementNodeOffsetRange(buffer, queue);
 
     return new Iterator<Map<String, List<ChunkMetadata>>>() {
@@ -1478,20 +1483,24 @@ public class TsFileSequenceReader implements AutoCloseable {
         return !queue.isEmpty();
       }
 
-      @Override //获取该文件的该设备下的所有传感器ID和各自对应的ChunkMetadata列表
+      @Override //获取该文件的该设备在泽嵩树的下一个TimeseriesMetadata节点里的所有一条条TimeseriesMetadata对应传感器ID和各自对应的ChunkMetadata列表
       public LinkedHashMap<String, List<ChunkMetadata>> next() {
         if (!hasNext()) {
           throw new NoSuchElementException();
         }
+        //获取该设备的下一个TimeseriesMetadata节点的起始和结束偏移位置
         Pair<Long, Long> startEndPair = queue.remove();
         LinkedHashMap<String, List<ChunkMetadata>> measurementChunkMetadataList =
             new LinkedHashMap<>();
         try {
+          //存放该TimeseriesMetadata节点里一条条TimeseriesMetadata
           List<TimeseriesMetadata> timeseriesMetadataList = new ArrayList<>();
+          //获取TimeseriesMetadata节点的内容
           ByteBuffer nextBuffer = readData(startEndPair.left, startEndPair.right);
           while (nextBuffer.hasRemaining()) {
             timeseriesMetadataList.add(TimeseriesMetadata.deserializeFrom(nextBuffer, true));
           }
+          //遍历该TimeseriesMetadata节点里的一条条TimeseriesMetadata
           for (TimeseriesMetadata timeseriesMetadata : timeseriesMetadataList) {
             List<ChunkMetadata> list =
                 measurementChunkMetadataList.computeIfAbsent(
@@ -1509,22 +1518,39 @@ public class TsFileSequenceReader implements AutoCloseable {
     };
   }
 
+  /**
+   *根据给定的某传感器节点的内容buffer，获取其下所有TimeseriesMetadata节点的起始和结束偏移位置，放入queue里
+   *
+   * @param buffer （某设备的下一层）某传感器节点的内容
+   * @param queue  存放了该设备下的每个传感器序列的TimeseriesMetadata节点的起始和结束偏移位置
+   *
+   * @throws IOException
+   */
   private void collectEachLeafMeasurementNodeOffsetRange(
       ByteBuffer buffer, Queue<Pair<Long, Long>> queue) throws IOException {
     try {
+      //某设备的下一层传感器节点
       final MetadataIndexNode metadataIndexNode = MetadataIndexNode.deserializeFrom(buffer);
+      //该传感器节点的类型（中间or叶子）
       final MetadataIndexNodeType metadataIndexNodeType = metadataIndexNode.getNodeType();
+      //该传感器节点的子节点数量
       final int metadataIndexListSize = metadataIndexNode.getChildren().size();
+      //依次遍历其下的每个子节点
       for (int i = 0; i < metadataIndexListSize; ++i) {
+        //获取子节点在该TsFile的起始和结束偏移位置
         long startOffset = metadataIndexNode.getChildren().get(i).getOffset();
+        //当前节点的最底层的最后一个子节点的末尾在TsFile里的偏移量
         long endOffset = metadataIndexNode.getEndOffset();
         if (i != metadataIndexListSize - 1) {
+
           endOffset = metadataIndexNode.getChildren().get(i + 1).getOffset();
         }
+        //若是叶子传感器节点，则把他下面的时间序列TimeseriesMetadata节点的起始和结束偏移位置加入queue，遍历该叶子传感器节点的下个子时间序列节点
         if (metadataIndexNodeType.equals(MetadataIndexNodeType.LEAF_MEASUREMENT)) {
           queue.add(new Pair<>(startOffset, endOffset));
           continue;
         }
+        //若是中间传感器节点，则把他的下一层子节点内容递归调用此方法
         collectEachLeafMeasurementNodeOffsetRange(readData(startOffset, endOffset), queue);
       }
     } catch (BufferOverflowException e) {

@@ -30,7 +30,7 @@ import java.util.List;
 
 import static org.apache.iotdb.db.engine.compaction.inner.utils.SizeTieredCompactionLogger.*;
 
-public class SizeTieredCompactionLogAnalyzer {
+public class SizeTieredCompactionLogAnalyzer { //空间内合并日志分析器
 
   private File logFile;
   private List<String> sourceFiles = new ArrayList<>();
@@ -50,7 +50,7 @@ public class SizeTieredCompactionLogAnalyzer {
       while ((currLine = bufferedReader.readLine()) != null) {
         switch (currLine) {
             // we parse the compaction log with file path to keep compatible with 0.12
-          case SOURCE_NAME:
+          case SOURCE_NAME:  //Todo:旧的了，可以被删掉
             currLine = bufferedReader.readLine();
             sourceFileInfos.add(TsFileIdentifier.getFileIdentifierFromFilePath(currLine));
             break;

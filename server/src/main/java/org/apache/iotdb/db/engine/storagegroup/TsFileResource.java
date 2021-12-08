@@ -337,6 +337,7 @@ public class TsFileResource {
     return modFile;
   }
 
+  //为当前TsFile创建其所属的合并删除文件，为（xxx.tsfile.compaction.mods）
   public ModificationFile getCompactionModFile() {
     if (modFile == null) {
       synchronized (this) {

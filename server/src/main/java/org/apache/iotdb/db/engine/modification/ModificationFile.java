@@ -176,6 +176,7 @@ public class ModificationFile implements AutoCloseable {
     return new ModificationFile(tsFileResource.getTsFilePath() + ModificationFile.FILE_SUFFIX);
   }
 
+  //根据给定文件，创建其所属的合并删除文件，为（xxx.tsfile.compaction.mods）
   public static ModificationFile getCompactionMods(TsFileResource tsFileResource) {
     return new ModificationFile(
         tsFileResource.getTsFilePath() + ModificationFile.COMPACTION_FILE_SUFFIX);

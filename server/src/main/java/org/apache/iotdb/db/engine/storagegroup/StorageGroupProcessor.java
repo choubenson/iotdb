@@ -523,7 +523,9 @@ public class StorageGroupProcessor {
     } else {
       dirs = DirectoryManager.getInstance().getAllUnSequenceFileFolders();
     }
-    for (String dir : dirs) { // 顺序文件目录列表，其实就一个，为sequence
+    // 遍历顺序文件目录列表，其实就一个，为sequence
+    for (String dir : dirs) {
+      //虚拟存储组目录文件
       File storageGroupDir =
           new File(
               dir
@@ -534,12 +536,14 @@ public class StorageGroupProcessor {
       if (!storageGroupDir.exists()) {
         return;
       }
-      File[] timePartitionDirs = storageGroupDir.listFiles(); // 虚拟存储组目录下的所有时间分区目录
+      // 虚拟存储组目录下的所有时间分区目录
+      File[] timePartitionDirs = storageGroupDir.listFiles();
       if (timePartitionDirs == null) {
         return;
       }
       for (File timePartitionDir : timePartitionDirs) {
-        File[] compactionLogs = // 当前分区下的所有合并日志文件
+        // 当前分区下的所有合并日志文件
+        File[] compactionLogs =
             InnerSpaceCompactionUtils.findInnerSpaceCompactionLogs(timePartitionDir.getPath());
         for (File compactionLog : compactionLogs) {
           // 根据合并日志和对应的存储组创建空间内合并恢复线程并执行合并的恢复，此处创建的其实是空间内合并的任务SizeTieredCompactionRecoverTask
@@ -1984,11 +1988,13 @@ public class StorageGroupProcessor {
         continue;
       }
 
+      //若当前文件正在被合并
       if (tsFileResource.isMerging) {
         // we have to set modification offset to MAX_VALUE, as the offset of source chunk may
         // change after compaction
         deletion.setFileOffset(Long.MAX_VALUE);
         // write deletion into modification file
+        //为当前TsFile创建其所属的合并删除文件，为（xxx.tsfile.compaction.mods），往里写删除操作
         tsFileResource.getCompactionModFile().write(deletion);
         // remember to close mod file
         tsFileResource.getCompactionModFile().close();

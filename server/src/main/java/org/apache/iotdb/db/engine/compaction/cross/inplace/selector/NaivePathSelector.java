@@ -26,8 +26,10 @@ import java.util.NoSuchElementException;
 
 public class NaivePathSelector implements IMergePathSelector {
 
+  //某设备下的所有时间序列路径
   private List<PartialPath> paths;
   private int idx;
+  //跨空间合并，并行合并序列允许的最大数量
   private int maxSeriesNum;
 
   public NaivePathSelector(List<PartialPath> paths, int maxSeriesNum) {
@@ -35,11 +37,13 @@ public class NaivePathSelector implements IMergePathSelector {
     this.maxSeriesNum = maxSeriesNum;
   }
 
+  //判断是否还有下个时间序列
   @Override
   public boolean hasNext() {
     return idx < paths.size();
   }
 
+  //获取下批时间序列路径，数量为maxSeriesNum个
   @Override
   public List<PartialPath> next() {
     if (!hasNext()) {

@@ -47,6 +47,7 @@ public class MaxFileMergeFileSelector implements ICrossSpaceMergeFileSelector {
   private long maxSeqFileCost;
 
   // the number of timeseries being queried at the same time
+  //跨空间 允许并行合并序列的线程数量
   int concurrentMergeNum = 1;
 
   /** Total metadata size of each file. */

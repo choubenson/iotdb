@@ -71,23 +71,31 @@ public class SizeTieredCompactionTask extends AbstractInnerSpaceCompactionTask {
     this.tsFileManager = tsFileManager;
   }
 
+  //将所有的待合并文件在合并过程中产生的删除.compaction.mods文件里的内容读取出来写到目标文件的新.mods文件里
   public static void combineModsInCompaction(
       Collection<TsFileResource> mergeTsFiles, TsFileResource targetTsFile) throws IOException {
+    //存放所有的待合并文件在合并过程中产生的删除操作
     List<Modification> modifications = new ArrayList<>();
+    //遍历每个待合并文件
     for (TsFileResource mergeTsFile : mergeTsFiles) {
+      //创建该待合并文件所属的合并删除文件，为（xxx.tsfile.compaction.mods）
       try (ModificationFile sourceCompactionModificationFile =
           ModificationFile.getCompactionMods(mergeTsFile)) {
+        //获取该旧的待合并文件在合并过程中的.compaction.mods文件里的所有删除操作加入列表里
         modifications.addAll(sourceCompactionModificationFile.getModifications());
+        //删除.compaction.mods
         if (sourceCompactionModificationFile.exists()) {
           sourceCompactionModificationFile.remove();
         }
       }
+      //获取该旧的待合并文件对应的.mods文件，若存在则删除
       ModificationFile sourceModificationFile = ModificationFile.getNormalMods(mergeTsFile);
       if (sourceModificationFile.exists()) {
         sourceModificationFile.remove();
       }
     }
     if (!modifications.isEmpty()) {
+      //创建目标文件对应的新的.mods文件，并把合并过程中产生的所有删除操作写入到该文件里
       try (ModificationFile modificationFile = ModificationFile.getNormalMods(targetTsFile)) {
         for (Modification modification : modifications) {
           // we have to set modification offset to MAX_VALUE, as the offset of source chunk may
@@ -125,15 +133,17 @@ public class SizeTieredCompactionTask extends AbstractInnerSpaceCompactionTask {
       SizeTieredCompactionLogger sizeTieredCompactionLogger = // 创建该合并任务对应的日志类，用于后续写入日志
           new SizeTieredCompactionLogger(logFile.getPath());
       for (TsFileResource resource : selectedTsFileResourceList) {
-        // 往合并日志里先写入前缀prifix，再写入该待合并TsFile的重要属性（物理存储组名、虚拟存储组名、时间分区、是否顺序、文件名）
+        // 往合并日志里先写入前缀"source_info"，再写入该待合并TsFile的重要属性（物理存储组名、虚拟存储组名、时间分区、是否顺序、文件名）
         sizeTieredCompactionLogger.logFileInfo(SOURCE_INFO, resource.getTsFile());
       }
+      //往合并日志写入是否顺序
       sizeTieredCompactionLogger.logSequence(sequence);
       // 往日志里写入目标新文件的相关信息
       sizeTieredCompactionLogger.logFileInfo(TARGET_INFO, targetTsFileResource.getTsFile());
       LOGGER.info(
           "{} [Compaction] compaction with {}", fullStorageGroupName, selectedTsFileResourceList);
       // carry out the compaction
+      //执行具体的空间内合并
       InnerSpaceCompactionUtils.compact(
           targetTsFileResource, selectedTsFileResourceList, fullStorageGroupName, true);
       LOGGER.info(
@@ -166,11 +176,14 @@ public class SizeTieredCompactionTask extends AbstractInnerSpaceCompactionTask {
       }
       try {
         // replace the old files with new file, the new is in same position as the old
+        //合并完后从TsFileResourceManager里移除所有被合并的TsFile的TsFileResource
         for (TsFileResource resource : selectedTsFileResourceList) {
           TsFileResourceManager.getInstance().removeTsFileResource(resource);
         }
+        //新的合并后的目标文件的TsFileResource，把他放到tsFileResourceList列表里合适的位置，并把他注册到TsFileResourceManager里
         tsFileResourceList.insertBefore(selectedTsFileResourceList.get(0), targetTsFileResource);
         TsFileResourceManager.getInstance().registerSealedTsFileResource(targetTsFileResource);
+        //从tsFileResourceList列表里移除所有的待合并文件的TsFileResource
         for (TsFileResource resource : selectedTsFileResourceList) {
           tsFileResourceList.remove(resource);
         }
@@ -178,11 +191,13 @@ public class SizeTieredCompactionTask extends AbstractInnerSpaceCompactionTask {
         tsFileManager.writeUnlock();
       }
       // delete the old files
+      //移除并关闭指定TsFile文件的顺序阅读器，并删除所有TsFile的本地文件
       InnerSpaceCompactionUtils.deleteTsFilesInDisk(
           selectedTsFileResourceList, fullStorageGroupName);
       LOGGER.info(
           "{} [SizeTiredCompactionTask] old file deleted, start to rename mods file",
           fullStorageGroupName);
+      //将所有的待合并文件在合并过程中产生的删除.compaction.mods文件里的内容读取出来写到目标文件的新.mods文件里
       combineModsInCompaction(selectedTsFileResourceList, targetTsFileResource);
       long costTime = System.currentTimeMillis() - startTime;
       LOGGER.info(
@@ -191,10 +206,12 @@ public class SizeTieredCompactionTask extends AbstractInnerSpaceCompactionTask {
           fullStorageGroupName,
           targetFileName,
           costTime / 1000);
+      //删除合并日志文件
       if (logFile.exists()) {
         logFile.delete();
       }
     } finally {
+      //把每个选中待合并文件的TsFileResource的isMerge变量设为false
       for (TsFileResource resource : selectedTsFileResourceList) {
         resource.setMerging(false);
       }
