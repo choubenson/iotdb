@@ -331,8 +331,8 @@ public class InnerSpaceCompactionUtils {
       //2. 遍历所有待合并的TsFile的所有设备ID，开始合并重写每个设备里的数据：
       //  1）往目标文件里初始化、创建该设备的ChunkGroupHeader
       //  2）遍历每个待合并文件该设备下在泽嵩树上的TimeseriesMetadata节点:
-      //    （1）将每个待合并文件该设备的下个TimeseriesMetadata节点上的传感器，放入allSensors里，并获取每个传感器在各自文件里对应的ChunkMetadataList，并令lastSensor为allSensors里最大的measurementId
-      //    （2）循环遍历allSensors：获取包含当前sensor的待合并文件的顺序读取器和该sensor在每个待合并文件里的ChunkMetadataList放入readerChunkMetadataListMap变量里（注意：此时存在该sensor的每个待合并文件的version是从旧到新的，即timestamp一定是递增的），遍历存在该sensor的顺序读取器和该sensor在该TsFile上的ChunkMetadataList：
+      //    （1）将每个待合并文件该设备的下个TimeseriesMetadata节点上的传感器，放入allSensors里，并获取每个传感器在各自文件里对应的ChunkMetadataList。找出每个待合并文件的这个TimeseriesMetdata节点上最大的传感器，并令lastSensor为每个待合并文件最大传感器里最小的那个传感器ID
+      //    （2）循环遍历allSensors：当该sensor小于等于lastSensor，则获取包含当前sensor的待合并文件的顺序读取器和该sensor在每个待合并文件里的ChunkMetadataList放入readerChunkMetadataListMap变量里（注意：此时存在该sensor的每个待合并文件的version是从旧到新的，即timestamp一定是递增的），遍历存在该sensor的顺序读取器和该sensor在该TsFile上的ChunkMetadataList：
       //        （2.1）若是乱序空间内合并：以数据点为单位把多个oldChunk里符合条件的数据点写到目标文件pageWriter里，然后flush到目标文件writer的输出缓存里。具体：获取每个包含该sensor的待合并文件的删除操作，根据每个文件对该序列的删除操作获取该sensor所有符合条件的数据点，然后创建目标文件对应该sensor的chunkWriterImpl，依次把所有数据点写入，最后刷到目标文件writer里的缓存里
       //        （2.2）若是顺序空间内合并：判断包含该sensor的每个待被合并文件里的该sensor的每个Chunk里数据点数量是否超过系统预设的Chunk或者page数据点数量，分别用isChunkEnoughLarge和isPageEnoughLarge标记。此处查询每个包含该sensor的待合并TsFile对该sensor序列是否有删除操作，若有则把前面两个参数置为false，因为可能删掉数据后数据点数量就没有那么多了，并且就只能按数据点进行合并重写到目标文件，因为要过滤掉被删除的数据点
       //              （2.2.1）若isChunkEnoughLarg为真，则以chunk为单位进行合并重写：把多个oldChunk按序（按时间戳递增）直接追加写入到目标文件writer的输出缓存流里。具体：当该sensor传感器在原先待合并的所有TsFile里的所有Chunk的数据点数量都大于系统预设Chunk数据点数量，则直接往目标文件里依次追加写入该sensor的这些Chunk，写入的同时用限制器限流，并更新目标文件该设备的开始和结束时间
@@ -405,7 +405,8 @@ public class InnerSpaceCompactionUtils {
             }
 
             // get the min last sensor in the current chunkMetadata cache list for merge
-            String maxSensor = Collections.max(sensorChunkMetadataListMap.keySet()); //获取最大的measurementId
+            //获取当前待合并文件里该设备下的在泽嵩树上的该TimeseriesMetadata节点上最大的measurementId
+            String maxSensor = Collections.max(sensorChunkMetadataListMap.keySet());
             if (lastSensor == null) {//Todo:last Sensor的所用是啥？
               lastSensor = maxSensor;
             } else {
@@ -434,7 +435,7 @@ public class InnerSpaceCompactionUtils {
                           TsFileManager.compareFileName(
                               new File(o1.getFileName()), new File(o2.getFileName())));
               // find all chunkMetadata of a sensor
-              //2.3.3.1 初始化readerChunkMetadataListMap（它存放着存在此sensor的每个TsFile的顺序读取器和该sensor在该TsFile里的的ChunkMetadata列表）：从chunkMetadataListCacheForMerge里遍历所有文件，判断每个文件在该设备下的所有传感器map里是否存在该sensor，若存在则将“该文件的顺序读取器”和“该文件该设备的该sensor的ChunkMetadataList”放入readerChunkMetadataListMap里
+              //2.3.3.1 初始化readerChunkMetadataListMap（它存放着存在此sensor的每个TsFile的顺序读取器和该sensor在该TsFile里的的ChunkMetadata列表）：从chunkMetadataListCacheForMerge里遍历所有文件，判断每个文件在该设备下的该TimeseriesMetadata节点上所有传感器map里是否存在该sensor，若存在则将“该文件的顺序读取器”和“该文件该设备的该sensor的ChunkMetadataList”放入readerChunkMetadataListMap里，并从该待合并文件在该设备上的所有传感器和对应ChunkMetadataList里移除此传感器
               for (Entry<TsFileSequenceReader, Map<String, List<ChunkMetadata>>>
                   chunkMetadataListCacheForMergeEntry : chunkMetadataListCacheForMerge.entrySet()) {
                 TsFileSequenceReader reader = chunkMetadataListCacheForMergeEntry.getKey();
