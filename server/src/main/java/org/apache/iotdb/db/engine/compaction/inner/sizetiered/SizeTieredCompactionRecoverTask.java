@@ -129,6 +129,7 @@ public class SizeTieredCompactionRecoverTask extends SizeTieredCompactionTask {
               targetFile);
           // the target tsfile is crashed, it is not completed
           writer.close();
+          //删除目标文件
           if (!targetFile.delete()) {
             LOGGER.error(
                 "{}-{} [Compaction][Recover] fail to delete target file {}, this may cause data incorrectness",
@@ -152,8 +153,9 @@ public class SizeTieredCompactionRecoverTask extends SizeTieredCompactionTask {
               virtualStorageGroup,
               targetFile,
               sourceFileIdentifiers);
-          //初始化待合并文件的TsFileResource列表和目标文件的TsFileResource
+          //初始化目标文件的TsFileResource
           TsFileResource targetResource = new TsFileResource(targetFile);
+          //初始化待合并文件的TsFileResource列表
           List<TsFileResource> sourceTsFileResources = new ArrayList<>();
           for (TsFileIdentifier sourceFileIdentifier : sourceFileIdentifiers) {
             File sourceFile = sourceFileIdentifier.getFileFromDataDirs();

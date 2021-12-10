@@ -301,8 +301,8 @@ public class InnerSpaceCompactionUtils {
   //2. 遍历所有待合并的TsFile的所有设备ID，开始合并重写每个设备里的数据：
   //  1）往目标文件里初始化、创建该设备的ChunkGroupHeader
   //  2）遍历每个待合并文件该设备下在泽嵩树上的TimeseriesMetadata节点:
-  //    （1）将每个待合并文件该设备的下个TimeseriesMetadata节点上的传感器，放入allSensors里，并获取每个传感器在各自文件里对应的ChunkMetadataList
-  //    （2）循环遍历allSensors：获取包含当前sensor的待合并文件的顺序读取器和该sensor在每个待合并文件里的ChunkMetadataList，并对此sensor进行合并重写到目标文件writer的输出缓存里
+  //    （1）将每个待合并文件该设备的下个TimeseriesMetadata节点上的所有传感器，放入allSensors里，并获取每个传感器在各自文件里对应的ChunkMetadataList
+  //    （2）循环遍历allSensors：获取包含当前sensor的待合并文件的顺序读取器和该sensor在该待合并文件里的ChunkMetadataList，并对此sensor进行合并重写到目标文件writer的输出缓存里
   //  3）结束此设备的ChunkGroup，将目标文件writer输出缓存的内容flush到本地文件里
   //3. 序列化目标文件的TsFileResource到本地.resource文件里
   //4. 往目标文件writer的输出缓存写完数据区的内容并flush到本地后，往该缓存里写对应索引区的内容，以及剩余的小内容（如TsFile结尾的Magic String等），最后关闭该writer的输出流，会往对应的本地TsFile写入该TsFileIOWriter缓存里的数据（即索引区和小内容等，数据区之前已经flush到本地文件了）
@@ -331,8 +331,13 @@ public class InnerSpaceCompactionUtils {
       //2. 遍历所有待合并的TsFile的所有设备ID，开始合并重写每个设备里的数据：
       //  1）往目标文件里初始化、创建该设备的ChunkGroupHeader
       //  2）遍历每个待合并文件该设备下在泽嵩树上的TimeseriesMetadata节点:
-      //    （1）将每个待合并文件该设备的下个TimeseriesMetadata节点上的传感器，放入allSensors里，并获取每个传感器在各自文件里对应的ChunkMetadataList
-      //    （2）循环遍历allSensors：获取包含当前sensor的待合并文件的顺序读取器和该sensor在每个待合并文件里的ChunkMetadataList，并对此sensor进行合并重写到目标文件writer的输出缓存里
+      //    （1）将每个待合并文件该设备的下个TimeseriesMetadata节点上的传感器，放入allSensors里，并获取每个传感器在各自文件里对应的ChunkMetadataList，并令lastSensor为allSensors里最大的measurementId
+      //    （2）循环遍历allSensors：获取包含当前sensor的待合并文件的顺序读取器和该sensor在每个待合并文件里的ChunkMetadataList放入readerChunkMetadataListMap变量里（注意：此时存在该sensor的每个待合并文件的version是从旧到新的，即timestamp一定是递增的），遍历存在该sensor的顺序读取器和该sensor在该TsFile上的ChunkMetadataList：
+      //        （2.1）若是乱序空间内合并：以数据点为单位把多个oldChunk里符合条件的数据点写到目标文件pageWriter里，然后flush到目标文件writer的输出缓存里。具体：获取每个包含该sensor的待合并文件的删除操作，根据每个文件对该序列的删除操作获取该sensor所有符合条件的数据点，然后创建目标文件对应该sensor的chunkWriterImpl，依次把所有数据点写入，最后刷到目标文件writer里的缓存里
+      //        （2.2）若是顺序空间内合并：判断包含该sensor的每个待被合并文件里的该sensor的每个Chunk里数据点数量是否超过系统预设的Chunk或者page数据点数量，分别用isChunkEnoughLarge和isPageEnoughLarge标记。此处查询每个包含该sensor的待合并TsFile对该sensor序列是否有删除操作，若有则把前面两个参数置为false，因为可能删掉数据后数据点数量就没有那么多了，并且就只能按数据点进行合并重写到目标文件，因为要过滤掉被删除的数据点
+      //              （2.2.1）若isChunkEnoughLarg为真，则以chunk为单位进行合并重写：把多个oldChunk按序（按时间戳递增）直接追加写入到目标文件writer的输出缓存流里。具体：当该sensor传感器在原先待合并的所有TsFile里的所有Chunk的数据点数量都大于系统预设Chunk数据点数量，则直接往目标文件里依次追加写入该sensor的这些Chunk，写入的同时用限制器限流，并更新目标文件该设备的开始和结束时间
+      //              （2.2.2）若isPageEnoughLarge为真，则以page为单位进行合并重写：把多个oldChunk的chunkData以page为单位追加写到一个newChunk的chunkData里。数据最少的情况是有n个oldChunk，每个oldChunk都只有一个page，则newChunk就只有n个page。具体：当该sensor传感器在原先待合并的所有TsFile里存在一个以上Chunk的数据点数量小于系统预设Chunk数据点数量 但是 所有Chunk的数据点数量都大于系统预设page数据点数量，则把该sensor在不同待合并文件里的所有Chunk和ChunkMetadata合并到第一个Chunk和ChunkMetadata里，并把合并后的新Chunk写入到目标文件writer的输出缓存里。
+      //              （2.2.3）否则，以数据点为单位把多个oldChunk里符合条件的数据点写到目标文件pageWriter里，然后flush到目标文件writer的输出缓存里。具体：获取每个待合并文件的删除操作，根据每个文件对该序列的删除操作获取该sensor所有符合条件的数据点，然后创建目标文件对应该sensor的chunkWriterImpl，依次把所有数据点写入，最后刷到目标文件writer里的缓存里
       //  3）结束此设备的ChunkGroup，将目标文件writer输出缓存的内容flush到本地文件里
       for (String device : tsFileDevicesMap) {
         //2.1 开启一个新的设备ChunkGroup，并把该新的ChunkGroupHeader的内容（marker（为0）和设备ID）写入该TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里
