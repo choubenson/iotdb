@@ -90,13 +90,25 @@ public class MergeUtils {
     return totalSize;
   }
 
+  /**
+   * 将该待合并顺序文件里的某一待合并序列传感器的Chunk的所有满足条件（未被删除）的数据点依次写入临时目标文件的该序列的chunkWriter里，并返回写入的数据点数量
+   *
+   * @param chunk 该待合并顺序文件里的某一待合并序列传感器的Chunk
+   * @param chunkWriter 该待被合并序列的ChunkWriter，用于往临时目标文件写入
+   * @return
+   * @throws IOException
+   */
   public static int writeChunkWithoutUnseq(Chunk chunk, ChunkWriterImpl chunkWriter)
       throws IOException {
+    //创建该待合并顺序文件里的该待合并序列传感器的Chunk的阅读器
     ChunkReader chunkReader = new ChunkReader(chunk, null);
+    //总共往临时目标文件该序列的ChunkWriter里写入的数据点数量，起始就是参数chunk的数据点数量
     int ptWritten = 0;
     while (chunkReader.hasNextSatisfiedPage()) {
+      //获取该Chunk的下一page的数据
       BatchData batchData = chunkReader.nextPageData();
       for (int i = 0; i < batchData.length(); i++) {
+        //将batchData第i个数据点交由该Chunk的pageWriter写入到其对应的两个输出流timeOut和valueOut的缓存中，并检查该Chunk的pageWriter的数据点or占用内存的大小情况，判断是否要开启一个新的page，若要开启新的page则往对应Chunk的ChunkWriterImpl的输出流pageBuffer缓存里写入该page的pageHeader和pageData（即pageWriter对象里输出流timeOut和valueOut的缓存数据），最后重置该pageWriter
         writeBatchPoint(batchData, i, chunkWriter);
       }
       ptWritten += batchData.length();
@@ -104,6 +116,7 @@ public class MergeUtils {
     return ptWritten;
   }
 
+  //将batchData第i个数据点交由该Chunk的pageWriter写入到其对应的两个输出流timeOut和valueOut的缓存中，并检查该Chunk的pageWriter的数据点or占用内存的大小情况，判断是否要开启一个新的page，若要开启新的page则往对应Chunk的ChunkWriterImpl的输出流pageBuffer缓存里写入该page的pageHeader和pageData（即pageWriter对象里输出流timeOut和valueOut的缓存数据），最后重置该pageWriter
   public static void writeBatchPoint(BatchData batchData, int i, ChunkWriterImpl chunkWriter) {
     switch (chunkWriter.getDataType()) {
       case TEXT:
@@ -116,6 +129,7 @@ public class MergeUtils {
         chunkWriter.write(batchData.getTimeByIndex(i), batchData.getBooleanByIndex(i));
         break;
       case INT64:
+        // 将给定的数据点交由该Chunk的pageWriter写入到其对应的两个输出流timeOut和valueOut的缓存中，并检查该Chunk的pageWriter的数据点or占用内存的大小情况，判断是否要开启一个新的page，若要开启新的page则往对应Chunk的ChunkWriterImpl的输出流pageBuffer缓存里写入该page的pageHeader和pageData（即pageWriter对象里输出流timeOut和valueOut的缓存数据），最后重置该pageWriter
         chunkWriter.write(batchData.getTimeByIndex(i), batchData.getLongByIndex(i));
         break;
       case INT32:
@@ -240,13 +254,13 @@ public class MergeUtils {
       }
     }
   }
-
-  //判断给定待合并序列的在乱序文件里的当前数据点是否与顺序目标文件里的该序列的该ChunkMetadata指向的Chunk重叠（若该序列的 乱序数据点时间<=顺序Chunk的结束时间，则为有重叠）
+  //此处是查看该序列在所有乱序文件里是否存在数据点与该顺序Chunk有overlap，那么就要求当乱序数据时间戳小于等于该顺序Chunk的最大时间，就称为有overlap
+  //判断该序列在所有乱序文件里是否存在数据点其时间是小于等于该顺序Chunk的结束时间，当存在小于等于的数据则说明该序列的那些乱序文件里存在数据与该顺序Chunk有overlap。
   public static boolean isChunkOverflowed(TimeValuePair timeValuePair, ChunkMetadata metaData) {
     return timeValuePair != null && timeValuePair.getTimestamp() <= metaData.getEndTime();
   }
 
-  //判断当前顺序目标文件里的该Chunk的数据点数量是否太少，小于系统预设的数量100000
+  //判断当前顺序待合并文件里的该Chunk的数据点数量是否太少，小于系统预设的数量100000
   public static boolean isChunkTooSmall(
       int ptWritten, ChunkMetadata chunkMetaData, boolean isLastChunk, int minChunkPointNum) {
     return ptWritten > 0

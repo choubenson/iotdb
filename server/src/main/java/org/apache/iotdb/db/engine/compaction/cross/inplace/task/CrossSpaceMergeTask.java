@@ -144,7 +144,7 @@ public class CrossSpaceMergeTask implements Callable<Void> {
     //获取顺序和乱序文件的总文件大小
     long totalFileSize =
         MergeUtils.collectFileSizes(resource.getSeqFiles(), resource.getUnseqFiles());
-    //空间内合并的日志类，用于后续写入日志
+    //跨空间合并的日志类，用于后续写入日志
     inplaceCompactionLogger = new InplaceCompactionLogger(storageGroupSysDir);
 
     //往跨空间合并日志里依次写入待合并顺序和乱序文件的重要属性

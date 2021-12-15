@@ -36,6 +36,8 @@ public class PriorityMergeReader implements IPointReader {
   // or min time of all added readers in DescPriorityMergeReader
   protected long currentReadStopTime;
 
+  //是一个优先级队列，该队列的元素是Element对象（存放了某一序列的一个数据点、该数据点所在序列的数据点读取器，以及当前序列的优先级比较器）
+  //时间戳小的Element数据点对应的优先级高；时间戳一样时，则使用Element对象里的比较器进行比较，令比较器的文件版本号越高的优先级越高，若版本号相同，则文件内偏移量offset越大的，优先级越高。
   protected PriorityQueue<Element> heap;
 
   public PriorityMergeReader() {
@@ -63,8 +65,10 @@ public class PriorityMergeReader implements IPointReader {
     }
   }
 
+  //使用当前某序列Chunk的reader读取该序列的所有数据点，为每个数据点创建一个Element对象（存放了该数据点、该数据点所在序列的数据点读取器以及当前序列的优先级比较器），并放入heap里
   public void addReader(IPointReader reader, long priority) throws IOException {
     if (reader.hasNextTimeValuePair()) {
+      //往heap里增加一个元素类对象，一个序列里的每个数据点都对应一个该类对象，存放了该序列的数据点读取器，该数据点以及当前序列的优先级比较器
       heap.add(
           new Element(reader, reader.nextTimeValuePair(), new MergeReaderPriority(priority, 0)));
     } else {
@@ -168,6 +172,8 @@ public class PriorityMergeReader implements IPointReader {
     }
   }
 
+  //起始就是越新的数据点，它的优先级越高
+  //优先级比较：我们令文件版本号越高的优先级越高；若版本号相同，则文件内偏移量offset越大的，优先级越高。
   public static class MergeReaderPriority implements Comparable<MergeReaderPriority> {
     long version;
     long offset;
@@ -177,6 +183,7 @@ public class PriorityMergeReader implements IPointReader {
       this.offset = offset;
     }
 
+    //返回负数代表当前对象小于参数对象
     @Override
     public int compareTo(MergeReaderPriority o) {
       if (version < o.version) {

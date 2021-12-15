@@ -64,6 +64,7 @@ public class InplaceCompactionLogger {
     logStream.flush();
   }
 
+  //往日志里写目标文件目前的文件长度是多少
   public void logFilePosition(File file) throws IOException {
     logStream.write(String.format("%s %d", file.getAbsolutePath(), file.length()));
     logStream.newLine();

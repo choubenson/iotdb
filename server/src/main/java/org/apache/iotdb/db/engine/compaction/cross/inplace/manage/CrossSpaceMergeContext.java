@@ -39,6 +39,7 @@ public class CrossSpaceMergeContext { //跨空间合并的上下文
       new HashMap<>();
 
   private AtomicInteger totalChunkWritten = new AtomicInteger();
+  //在跨空间合并中，总共往目标文件里写入的数据点总数
   private AtomicLong totalPointWritten = new AtomicLong();
 
   public void clear() {

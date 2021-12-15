@@ -59,7 +59,7 @@ public class CrossSpaceMergeResource { // 跨空间合并的资源管理器
   //存放某待合并TsFile的某设备ID的开始和结束时间
   private Map<TsFileResource, Map<String, Pair<Long, Long>>> startEndTimeCache =
       new HashMap<>(); // pair<startTime, endTime>
-  //该跨空间合并的存储组logicalStorageGroup下的所有时间序列路径和对应的schema，Todo:为啥是物理存储组？因为每次跨空间合并是物理存储组下的某个虚拟存储组下的某个时间分区里的顺序和乱序文件
+  //该跨空间合并的存储组logicalStorageGroup下的所有时间序列路径和对应的schema，Todo:bug!!为啥是物理存储组？因为每次跨空间合并是物理存储组下的某个虚拟存储组下的某个时间分区里的顺序和乱序文件
   private Map<PartialPath, IMeasurementSchema> measurementSchemaMap =
       new HashMap<>(); // is this too waste?
   private Map<IMeasurementSchema, ChunkWriterImpl> chunkWriterCache = new ConcurrentHashMap<>();
@@ -113,6 +113,7 @@ public class CrossSpaceMergeResource { // 跨空间合并的资源管理器
    *
    * @return A RestorableTsFileIOWriter of a merge temp file for a SeqFile.
    */
+  //跨空间合并的临时目标文件是"顺序文件名.tsfile.merge" ，即xxx.tsfile.merge
   public RestorableTsFileIOWriter getMergeFileWriter(TsFileResource resource) throws IOException {
     RestorableTsFileIOWriter writer = fileWriterCache.get(resource);
     if (writer == null) {
@@ -157,7 +158,7 @@ public class CrossSpaceMergeResource { // 跨空间合并的资源管理器
    * @param paths names of the timeseries
    * @return an array of UnseqResourceMergeReaders each corresponding to a timeseries in paths
    */
-  //首先获取每个序列在所有待合并乱序文件里的所有Chunk，并以此创建每个序列的乱序的序列合并阅读器，依次放入数组里并返回。
+  //首先获取每个序列在所有待合并乱序文件里的所有Chunk，并以此创建每个序列的乱序数据点读取器，该读取器有一个数据点优先级队列，它存放了该序列在所有乱序文件里的数据点，每次拿去优先级最高的数据点，时间戳小的Element数据点对应的优先级高；时间戳一样时，越新的乱序文件里的数据点的优先级越高，若在同一个乱序文件里，则offset越大的数据点说明越新，则优先级越高。
   public IPointReader[] getUnseqReaders(List<PartialPath> paths) throws IOException {
     //按照序列在列表的位置i，把所有的时间序列在所有乱序文件里的所有Chunk,追加放到数组的第i个元素里，该元素是列表类型，依次存放着该位置的序列在所有乱序文件里的所有Chunk（可能出现某乱序文件不存在此序列），最后返回该数组
     List<Chunk>[] pathChunks = MergeUtils.collectUnseqChunks(paths, unseqFiles, this);
@@ -166,7 +167,7 @@ public class CrossSpaceMergeResource { // 跨空间合并的资源管理器
     for (int i = 0; i < paths.size(); i++) {
       //该序列的数据类型
       TSDataType dataType = getSchema(paths.get(i)).getType();
-      //为该序列创建乱序的序列合并阅读器
+      //使用该序列在所有待合并乱序文件里的所有Chunk 为该序列创建对应的数据点读取器，该读取器有一个数据点优先级队列，它存放了该序列在所有乱序文件里的数据点，每次拿去优先级最高的数据点，时间戳小的Element数据点对应的优先级高；时间戳一样时，越新的乱序文件里的数据点的优先级越高，若在同一个乱序文件里，则offset越大的数据点说明越新，则优先级越高。
       ret[i] = new CachedUnseqResourceMergeReader(pathChunks[i], dataType);
     }
     return ret;

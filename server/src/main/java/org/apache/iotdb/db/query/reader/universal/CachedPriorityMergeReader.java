@@ -28,6 +28,7 @@ import java.io.IOException;
 /**
  * CachedPriorityMergeReader use a cache to reduce unnecessary heap updates and increase locality.
  */
+//单个待合并序列的跨空间合并的数据点优先读取器
 public class CachedPriorityMergeReader extends PriorityMergeReader {
 
   private static final int CACHE_SIZE = 100;

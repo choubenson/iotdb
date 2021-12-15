@@ -23,10 +23,14 @@ import org.apache.iotdb.tsfile.read.reader.IPointReader;
 
 import java.io.IOException;
 
+//元素类，一个序列里的每个数据点都对应一个该类对象，存放了某一序列的一个数据点、该数据点所在序列的数据点读取器，该数据点以及当前序列的优先级比较器
 public class Element {
 
+  //优先级比较器：我们令文件版本号越高的优先级越高；若版本号相同，则文件内偏移量offset越大的，优先级越高。compare方法返回负数代表当前对象的优先级低于参数对象的优先级
   public PriorityMergeReader.MergeReaderPriority priority;
+  //某个序列的数据点读取器
   protected IPointReader reader;
+  //该序列的下个数据点
   public TimeValuePair timeValuePair;
 
   public Element(
