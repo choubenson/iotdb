@@ -363,7 +363,7 @@ public class MergeMultiChunkTask {
       return;
     }
 
-    //创建临时目标文件的写入TsFileIOWriter。注意：跨空间合并的临时目标文件是"顺序文件名.tsfile.merge" ，即xxx.tsfile.merge！！
+    //获取或者创建临时目标文件的写入TsFileIOWriter。注意：跨空间合并的临时目标文件是"顺序文件名.tsfile.merge" ，即xxx.tsfile.merge！！
     RestorableTsFileIOWriter mergeFileWriter = resource.getMergeFileWriter(currTsFile);
     //遍历每个待合并序列
     for (PartialPath path : currMergingPaths) {
