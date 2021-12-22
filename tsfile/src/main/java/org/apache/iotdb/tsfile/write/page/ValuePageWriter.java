@@ -55,10 +55,14 @@ public class ValuePageWriter {
    */
   private Statistics<? extends Serializable> statistics;
 
+
+  //该bitmap是字节单位，即8位二进制，若是1100 0000则代表该分量的该page上第0和第1个位置是有数据的，其他位置是没有数据。它是8位8位往bitmapOut缓存流里刷
   private byte bitmap;
 
+  //当前page数据点的数量
   private int size;
 
+  //第几位为1则代表该对齐序列分量的该page在第几个时间戳位置是有数据的，若第几位为0则代表该page在第几个数据是没有数据的
   private final PublicBAOS bitmapOut;
 
   private static final int MASK = 1 << 7;
