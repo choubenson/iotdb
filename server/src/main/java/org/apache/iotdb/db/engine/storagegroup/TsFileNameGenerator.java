@@ -126,6 +126,7 @@ public class TsFileNameGenerator {
       throws IOException {
     File tsFile = tsFileResource.getTsFile();
     String path = tsFile.getParent();
+    // 根据本地TsFile文件的文件名获取对应的TsFileName对象
     TsFileName tsFileName = getTsFileName(tsFileResource.getTsFile().getName());
     tsFileName.setCrossCompactionCnt(tsFileName.getCrossCompactionCnt() + 1);
     tsFileResource.setFile(
@@ -142,9 +143,12 @@ public class TsFileNameGenerator {
     return tsFileResource;
   }
 
+  //根据旧的顺序文件名返回新的最终目标文件，该最终目标文件名里跨空间合并次数比旧文件增加了1
   public static File increaseCrossCompactionCnt(File tsFile) throws IOException {
     String path = tsFile.getParent();
+    // 根据本地TsFile文件的文件名获取对应的TsFileName对象
     TsFileName tsFileName = getTsFileName(tsFile.getName());
+    //跨空间合并次数+1
     tsFileName.setCrossCompactionCnt(tsFileName.getCrossCompactionCnt() + 1);
     return new File(
         path,

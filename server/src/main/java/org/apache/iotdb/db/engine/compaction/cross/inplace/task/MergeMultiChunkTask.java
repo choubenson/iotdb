@@ -135,6 +135,58 @@ public class MergeMultiChunkTask {
     this.storageGroupName = storageGroupName;
   }
 
+
+  /**
+   * 1. 对所有的待合并序列进行按设备分组，依次遍历每个设备的一组序列：
+   *    1）对该设备下的一组序列路径 和 允许获取的最大序列数量（目前为1） 去创建序列选择器
+   *    2）使用该选择器循环获取该设备的下一批待合并序列（数量为预设的，目前为1），令他们为当前的待合并序列
+   *       (1)开始合并当前的待合并序列：
+         *    * 1. 往日志里写入当前正准备被合并的所有时间序列路径
+         *    * 2. 获取当前每个待合并序列的乱序阅读器，即首先获取每个序列在所有待合并乱序文件里的所有Chunk，并以此创建每个序列的乱序数据点读取器，该读取器有一个数据点优先级队列，它存放了该序列在所有乱序文件里的数据点，每次拿去优先级最高的数据点，时间戳小的Element数据点对应的优先级高；时间戳一样时，越新的乱序文件里的数据点的优先级越高，若在同一个乱序文件里，则offset越大的数据点说明越新，则优先级越高。
+         *    * 3. 初始化当前每个待合并序列的当前数据点数组
+         *    * 4. 遍历每个待合并顺序文件，执行以下操作：
+         *    *      * 1. 获取当前待合并顺序文件以及相关信息（包括当前待合并序列的设备ID）
+         *    *      * 2. 初始化每个待合并序列在当前待合并文件里的所有ChunkMetadataList，放入seqChunkMeta数组（搜索该待合并文件里是否存在待合并序列的方法为：依次遍历该顺序文件的该设备的一个个TimeseriesMetadata节点上的每一个currSensor序列，若currSensor为当前待合并序列，则初始化其删除数据和ChunkMetadataList，若currSensor已经超过待合并序列里的最大maxId，则停止该顺序文件，因为泽嵩树上measurementId是按字典序从小到大排序）
+         *    *      *    2.1 初始化当前待合并顺序文件下每个传感器ID和对应的ChunkMetadata列表的遍历器，使用该遍历器可以获取该文件的该设备在泽嵩树的下一个TimeseriesMetadata节点上的一批传感器ID和对应的ChunkMetadataList
+         *    *      *    2.2 获取待合并序列里最大的传感器measurementId
+         *    *      *    2.3 若为第一次循环（即currSensor为null）或者currSensor的id小于待合并序列里最大的传感器measurementId，则继续循环：
+         *    *      *        2.3.1 初始化measurementChunkMetadataListMap，使用遍历器往里放入当前待合并顺序文件的该设备在泽嵩树的下一个TimeseriesMetadata节点上的所有一条条TimeseriesMetadata对应传感器measurementId和各自对应的ChunkMetadata列表
+         *    *      *        2.3.2 循环遍历当前待合并顺序文件里当前设备在泽嵩树上该TimeseriesMetadata节点上的 一个个“measurementId”和“对应的ChunkMetadataList”：
+         *    *      *              2.3.2.1 若当前遍历到的currSensor是在待合并序列里，则将其在该顺序待合并文件里的ChunkMetadataList和modifications放入对应位置的数组里
+         *    *      *              2.3.2.2 若该待合并顺序文件的当前TimeseriesMetadata节点上的该currSensor传感器大于所有待合并序列中的maxId，则跳出此循环；若小于等于maxId，则从相应的遍历器移除此传感器
+         *    *      *    2.4 更新chunkMetadataListCacheForMerge变量（该变量存放当前待合并顺序文件里当前设备在泽嵩树上某一个TimeseriesMetadata节点上的所有剩余的大于lastSensor的measurementId和对应的ChunkMetadataList）
+         *    *      *    2.5 遍历每个待合并序列，判断它们是否存在于当前待合并顺序文件里（若不存在则过滤掉，返回未被过滤的序列的索引列表），若该顺序文件里不存在任何的当前待合并序列，则直接返回。（注意：若seqChunkMeta某个位置为空列表则说明该文件不存在该待合并序列，则该位置不被计入返回值里；若当前是最后一个顺序待合并文件且某不存在某序列，可是待合并乱序文件里存在，则不会过滤掉此序列）
+         *    *      *    //注意：可能出现乱序文件里该设备下有一个新的sensor序列，而所有的待合并序列都不存在该设备下的该sensor序列，因此在合并的时候是把该设备的该乱序新序列合并在最后的时候写到临时目标文件的ChunkWriter里，然后flush到目标文件的内容结尾。即乱序新文件是写到目标文件的最后。
+         *    *      * 3. 获取或者创建临时目标文件的写入TsFileIOWriter。注意：跨空间合并的临时目标文件是"顺序文件名.tsfile.merge" ，即xxx.tsfile.merge！！
+         *    *      * 4. 开启一个新的设备ChunkGroup，并把该新的ChunkGroupHeader的内容（marker（为0）和设备ID）写入该TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里
+         *    *      * 5. 对该待合并顺序文件里存在的待合并序列执行合并：
+         *    *      *      * 1，创建系统预设数量（4个）的创建子合并任务线程（一个待合并顺序文件可能对应好几个该子合并线程，每个子线程用于合并不同的待合并序列，即把该待合并顺序文件里的所有数据和在优先级队列的所有时间序列进行合并），将当前所有的待合并序列平均分散地放入到每个合并子任务里的优先级队列里。（若待合并序列数量少于4个，则创建的子合并任务数量为序列数量即可）
+         *    *      *      * 2. 该待合并顺序文件的所有合并子任务开始并行执行，即将该待合并顺序文件里的所有数据和在优先级队列的所有时间序列进行合并写入到临时目标文件，具体操作如下：
+         *    *      *      *    依优先级从队列里遍历每个待合并序列：
+         *    *      *      *    1）遍历该序列在该待合并顺序文件里的每个Chunk:
+         *    *      *      *       (1) 获取该序列的顺序chunk的一些相关属性，如对应的chunkMetadata、是否是该文件的最后一个chunk、该序列该所有待合并乱序里是否有数据点与该顺序chunk overlap、该chunk是否数据点太少等
+         *    *      *      *       (2) 接着开始对该序列顺序chunk进行合并重写，即把该序列的当前顺序Chunk重写到目标文件的TsFileIOWriter的缓存里，返回还在目标文件该序列的chunkWriter里未被刷盘的数据点数量，分3种情况：
+         *    *      *      *           (2.1) 若不是fullMerger && 该序列目标文件不存在unclose Chunk && 当前顺序Chunk足够大 && 当前序列在乱序文件里不存在数据与顺序Chunk有overlap && 当前顺序chunk没有数据被删除，则不需要进行重写，直接返回0
+         *    *      *      *           (2.2) 若是fullMerger && 该序列目标文件不存在unclose Chunk && 当前顺序Chunk足够大 && 当前序列在乱序文件里不存在数据与顺序Chunk有overlap && 当前顺序chunk没有数据被删除，则直接把当前Chunk整个写到目标文件的TsFileIOWriter的缓存里，并返回0
+         *    *      *      *           (2.3)
+         *    *      *      *                (2.3.1）若当前序列在乱序文件里不存在数据与顺序Chunk有overlap，将该序列的该顺序Chunk的所有满足条件（未被删除）的数据点依次写入临时目标文件的该序列的chunkWriter里，并返回写入的数据点数量
+         *    *      *      *                (2.3.2）若当前序列在乱序文件里存在数据与顺序Chunk有overlap，则将该待合并顺序文件该Chunk和该序列在所有乱序文件里的数据，按时间戳递增顺序依次写入目标文件的该序列的ChunkWriter里，最后写入的数据点的时间戳小于等于TimeLimit（该顺序Chunk的最大的结束时间戳），返回写入目标文件的数据点数量。具体：
+         *    *      *      *                     （2.3.2.1）遍历该待合并顺序文件该Chunk的每个page的每个数据点，依次把该序列在所有乱序文件中小于等于当前数据点时间戳的所有数据点写入目标文件(该序列在所有乱序文件中是按照优先级读取出每个数据点的)，若乱序文件没有与当前顺序数据点时间戳相同的数据则把当前顺序数据点写入目标文件的chunkWriter里（否则直接写如乱序文件里的该时间戳数据点即可，因为同个时间戳，乱序文件里的数据是比较新的）
+         *    *      *      *                     （2.3.2.2）可能出现该顺序文件的该序列的该Chunk的最后一些数据被删除了，因此要往目标文件的该序列的ChunkWriter里写入该序列在所有乱序文件里时间戳小于timeLimit的所有数据点。
+         *    *      *      *               (2.2.3) 若该序列的顺序chunk在目标文件的还未刷盘的ChunkWriter里数据点数量大于等于 系统预设chunk最少数据点数量100000，则将该ChunkWriter缓存里的数据刷到目标文件的TsFileIOWriter里的缓存，并返回0；否则返回还在目标文件该序列的ChunkWriter里未被刷的数据点数量
+         *    *      *      *       (3) 当已经是最后一个待合并顺序文件且完成该顺序文件里该序列数据的重写合并了（其实此处没有写入），可是该序列仍然存在乱序数据未被写入，说明所有待合并顺序文件都不存在该序列，则把该序列在乱序文件里的所有数据点先写到对应目标文件ChunkWriter里（下一步再追加写入目标文件的TsFileIOWriter里）
+         *    *      *      *       (4) flush当前目标文件里该序列对应ChunkWriter的缓存到目标文件的TsFileIOWriter里
+         *    *      *      * 3. 等待所有的子合并任务执行完毕，返回是否合并成功，若有该顺序文件有一个chunk被合并，则成功。
+         *    *      * 6. 若合并成功，则：
+         *    *      *    6.1 结束currentChunkGroupDeviceId对应ChunkGroup，即把其ChunkGroupMeatadata元数据加入该写入类的chunkGroupMetadataList列表缓存里，并把该写入类的相关属性（设备ID和ChunkMetadataList清空），并将该TsFile的TsFileIOWriter对象的输出缓存流TsFileOutput的内容给flush到本地对应TsFile文件
+         *    *      *    6.2 往日志里写目标文件目前的文件长度是多少
+         *    *      *    6.3 更新当前被合并源顺序文件的该设备的起始时间
+         *    * 5. 往合并日志里写入end，代表结束当前这些序列的合并
+   *       (2)输出当前的合并进度
+   *     3) 清除该设备下的相关内存
+   * 2，往日志里写入all ts en。此刻，应该生成了多个临时目标文件，即每个待合并顺序文件会对应一个临时目标文件 xxx.tsfile.merge，每个临时目标文件里存放了 对应的顺序文件里存在的待合并序列的合并重写后的有序数据，而最后一个临时目标文件里还夹杂存放了所有乱序新序列的有序新数据
+   * @throws IOException
+   */
   void mergeSeries() throws IOException {
     if (logger.isInfoEnabled()) {
       logger.info("{} starts to merge {} series", taskName, unmergedSeries.size());
@@ -165,6 +217,7 @@ public class MergeMultiChunkTask {
           return;
         }
         mergedSeriesCnt += currMergingPaths.size();
+        //输出当前的合并进度
         logMergeProgress();
       }
       measurementChunkMetadataListMapIteratorCache.clear();
@@ -174,9 +227,11 @@ public class MergeMultiChunkTask {
       logger.info(
           "{} all series are merged after {}ms", taskName, System.currentTimeMillis() - startTime);
     }
+    //日志写入all ts end
     inplaceCompactionLogger.logAllTsEnd();
   }
 
+  //输出当前的合并进度
   private void logMergeProgress() {
     if (logger.isInfoEnabled()) {
       double newProgress = 100 * mergedSeriesCnt / (double) (unmergedSeries.size());
@@ -191,6 +246,50 @@ public class MergeMultiChunkTask {
     return String.format("Processed %d/%d series", mergedSeriesCnt, unmergedSeries.size());
   }
 
+  /**
+   * 1. 往日志里写入当前正准备被合并的所有时间序列路径
+   * 2. 获取当前每个待合并序列的乱序阅读器，即首先获取每个序列在所有待合并乱序文件里的所有Chunk，并以此创建每个序列的乱序数据点读取器，该读取器有一个数据点优先级队列，它存放了该序列在所有乱序文件里的数据点，每次拿去优先级最高的数据点，时间戳小的Element数据点对应的优先级高；时间戳一样时，越新的乱序文件里的数据点的优先级越高，若在同一个乱序文件里，则offset越大的数据点说明越新，则优先级越高。
+   * 3. 初始化当前每个待合并序列的当前数据点数组
+   * 4. 遍历每个待合并顺序文件，执行以下操作：
+   * * 1. 获取当前待合并顺序文件以及相关信息（包括当前待合并序列的设备ID）
+   *      * 2. 初始化每个待合并序列在当前待合并文件里的所有ChunkMetadataList，放入seqChunkMeta数组（搜索该待合并文件里是否存在待合并序列的方法为：依次遍历该顺序文件的该设备的一个个TimeseriesMetadata节点上的每一个currSensor序列，若currSensor为当前待合并序列，则初始化其删除数据和ChunkMetadataList，若currSensor已经超过待合并序列里的最大maxId，则停止该顺序文件，因为泽嵩树上measurementId是按字典序从小到大排序）
+   *      *    2.1 初始化当前待合并顺序文件下每个传感器ID和对应的ChunkMetadata列表的遍历器，使用该遍历器可以获取该文件的该设备在泽嵩树的下一个TimeseriesMetadata节点上的一批传感器ID和对应的ChunkMetadataList
+   *      *    2.2 获取待合并序列里最大的传感器measurementId
+   *      *    2.3 若为第一次循环（即currSensor为null）或者currSensor的id小于待合并序列里最大的传感器measurementId，则继续循环：
+   *      *        2.3.1 初始化measurementChunkMetadataListMap，使用遍历器往里放入当前待合并顺序文件的该设备在泽嵩树的下一个TimeseriesMetadata节点上的所有一条条TimeseriesMetadata对应传感器measurementId和各自对应的ChunkMetadata列表
+   *      *        2.3.2 循环遍历当前待合并顺序文件里当前设备在泽嵩树上该TimeseriesMetadata节点上的 一个个“measurementId”和“对应的ChunkMetadataList”：
+   *      *              2.3.2.1 若当前遍历到的currSensor是在待合并序列里，则将其在该顺序待合并文件里的ChunkMetadataList和modifications放入对应位置的数组里
+   *      *              2.3.2.2 若该待合并顺序文件的当前TimeseriesMetadata节点上的该currSensor传感器大于所有待合并序列中的maxId，则跳出此循环；若小于等于maxId，则从相应的遍历器移除此传感器
+   *      *    2.4 更新chunkMetadataListCacheForMerge变量（该变量存放当前待合并顺序文件里当前设备在泽嵩树上某一个TimeseriesMetadata节点上的所有剩余的大于lastSensor的measurementId和对应的ChunkMetadataList）
+   *      *    2.5 遍历每个待合并序列，判断它们是否存在于当前待合并顺序文件里（若不存在则过滤掉，返回未被过滤的序列的索引列表），若该顺序文件里不存在任何的当前待合并序列，则直接返回。（注意：若seqChunkMeta某个位置为空列表则说明该文件不存在该待合并序列，则该位置不被计入返回值里；若当前是最后一个顺序待合并文件且某不存在某序列，可是待合并乱序文件里存在，则不会过滤掉此序列）
+   *      *    //注意：可能出现乱序文件里该设备下有一个新的sensor序列，而所有的待合并序列都不存在该设备下的该sensor序列，因此在合并的时候是把该设备的该乱序新序列合并在最后的时候写到临时目标文件的ChunkWriter里，然后flush到目标文件的内容结尾。即乱序新文件是写到目标文件的最后。
+   *      *  3. 获取或者创建临时目标文件的写入TsFileIOWriter。注意：跨空间合并的临时目标文件是"顺序文件名.tsfile.merge" ，即xxx.tsfile.merge！！
+   *      * 4. 开启一个新的设备ChunkGroup，并把该新的ChunkGroupHeader的内容（marker（为0）和设备ID）写入该TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里
+   *      * 5. 对该待合并顺序文件里存在的待合并序列执行合并：
+   *      *      * 1，创建系统预设数量（4个）的创建子合并任务线程（一个待合并顺序文件可能对应好几个该子合并线程，每个子线程用于合并不同的待合并序列，即把该待合并顺序文件里的所有数据和在优先级队列的所有时间序列进行合并），将当前所有的待合并序列平均分散地放入到每个合并子任务里的优先级队列里。（若待合并序列数量少于4个，则创建的子合并任务数量为序列数量即可）
+   *      *      * 2. 该待合并顺序文件的所有合并子任务开始并行执行，即将该待合并顺序文件里的所有数据和在优先级队列的所有时间序列进行合并写入到临时目标文件，具体操作如下：
+   *      *      *    依优先级从队列里遍历每个待合并序列：
+   *      *      *    1）遍历该序列在该待合并顺序文件里的每个Chunk:
+   *      *      *       (1) 获取该序列的顺序chunk的一些相关属性，如对应的chunkMetadata、是否是该文件的最后一个chunk、该序列该所有待合并乱序里是否有数据点与该顺序chunk overlap、该chunk是否数据点太少等
+   *      *      *       (2) 接着开始对该序列顺序chunk进行合并重写，即把该序列的当前顺序Chunk重写到目标文件的TsFileIOWriter的缓存里，返回还在目标文件该序列的chunkWriter里未被刷盘的数据点数量，分3种情况：
+   *      *      *           (2.1) 若不是fullMerger && 该序列目标文件不存在unclose Chunk && 当前顺序Chunk足够大 && 当前序列在乱序文件里不存在数据与顺序Chunk有overlap && 当前顺序chunk没有数据被删除，则不需要进行重写，直接返回0
+   *      *      *           (2.2) 若是fullMerger && 该序列目标文件不存在unclose Chunk && 当前顺序Chunk足够大 && 当前序列在乱序文件里不存在数据与顺序Chunk有overlap && 当前顺序chunk没有数据被删除，则直接把当前Chunk整个写到目标文件的TsFileIOWriter的缓存里，并返回0
+   *      *      *           (2.3)
+   *      *      *                (2.3.1）若当前序列在乱序文件里不存在数据与顺序Chunk有overlap，将该序列的该顺序Chunk的所有满足条件（未被删除）的数据点依次写入临时目标文件的该序列的chunkWriter里，并返回写入的数据点数量
+   *      *      *                (2.3.2）若当前序列在乱序文件里存在数据与顺序Chunk有overlap，则将该待合并顺序文件该Chunk和该序列在所有乱序文件里的数据，按时间戳递增顺序依次写入目标文件的该序列的ChunkWriter里，最后写入的数据点的时间戳小于等于TimeLimit（该顺序Chunk的最大的结束时间戳），返回写入目标文件的数据点数量。具体：
+   *      *      *                     （2.3.2.1）遍历该待合并顺序文件该Chunk的每个page的每个数据点，依次把该序列在所有乱序文件中小于等于当前数据点时间戳的所有数据点写入目标文件(该序列在所有乱序文件中是按照优先级读取出每个数据点的)，若乱序文件没有与当前顺序数据点时间戳相同的数据则把当前顺序数据点写入目标文件的chunkWriter里（否则直接写如乱序文件里的该时间戳数据点即可，因为同个时间戳，乱序文件里的数据是比较新的）
+   *      *      *                     （2.3.2.2）可能出现该顺序文件的该序列的该Chunk的最后一些数据被删除了，因此要往目标文件的该序列的ChunkWriter里写入该序列在所有乱序文件里时间戳小于timeLimit的所有数据点。
+   *      *      *               (2.2.3) 若该序列的顺序chunk在目标文件的还未刷盘的ChunkWriter里数据点数量大于等于 系统预设chunk最少数据点数量100000，则将该ChunkWriter缓存里的数据刷到目标文件的TsFileIOWriter里的缓存，并返回0；否则返回还在目标文件该序列的ChunkWriter里未被刷的数据点数量
+   *      *      *       (3) 当已经是最后一个待合并顺序文件且完成该顺序文件里该序列数据的重写合并了（其实此处没有写入），可是该序列仍然存在乱序数据未被写入，说明所有待合并顺序文件都不存在该序列，则把该序列在乱序文件里的所有数据点先写到对应目标文件ChunkWriter里（下一步再追加写入目标文件的TsFileIOWriter里）
+   *      *      *       (4) flush当前目标文件里该序列对应ChunkWriter的缓存到目标文件的TsFileIOWriter里
+   *      *      * 3. 等待所有的子合并任务执行完毕，返回是否合并成功，若有该顺序文件有一个chunk被合并，则成功。
+   *      * 6. 若合并成功，则：
+   *      *    6.1 结束currentChunkGroupDeviceId对应ChunkGroup，即把其ChunkGroupMeatadata元数据加入该写入类的chunkGroupMetadataList列表缓存里，并把该写入类的相关属性（设备ID和ChunkMetadataList清空），并将该TsFile的TsFileIOWriter对象的输出缓存流TsFileOutput的内容给flush到本地对应TsFile文件
+   *      *    6.2 往日志里写目标文件目前的文件长度是多少
+   *      *    6.3 更新当前被合并源顺序文件的该设备的起始时间
+   * 5. 往合并日志里写入end，代表结束当前这些序列的合并
+   * @throws IOException
+   */
   private void mergePaths() throws IOException {
     //往日志里写入当前正准备被合并的时间序列路径
     inplaceCompactionLogger.logTSStart(currMergingPaths);
@@ -208,7 +307,7 @@ public class MergeMultiChunkTask {
       }
     }
 
-    //遍历每个待合并顺序文件
+
     for (int i = 0; i < resource.getSeqFiles().size(); i++) {
       pathsMergeOneFile(i, unseqReaders);
 
@@ -231,23 +330,61 @@ public class MergeMultiChunkTask {
     return maxSensor;
   }
 
+
   /**
+   * 1. 获取当前待合并顺序文件以及相关信息（包括当前待合并序列的设备ID）
+   * 2. 初始化每个待合并序列在当前待合并文件里的所有ChunkMetadataList，放入seqChunkMeta数组（搜索该待合并文件里是否存在待合并序列的方法为：依次遍历该顺序文件的该设备的一个个TimeseriesMetadata节点上的每一个currSensor序列，若currSensor为当前待合并序列，则初始化其删除数据和ChunkMetadataList，若currSensor已经超过待合并序列里的最大maxId，则停止该顺序文件，因为泽嵩树上measurementId是按字典序从小到大排序）
+   *    2.1 初始化当前待合并顺序文件下每个传感器ID和对应的ChunkMetadata列表的遍历器，使用该遍历器可以获取该文件的该设备在泽嵩树的下一个TimeseriesMetadata节点上的一批传感器ID和对应的ChunkMetadataList
+   *    2.2 获取待合并序列里最大的传感器measurementId
+   *    2.3 若为第一次循环（即currSensor为null）或者currSensor的id小于待合并序列里最大的传感器measurementId，则继续循环：
+   *        2.3.1 初始化measurementChunkMetadataListMap，使用遍历器往里放入当前待合并顺序文件的该设备在泽嵩树的下一个TimeseriesMetadata节点上的所有一条条TimeseriesMetadata对应传感器measurementId和各自对应的ChunkMetadata列表
+   *        2.3.2 循环遍历当前待合并顺序文件里当前设备在泽嵩树上该TimeseriesMetadata节点上的 一个个“measurementId”和“对应的ChunkMetadataList”：
+   *              2.3.2.1 若当前遍历到的currSensor是在待合并序列里，则将其在该顺序待合并文件里的ChunkMetadataList和modifications放入对应位置的数组里
+   *              2.3.2.2 若该待合并顺序文件的当前TimeseriesMetadata节点上的该currSensor传感器大于所有待合并序列中的maxId，则跳出此循环；若小于等于maxId，则从相应的遍历器移除此传感器
+   *    2.4 更新chunkMetadataListCacheForMerge变量（该变量存放当前待合并顺序文件里当前设备在泽嵩树上某一个TimeseriesMetadata节点上的所有剩余的大于lastSensor的measurementId和对应的ChunkMetadataList）
+   *    2.5 遍历每个待合并序列，判断它们是否存在于当前待合并顺序文件里（若不存在则过滤掉，返回未被过滤的序列的索引列表），若该顺序文件里不存在任何的当前待合并序列，则直接返回。（注意：若seqChunkMeta某个位置为空列表则说明该文件不存在该待合并序列，则该位置不被计入返回值里；若当前是最后一个顺序待合并文件且某不存在某序列，可是待合并乱序文件里存在，则不会过滤掉此序列）
+   *    //注意：可能出现乱序文件里该设备下有一个新的sensor序列，而所有的待合并序列都不存在该设备下的该sensor序列，因此在合并的时候是把该设备的该乱序新序列合并在最后的时候写到临时目标文件的ChunkWriter里，然后flush到目标文件的内容结尾。即乱序新文件是写到目标文件的最后。
+   *  3. 获取或者创建临时目标文件的写入TsFileIOWriter。注意：跨空间合并的临时目标文件是"顺序文件名.tsfile.merge" ，即xxx.tsfile.merge！！
+   * 4. 开启一个新的设备ChunkGroup，并把该新的ChunkGroupHeader的内容（marker（为0）和设备ID）写入该TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里
+   * 5. 对该待合并顺序文件里存在的待合并序列执行合并：
+   *      * 1，创建系统预设数量（4个）的创建子合并任务线程（一个待合并顺序文件可能对应好几个该子合并线程，每个子线程用于合并不同的待合并序列，即把该待合并顺序文件里的所有数据和在优先级队列的所有时间序列进行合并），将当前所有的待合并序列平均分散地放入到每个合并子任务里的优先级队列里。（若待合并序列数量少于4个，则创建的子合并任务数量为序列数量即可）
+   *      * 2. 该待合并顺序文件的所有合并子任务开始并行执行，即将该待合并顺序文件里的所有数据和在优先级队列的所有时间序列进行合并写入到临时目标文件，具体操作如下：
+   *      *    依优先级从队列里遍历每个待合并序列：
+   *      *    1）遍历该序列在该待合并顺序文件里的每个Chunk:
+   *      *       (1) 获取该序列的顺序chunk的一些相关属性，如对应的chunkMetadata、是否是该文件的最后一个chunk、该序列该所有待合并乱序里是否有数据点与该顺序chunk overlap、该chunk是否数据点太少等
+   *      *       (2) 接着开始对该序列顺序chunk进行合并重写，即把该序列的当前顺序Chunk重写到目标文件的TsFileIOWriter的缓存里，返回还在目标文件该序列的chunkWriter里未被刷盘的数据点数量，分3种情况：
+   *      *           (2.1) 若不是fullMerger && 该序列目标文件不存在unclose Chunk && 当前顺序Chunk足够大 && 当前序列在乱序文件里不存在数据与顺序Chunk有overlap && 当前顺序chunk没有数据被删除，则不需要进行重写，直接返回0
+   *      *           (2.2) 若是fullMerger && 该序列目标文件不存在unclose Chunk && 当前顺序Chunk足够大 && 当前序列在乱序文件里不存在数据与顺序Chunk有overlap && 当前顺序chunk没有数据被删除，则直接把当前Chunk整个写到目标文件的TsFileIOWriter的缓存里，并返回0
+   *      *           (2.3)
+   *      *                (2.3.1）若当前序列在乱序文件里不存在数据与顺序Chunk有overlap，将该序列的该顺序Chunk的所有满足条件（未被删除）的数据点依次写入临时目标文件的该序列的chunkWriter里，并返回写入的数据点数量
+   *      *                (2.3.2）若当前序列在乱序文件里存在数据与顺序Chunk有overlap，则将该待合并顺序文件该Chunk和该序列在所有乱序文件里的数据，按时间戳递增顺序依次写入目标文件的该序列的ChunkWriter里，最后写入的数据点的时间戳小于等于TimeLimit（该顺序Chunk的最大的结束时间戳），返回写入目标文件的数据点数量。具体：
+   *      *                     （2.3.2.1）遍历该待合并顺序文件该Chunk的每个page的每个数据点，依次把该序列在所有乱序文件中小于等于当前数据点时间戳的所有数据点写入目标文件(该序列在所有乱序文件中是按照优先级读取出每个数据点的)，若乱序文件没有与当前顺序数据点时间戳相同的数据则把当前顺序数据点写入目标文件的chunkWriter里（否则直接写如乱序文件里的该时间戳数据点即可，因为同个时间戳，乱序文件里的数据是比较新的）
+   *      *                     （2.3.2.2）可能出现该顺序文件的该序列的该Chunk的最后一些数据被删除了，因此要往目标文件的该序列的ChunkWriter里写入该序列在所有乱序文件里时间戳小于timeLimit的所有数据点。
+   *      *               (2.2.3) 若该序列的顺序chunk在目标文件的还未刷盘的ChunkWriter里数据点数量大于等于 系统预设chunk最少数据点数量100000，则将该ChunkWriter缓存里的数据刷到目标文件的TsFileIOWriter里的缓存，并返回0；否则返回还在目标文件该序列的ChunkWriter里未被刷的数据点数量
+   *      *       (3) 当已经是最后一个待合并顺序文件且完成该顺序文件里该序列数据的重写合并了（其实此处没有写入），可是该序列仍然存在乱序数据未被写入，说明所有待合并顺序文件都不存在该序列，则把该序列在乱序文件里的所有数据点先写到对应目标文件ChunkWriter里（下一步再追加写入目标文件的TsFileIOWriter里）
+   *      *       (4) flush当前目标文件里该序列对应ChunkWriter的缓存到目标文件的TsFileIOWriter里
+   *      * 3. 等待所有的子合并任务执行完毕，返回是否合并成功，若有该顺序文件有一个chunk被合并，则成功。
+   * 6. 若合并成功，则：
+   *    6.1 结束currentChunkGroupDeviceId对应ChunkGroup，即把其ChunkGroupMeatadata元数据加入该写入类的chunkGroupMetadataList列表缓存里，并把该写入类的相关属性（设备ID和ChunkMetadataList清空），并将该TsFile的TsFileIOWriter对象的输出缓存流TsFileOutput的内容给flush到本地对应TsFile文件
+   *    6.2 往日志里写目标文件目前的文件长度是多少
+   *    6.3 更新当前被合并源顺序文件的该设备的起始时间
    *
    * @param seqFileIdx 在乱序合并资源管理器里第几个待合并顺序文件
    * @param unseqReaders  当前所有待合并序列的乱序数据点读取器，该读取器有一个数据点优先级队列，它存放了该序列在所有乱序文件里的数据点，每次拿去优先级最高的数据点，时间戳小的Element数据点对应的优先级高；时间戳一样时，越新的乱序文件里的数据点的优先级越高，若在同一个乱序文件里，则offset越大的数据点说明越新，则优先级越高。
    * @throws IOException
    */
   private void pathsMergeOneFile(int seqFileIdx, IPointReader[] unseqReaders) throws IOException {
-    //指定的待合并顺序文件
+    //1. 获取当前待合并顺序文件以及相关信息
+      //1.1 指定的待合并顺序文件
     TsFileResource currTsFile = resource.getSeqFiles().get(seqFileIdx);
-    // all paths in one call are from the same device
+      //1.2 all paths in one call are from the same device
     String deviceId = currMergingPaths.get(0).getDevice();
-    //当前顺序文件里的当前设备的最小时间
+      //1.3 找到顺序文件里的当前设备的最小时间，
     long currDeviceMinTime = currTsFile.getStartTime(deviceId);
 
-    //遍历每个当前待合并序列，
+    //遍历每个当前待合并序列，初始化当前待合并顺序TsFile上，未被合并的序列的每个Chunk的开始时间，此时每个Chunk的开始时间还是一个空列表
     for (PartialPath path : currMergingPaths) {
-      //该变量存放每个TsFile上，未被合并的序列的每个Chunk的开始时间。初始化当前TsFile上，未被合并的序列的每个Chunk的开始时间，此时每个Chunk的开始时间还是一个空列表
+      //该变量存放每个TsFile上，未被合并的序列的每个Chunk的开始时间。
       mergeContext.getUnmergedChunkStartTimes().get(currTsFile).put(path, new ArrayList<>());
     }
 
@@ -259,16 +396,18 @@ public class MergeMultiChunkTask {
         currDeviceMinTime = timeValuePair.getTimestamp();
       }
     }
-    //当前待合并顺序文件是否是最后一个顺序文件
+      //1.4 当前待合并顺序文件是否是最后一个顺序文件
     boolean isLastFile = seqFileIdx + 1 == resource.getSeqFiles().size();
 
-    //当前待合并顺序文件的顺序阅读器
+      //1.5 当前待合并顺序文件的顺序阅读器
     TsFileSequenceReader fileSequenceReader = resource.getFileReader(currTsFile);
-    //数组，存放每个待合并序列的删除操作List
+
+    //2. 初始化每个待合并序列在当前待合并文件里的所有ChunkMetadataList，放入seqChunkMeta数组
+    //数组，存放每个待合并序列在当前待合并顺序文件里的删除操作List
     List<Modification>[] modifications = new List[currMergingPaths.size()];
     //数组，存放每个待合并序列的在当前待合并顺序文件的ChunkMetadataList，有可能某个待合并序列根本就不存在于该待合并顺序文件里，则对应的元素是个空list
     List<ChunkMetadata>[] seqChunkMeta = new List[currMergingPaths.size()];
-    //初始化当前待合并顺序文件下每个传感器ID和对应的ChunkMetadata列表的遍历器，使用该遍历器可以获取该文件的该设备在泽嵩树的下一个TimeseriesMetadata节点上的一批传感器ID和对应的ChunkMetadataList
+      //2.1 初始化当前待合并顺序文件下每个传感器ID和对应的ChunkMetadata列表的遍历器，使用该遍历器可以获取该文件的该设备在泽嵩树的下一个TimeseriesMetadata节点上的一批传感器ID和对应的ChunkMetadataList
     Iterator<Map<String, List<ChunkMetadata>>> measurementChunkMetadataListMapIterator =
         measurementChunkMetadataListMapIteratorCache.computeIfAbsent(
             fileSequenceReader,
@@ -289,14 +428,16 @@ public class MergeMultiChunkTask {
     }
 
     // need the max sensor in lexicographic order
-    //获取指定序列里最大的传感器measurementId
+    //2.2 获取待合并序列里最大的传感器measurementId为lastSensor
     String lastSensor = getMaxSensor(currMergingPaths);
     String currSensor = null;
     //存放当前待合并顺序文件里当前设备在泽嵩树上某一个TimeseriesMetadata节点上的所有 measurementId和对应的ChunkMetadataList
     Map<String, List<ChunkMetadata>> measurementChunkMetadataListMap = new TreeMap<>();
     // find all sensor to merge in order, if exceed, then break
-    while (currSensor == null || currSensor.compareTo(lastSensor) < 0) {
-      //初始化measurementChunkMetadataListMap，使用遍历器往里放入当前待合并顺序文件的该设备在泽嵩树的下一个TimeseriesMetadata节点上的所有一条条TimeseriesMetadata对应传感器measurementId和各自对应的ChunkMetadata列表
+    //2.3 若为第一次循环（即currSensor为null）或者currSensor的id小于待合并序列里最大的传感器measurementId，则继续循环：
+    while (currSensor == null || currSensor.compareTo(lastSensor) < 0) { //Todo:这层循环的作用？
+      //2.3.1 初始化measurementChunkMetadataListMap，使用遍历器往里放入当前待合并顺序文件的该设备在泽嵩树的下一个TimeseriesMetadata节点上的所有一条条TimeseriesMetadata对应传感器measurementId和各自对应的ChunkMetadata列表
+      // Todo:下面这块代码可以移出到循环外
       measurementChunkMetadataListMap =
           chunkMetadataListCacheForMerge.computeIfAbsent(
               fileSequenceReader, tsFileSequenceReader -> new TreeMap<>());
@@ -309,22 +450,25 @@ public class MergeMultiChunkTask {
           break;
         }
       }
-
       //创建measurementChunkMetadataListMap的遍历器，用于获取该变量的一个个元素
       Iterator<Entry<String, List<ChunkMetadata>>> measurementChunkMetadataListEntryIterator =
           measurementChunkMetadataListMap.entrySet().iterator();
-      //循环遍历measurementChunkMetadataListMap的一个个元素，即当前待合并顺序文件里当前设备在泽嵩树上某一个TimeseriesMetadata节点上的 “一个个measurementId”和“对应的ChunkMetadataList”
+
+
+      //2.3.2 循环遍历当前待合并顺序文件里当前设备在泽嵩树上某一个TimeseriesMetadata节点上的 一个个“measurementId”和“对应的ChunkMetadataList”
+      //  2.3.2.1 若当前遍历到的currSensor是在待合并序列里，则将其在该顺序待合并文件里的ChunkMetadataList和modifications放入对应位置的数组里
+      //  2.3.2.2 若该待合并顺序文件的当前TimeseriesMetadata节点上的该currSensor传感器大于所有待合并序列中的maxId，则跳出此循环；若小于等于maxId，则从相应的遍历器移除此传感器
       while (measurementChunkMetadataListEntryIterator.hasNext()) {
         Entry<String, List<ChunkMetadata>> measurementChunkMetadataListEntry =
             measurementChunkMetadataListEntryIterator.next();
         //当前传感器ID：为当前文件在当前设备下泽嵩树上某一TimeseriesMetadata节点里的某一个measurementId
         currSensor = measurementChunkMetadataListEntry.getKey();
 
-        //初始化当前传感器currSensor在该待合并顺序文件里的删除操作和符合条件的ChunkMetadataList,放到modifications和seqChunkMeta数组合适的位置里
+        //2.3.2.1 若当前遍历到的该待合并顺序文件上的一个序列正好为待合并序列，则初始化当前传感器currSensor在该待合并顺序文件里的删除操作和符合条件的ChunkMetadataList,放到modifications和seqChunkMeta数组合适的位置里（还会根据给定的对该序列的删除操作列表和该序列的ChunkMetadata列表，若chunkmetadata对应chunk的数据被完全删除了，则从列表中移除此chunkMetadata，否则将其setModified(true)）
         // fill modifications and seqChunkMetas to be used later
         //循环遍历每个待合并序列
         for (int i = 0; i < currMergingPaths.size(); i++) {
-          //若当前遍历的序列为当前TsFile该设备在泽嵩树上当前TimeseriesMetadata节点上的当前measurementId，则
+          //若当前遍历的待合并序列为当前TsFile该设备在泽嵩树上当前TimeseriesMetadata节点上的当前measurementId，则
           if (currMergingPaths.get(i).getMeasurement().equals(currSensor)) {
             modifications[i] = resource.getModifications(currTsFile, currMergingPaths.get(i));
             seqChunkMeta[i] = measurementChunkMetadataListEntry.getValue();
@@ -344,6 +488,7 @@ public class MergeMultiChunkTask {
           }
         }
 
+        //2.3.2.2 若该待合并顺序文件的当前TimeseriesMetadata节点上的该currSensor传感器大于所有待合并序列中的maxId，则跳出此循环；若小于等于maxId，则从相应的遍历器移除此传感器
         // current sensor larger than last needed sensor, just break out to outer loop
         if (currSensor.compareTo(lastSensor) > 0) {
           break;
@@ -352,18 +497,19 @@ public class MergeMultiChunkTask {
         }
       }
     }
+    //2.4 更新chunkMetadataListCacheForMerge变量（该变量存放当前待合并顺序文件里当前设备在泽嵩树上某一个TimeseriesMetadata节点上的所有剩余的大于lastSensor的measurementId和对应的ChunkMetadataList）
     //存放当前待合并文件顺序阅读器和变量，该变量存放当前待合并顺序文件里当前设备在泽嵩树上某一个TimeseriesMetadata节点上的所有 measurementId和对应的ChunkMetadataList
     // update measurementChunkMetadataListMap
     chunkMetadataListCacheForMerge.put(fileSequenceReader, measurementChunkMetadataListMap);
 
     //判断所有待合并序列若都不存在于当前待合并顺序文件里，则直接返回
-    //遍历每个当前待合并序列，判断它们在当前待合并顺序文件里是否存在数据，若不存在则过滤掉，返回未被过滤的序列的索引列表。（注意：若seqChunkMeta某个位置为空列表则说明该文件不存在该待合并序列，则该位置不被计入返回值里；若当前是最后一个顺序待合并文件且某不存在某序列，可是待合并乱序文件里存在，则不会过滤掉此序列）
+    //2.5 遍历每个当前待合并序列，判断它们在当前待合并顺序文件里是否存在数据，若不存在则过滤掉，返回未被过滤的序列的索引列表。（注意：若seqChunkMeta某个位置为空列表则说明该文件不存在该待合并序列，则该位置不被计入返回值里；若当前是最后一个顺序待合并文件且某不存在某序列，可是待合并乱序文件里存在，则不会过滤掉此序列）
     List<Integer> unskippedPathIndices = filterNoDataPaths(seqChunkMeta, seqFileIdx);
     if (unskippedPathIndices.isEmpty()) {
       return;
     }
 
-    //获取或者创建临时目标文件的写入TsFileIOWriter。注意：跨空间合并的临时目标文件是"顺序文件名.tsfile.merge" ，即xxx.tsfile.merge！！
+    //3. 获取或者创建临时目标文件的写入TsFileIOWriter。注意：跨空间合并的临时目标文件是"顺序文件名.tsfile.merge" ，即xxx.tsfile.merge！！
     RestorableTsFileIOWriter mergeFileWriter = resource.getMergeFileWriter(currTsFile);
     //遍历每个待合并序列
     for (PartialPath path : currMergingPaths) {
@@ -371,12 +517,12 @@ public class MergeMultiChunkTask {
       mergeFileWriter.addSchema(path, schema);
     }
     // merge unseq data with seq data in this file or small chunks in this file into a larger chunk
-    // 开启一个新的设备ChunkGroup，并把该新的ChunkGroupHeader的内容（marker（为0）和设备ID）写入该TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里
+    //4. 开启一个新的设备ChunkGroup，并把该新的ChunkGroupHeader的内容（marker（为0）和设备ID）写入该TsFileIOWriter对象的TsFileOutput写入对象的输出流BufferedOutputStream的缓存数组里
     mergeFileWriter.startChunkGroup(deviceId);
-    /**
-     *
+ /*
+     *5. 执行合并
      * 1，创建系统预设数量（4个）的创建子合并任务线程（一个待合并顺序文件可能对应好几个该子合并线程，每个子线程用于合并不同的待合并序列，即把该待合并顺序文件里的所有数据和在优先级队列的所有时间序列进行合并），将当前所有的待合并序列平均分散地放入到每个合并子任务里的优先级队列里。（若待合并序列数量少于4个，则创建的子合并任务数量为序列数量即可）
-     * 2. 该待合并顺序文件的所有合并子任务开始并行执行，即将该待合并顺序文件里的所有数据和在优先级队列的所有时间序列进行合并，具体操作如下：
+     * 2. 该待合并顺序文件的所有合并子任务开始并行执行，即将该待合并顺序文件里的所有数据和在优先级队列的所有时间序列进行合并写入到临时目标文件，具体操作如下：
      *    依优先级从队列里遍历每个待合并序列：
      *    1）遍历该序列在该待合并顺序文件里的每个Chunk:
      *       (1) 获取该序列的顺序chunk的一些相关属性，如对应的chunkMetadata、是否是该文件的最后一个chunk、该序列该所有待合并乱序里是否有数据点与该顺序chunk overlap、该chunk是否数据点太少等
@@ -392,8 +538,7 @@ public class MergeMultiChunkTask {
      *       (3) 当已经是最后一个待合并顺序文件且完成该顺序文件里该序列数据的重写合并了（其实此处没有写入），可是该序列仍然存在乱序数据未被写入，说明所有待合并顺序文件都不存在该序列，则把该序列在乱序文件里的所有数据点先写到对应目标文件ChunkWriter里（下一步再追加写入目标文件的TsFileIOWriter里）
      *       (4) flush当前目标文件里该序列对应ChunkWriter的缓存到目标文件的TsFileIOWriter里
      * 3. 等待所有的子合并任务执行完毕，返回是否合并成功，若有该顺序文件有一个chunk被合并，则成功。
-     */
-    boolean dataWritten =
+*/    boolean dataWritten =
         mergeChunks(
             seqChunkMeta, //数组，存放每个待合并序列的在当前待合并顺序文件的ChunkMetadataList，若某个序列已被全部删除或该待合并顺序文件根本不存在此序列，则其对应的元素是个空List，代表没有任何的ChunkMetadata
             isLastFile, //当前待合并顺序文件是否是最后一个顺序文件
@@ -401,7 +546,7 @@ public class MergeMultiChunkTask {
             unseqReaders,    //当前所有序列的乱序数据点读取器，该读取器有一个数据点优先级队列，它存放了该序列在所有乱序文件里的数据点，每次拿去优先级最高的数据点，时间戳小的Element数据点对应的优先级高；时间戳一样时，越新的乱序文件里的数据点的优先级越高，若在同一个乱序文件里，则offset越大的数据点说明越新，则优先级越高。
             mergeFileWriter,  //目标文件（.tsfile.merge）的writer
             currTsFile);    //待合并顺序文件的TsFileResource
-    //若合并成功，则
+    //6. 若合并成功，则
     if (dataWritten) {
       // 结束currentChunkGroupDeviceId对应ChunkGroup，即把其ChunkGroupMeatadata元数据加入该写入类的chunkGroupMetadataList列表缓存里，并把该写入类的相关属性（设备ID和ChunkMetadataList清空），并将该TsFile的TsFileIOWriter对象的输出缓存流TsFileOutput的内容给flush到本地对应TsFile文件
       mergeFileWriter.endChunkGroup();
@@ -419,6 +564,7 @@ public class MergeMultiChunkTask {
    * @return 返回的是未被过滤的、需要进行合并的
    */
   //遍历每个当前待合并序列，判断它们在当前待合并顺序文件里是否存在数据，若不存在则过滤掉，返回未被过滤的序列的索引列表。（注意：若seqChunkMeta某个位置为空列表则说明该文件不存在该待合并序列，则该位置不被计入返回值里；若当前是最后一个顺序待合并文件且某不存在某序列，可是待合并乱序文件里存在，则不会过滤掉此序列）
+  //可能出现乱序文件里该设备下有一个新的sensor序列，而所有的待合并序列都不存在该设备下的该sensor序列，因此在合并的时候需要把该设备的该新序列合并写到目标文件里。
   private List<Integer> filterNoDataPaths(List[] seqChunkMeta, int seqFileIdx) {
     // if the last seqFile does not contains this series but the unseqFiles do, data of this
     // series should also be written into a new chunk

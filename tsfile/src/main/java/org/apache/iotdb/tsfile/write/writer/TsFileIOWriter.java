@@ -362,6 +362,7 @@ public class TsFileIOWriter {
   }
 
   // device -> ChunkMetadataList
+  //整理获取该文件里每个设备对应所有传感器的所有ChunkMetadataList
   public Map<String, List<ChunkMetadata>> getDeviceChunkMetadataMap() {
     Map<String, List<ChunkMetadata>> deviceChunkMetadataMap = new HashMap<>();
 
@@ -411,23 +412,34 @@ public class TsFileIOWriter {
   }
 
   /** Remove such ChunkMetadata that its startTime is not in chunkStartTimes */
+  /**
+   * 过滤掉该旧的合并完的顺序文件里已经被合并的那些Chunk（即不在chunkStartTimes里的chunk）。循环遍历当前旧的已合并完的顺序TsFile里每个ChunkGroup，再遍历该ChunkGroup里的每个Chunk，若 当前Chunk对应的序列路径不是未被合并的（即已经被合并了） 或者 当前Chunk对应的序列路径是未被合并的但是当前Chunk的起始时间不在chunkStartTimes里（有可能该序列的某些chunk被合并了，但是某些chunk没有overlap），则移除其ChunkMetadata，若该ChunkGroup里的所有Chunk都过滤掉了，则移除该ChunkGroupMetadata
+   * @param chunkStartTimes 该旧的已合并完的TsFile上，所有未被合并的序列的每个Chunk的开始时间
+   */
   public void filterChunks(Map<Path, List<Long>> chunkStartTimes) {
     Map<Path, Integer> startTimeIdxes = new HashMap<>();
     chunkStartTimes.forEach((p, t) -> startTimeIdxes.put(p, 0));
 
     Iterator<ChunkGroupMetadata> chunkGroupMetaDataIterator = chunkGroupMetadataList.iterator();
+    //遍历当前旧的合并完的顺序文件里的每个ChunkGroupMetadata
     while (chunkGroupMetaDataIterator.hasNext()) {
       ChunkGroupMetadata chunkGroupMetaData = chunkGroupMetaDataIterator.next();
+      //设备ID
       String deviceId = chunkGroupMetaData.getDevice();
+      //该chunkGroup里所有传感器的所有chunk的数量
       int chunkNum = chunkGroupMetaData.getChunkMetadataList().size();
       Iterator<ChunkMetadata> chunkMetaDataIterator =
           chunkGroupMetaData.getChunkMetadataList().iterator();
+      //遍历该ChunkGroup里每个Chunk
       while (chunkMetaDataIterator.hasNext()) {
         IChunkMetadata chunkMetaData = chunkMetaDataIterator.next();
+        //当前Chunk的序列路径
         Path path = new Path(deviceId, chunkMetaData.getMeasurementUid());
         int startTimeIdx = startTimeIdxes.get(path);
 
+        //该旧合并完的顺序TsFile上，未被合并序列的所有Chunk的起始时间（若当前序列是已被合并的，则此列表为空）
         List<Long> pathChunkStartTimes = chunkStartTimes.get(path);
+        //若 当前Chunk对应的序列路径不是未被合并的（即已经被合并了） 或者 当前Chunk对应的序列路径是未被合并的但是当前Chunk的起始时间不在chunkStartTimes里，则过滤掉
         boolean chunkValid =
             startTimeIdx < pathChunkStartTimes.size()
                 && pathChunkStartTimes.get(startTimeIdx) == chunkMetaData.getStartTime();

@@ -101,6 +101,11 @@ public class InplaceCompactionTask extends AbstractCrossSpaceCompactionTask {
     mergeTask.call();
   }
 
+  //合并任务完成后的回调函数：
+  //1. 删除此次合并任务里所有乱序文件对应的本地tsfile文件、.resource文件和.mods文件
+  //2. 遍历每个待合并顺序文件：（1）删除该顺序文件的临时目标文件（若合并过程出问题，则该顺序文件对应的临时目标文件可能没有被删除）（2）删除该已合并顺序文件的原有mods文件，并先后往合并过程中对该顺序文件和所有乱序文件产生的删除操作写到该已合并顺序文件的新mods文件
+  //3. 删除所有合并完的顺序和乱序文件对应的.compaction.mods文件
+  //4. 删除合并日志
   public void mergeEndAction(
       List<TsFileResource> seqFiles, List<TsFileResource> unseqFiles, File mergeLog) {
     // todo: add
@@ -111,14 +116,17 @@ public class InplaceCompactionTask extends AbstractCrossSpaceCompactionTask {
       LOGGER.info("{} a merge task abnormally ends", fullStorageGroupName);
       return;
     }
+    //删除此次合并任务里所有乱序文件对应的本地tsfile文件、.resource文件和.mods文件
     removeUnseqFiles(unseqFiles);
 
+    //遍历每个待合并顺序文件
     for (int i = 0; i < seqFiles.size(); i++) {
       TsFileResource seqFile = seqFiles.get(i);
-      // get both seqFile lock and merge lock
+      //1） get both seqFile lock and merge lock
       doubleWriteLock(seqFile);
 
       try {
+        //2） 若合并过程出问题，则该顺序文件对应的临时目标文件可能没有被删除
         // if meet error(like file not found) in merge task, the .merge file may not be deleted
         File mergedFile =
             FSFactoryProducer.getFSFactory().getFile(seqFile.getTsFilePath() + MERGE_SUFFIX);
@@ -127,14 +135,18 @@ public class InplaceCompactionTask extends AbstractCrossSpaceCompactionTask {
             LOGGER.warn("Delete file {} failed", mergedFile);
           }
         }
+        //3）删除该已合并顺序文件的原有mods文件，并先后往合并过程中对该顺序文件和所有乱序文件产生的删除操作写到该已合并顺序文件的新mods文件
         updateMergeModification(seqFile, unseqFiles);
       } finally {
+        //4）释放两个锁
         doubleWriteUnlock(seqFile);
       }
     }
 
     try {
+      //删除所有合并完的顺序和乱序文件对应的.compaction.mods文件
       removeMergingModification(seqFiles, unseqFiles);
+      //删除合并日志
       Files.delete(mergeLog.toPath());
     } catch (IOException e) {
       LOGGER.error(
@@ -144,6 +156,7 @@ public class InplaceCompactionTask extends AbstractCrossSpaceCompactionTask {
     LOGGER.info("{} a merge task ends", fullStorageGroupName);
   }
 
+  //删除此次合并任务里所有乱序文件对应的本地tsfile文件、.resource文件和.mods文件
   private void removeUnseqFiles(List<TsFileResource> unseqFiles) {
     unSeqTsFileResourceList.writeLock();
     try {
@@ -191,14 +204,18 @@ public class InplaceCompactionTask extends AbstractCrossSpaceCompactionTask {
     seqFile.writeUnlock();
   }
 
+  //删除该已合并顺序文件的原有mods文件，并先后往合并过程中对该顺序文件和所有乱序文件产生的删除操作写到该已合并顺序文件的新mods文件
   private void updateMergeModification(TsFileResource seqFile, List<TsFileResource> unseqFiles) {
     try {
       // remove old modifications and write modifications generated during merge
+      //删除已合并的顺序文件的旧mods文件
       seqFile.removeModFile();
+      //将该已合并顺序文件在合并过程产生的删除错做写到其对应的新的.mods文件里
       ModificationFile compactionModificationFile = ModificationFile.getCompactionMods(seqFile);
       for (Modification modification : compactionModificationFile.getModifications()) {
         seqFile.getModFile().write(modification);
       }
+
       for (TsFileResource unseqFile : unseqFiles) {
         ModificationFile compactionUnseqModificationFile =
             ModificationFile.getCompactionMods(unseqFile);
@@ -220,6 +237,7 @@ public class InplaceCompactionTask extends AbstractCrossSpaceCompactionTask {
     }
   }
 
+  //删除所有合并完的顺序和乱序文件对应的.compaction.mods文件
   private void removeMergingModification(
       List<TsFileResource> seqFiles, List<TsFileResource> unseqFiles) {
     try {

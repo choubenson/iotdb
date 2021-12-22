@@ -34,7 +34,7 @@ public class CrossSpaceMergeContext { //跨空间合并的上下文
   private Map<TsFileResource, Integer> mergedChunkCnt = new HashMap<>();
   private Map<TsFileResource, Integer> unmergedChunkCnt = new HashMap<>();
 
-  //存放每个TsFile上，未被合并的序列的每个Chunk的开始时间
+  //存放每个TsFile上，所有未被合并的序列的每个Chunk的开始时间
   private Map<TsFileResource, Map<PartialPath, List<Long>>> unmergedChunkStartTimes =
       new HashMap<>();
 
