@@ -57,6 +57,6 @@
     </dependencies>
     <properties>
         <jersey-core.version>1.9</jersey-core.version>
-        <reactor-netty-http.version>1.0.4</reactor-netty-http.version>
+        <reactor-netty-http.version>1.0.20</reactor-netty-http.version>
     </properties>
 </project>
