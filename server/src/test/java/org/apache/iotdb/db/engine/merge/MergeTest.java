@@ -66,6 +66,8 @@ abstract class MergeTest {
   long flushInterval = 20;
   TSEncoding encoding = TSEncoding.PLAIN;
 
+  boolean check=false;
+
   String[] deviceIds;
   MeasurementSchema[] measurementSchemas;
 
@@ -184,6 +186,7 @@ abstract class MergeTest {
     tsFileResource.setMaxPlanIndex(seqFileNum + unseqFileNum);
     tsFileResource.setVersion(seqFileNum + unseqFileNum);
     unseqResources.add(tsFileResource);
+    check=true;
     prepareFile(tsFileResource, 0, ptNum * unseqFileNum, 20000);
   }
 
@@ -231,6 +234,15 @@ abstract class MergeTest {
       if ((i + 1) % flushInterval == 0) {
         fileWriter.flushAllChunkGroups();
       }
+    }
+    if(check) {
+      TSRecord record = new TSRecord(0, deviceIds[0]);
+      record.addTuple(
+              DataPoint.getDataPoint(
+                      measurementSchemas[0].getType(),
+                      measurementSchemas[0].getMeasurementId(),
+                      String.valueOf(99999)));
+      fileWriter.write(record);
     }
     fileWriter.close();
   }

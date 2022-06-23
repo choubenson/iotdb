@@ -182,9 +182,13 @@ public class MergeResource {
    * @param paths names of the timeseries
    * @return an array of UnseqResourceMergeReaders each corresponding to a timeseries in paths
    */
+  // 1. 读取所有待合并序列在所有乱序文件里的所有Chunk，依次放入List<Chunk>[]
+  // 2. 创建每个待合并序列的乱序数据点Reader并返回,将某待合并序列在所有乱序文件的所有Chunk的第一个数据点放入heap优先级队列里（越后面的Chunk说明数据越新，因此优先级越高）
   public IPointReader[] getUnseqReaders(List<PartialPath> paths)
       throws IOException, MetadataException {
+    // 将所有待合并序列在所有乱序文件里的所有Chunk依次放入ret列表数组里（ret数组长度为待合并序列数量），如有s0 s1 s2,其中s2在第1 3 5个乱序文件里都有好几个Chunk，则在ret[2]列表里存放该序列分别在1 3 5乱序文件的所有Chunk
     List<Chunk>[] pathChunks = MergeUtils.collectUnseqChunks(paths, unseqFiles, this);
+    // 创建每个待合并序列的乱序数据点Reader,将某待合并序列在所有乱序文件的所有Chunk的第一个数据点放入heap优先级队列里（越后面的Chunk说明数据越新，因此优先级越高）
     IPointReader[] ret = new IPointReader[paths.size()];
     for (int i = 0; i < paths.size(); i++) {
       TSDataType dataType = IoTDB.metaManager.getSeriesType(paths.get(i));

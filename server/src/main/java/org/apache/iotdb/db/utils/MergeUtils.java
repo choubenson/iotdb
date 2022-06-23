@@ -162,6 +162,7 @@ public class MergeUtils {
    *
    * @param paths names of the timeseries
    */
+  // 将所有待合并序列在所有乱序文件里的所有Chunk依次放入ret列表数组里（ret数组长度为待合并序列数量），如有s0 s1 s2,其中s2在第1 3 5个乱序文件里都有好几个Chunk，则在ret[2]列表里存放该序列分别在1 3 5乱序文件的所有Chunk
   public static List<Chunk>[] collectUnseqChunks(
       List<PartialPath> paths, List<TsFileResource> unseqResources, MergeResource mergeResource)
       throws IOException {
@@ -175,14 +176,17 @@ public class MergeUtils {
 
       TsFileSequenceReader tsFileReader = mergeResource.getFileReader(tsFileResource);
       // prepare metaDataList
+      //将所有待合并序列在当前乱序文件里的ChunkMetadataList依次放入chunkMetaHeap队列，该队列元素为（待合并序列index,该序列在该乱序文件里的ChunkMetadataList）
       buildMetaHeap(paths, tsFileReader, mergeResource, tsFileResource, chunkMetaHeap);
 
       // read chunks order by their position
+      //将所有待合并序列在该乱序文件里的所有Chunk依次放入ret里，ret长度为待合并序列数量，每个元素存放该序列在该乱序文件里的所有Chunk（包含删除区间）
       collectUnseqChunks(chunkMetaHeap, tsFileReader, ret);
     }
     return ret;
   }
 
+  //将所有待合并序列在当前乱序文件里的ChunkMetadataList依次放入chunkMetaHeap队列，该队列元素为（待合并序列index,该序列在该乱序文件里的ChunkMetadataList）
   private static void buildMetaHeap(
       List<PartialPath> paths,
       TsFileSequenceReader tsFileReader,
@@ -208,8 +212,9 @@ public class MergeUtils {
     }
   }
 
+  //将所有待合并序列在该乱序文件里的所有Chunk依次放入ret里，ret长度为待合并序列数量，每个元素存放该序列在该乱序文件里的所有Chunk（包含删除区间）
   private static void collectUnseqChunks(
-      PriorityQueue<MetaListEntry> chunkMetaHeap,
+      PriorityQueue<MetaListEntry> chunkMetaHeap,//（待合并序列index,该序列在该乱序文件里的ChunkMetadataList）
       TsFileSequenceReader tsFileReader,
       List<Chunk>[] ret)
       throws IOException {
@@ -225,9 +230,12 @@ public class MergeUtils {
     }
   }
 
+  // 判断当前待合并序列的是否有与该顺序文件的当前Chunk有否overlap，true则后续要解chunk，否则可以不解chunk
+  // 当最小的乱序数据点时间戳<=顺序文件里该Chunk的结束时间，返回true
+  // 若是最后一个chunk且乱序点时间小于该顺序文件该device的EndTime，返回true
   public static boolean isChunkOverflowed(
-      TimeValuePair timeValuePair,
-      ChunkMetadata metaData,
+      TimeValuePair timeValuePair, //该待合并序列在所有乱序文件里时间戳最小的数据点
+      ChunkMetadata metaData, //顺序文件里该序列的第一个chunkMetadata
       boolean isLastChunk,
       long currentResourceEndTime) {
     return timeValuePair != null
@@ -235,6 +243,9 @@ public class MergeUtils {
             || (isLastChunk && timeValuePair.getTimestamp() <= currentResourceEndTime));
   }
 
+  // 判断是否太小，若否说明足够大，则后续可以直接将该顺序Chunk刷盘，无需解chunk；若为true，则后续要解该顺序Chunk：
+  // 若在重写上个顺序Chunk的时候还有数据点仍留在目标ChunkWriter未被刷盘，则直接返回true，后续要解chunk；
+  // 若当前顺序Chunk点很少且不是最后一个chunk,则返回true，后续要解chunk
   public static boolean isChunkTooSmall(
       int ptWritten, ChunkMetadata chunkMetaData, boolean isLastChunk, int minChunkPointNum) {
     return ptWritten > 0

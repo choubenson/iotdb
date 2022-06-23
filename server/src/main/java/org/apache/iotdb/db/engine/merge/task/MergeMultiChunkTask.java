@@ -176,7 +176,11 @@ public class MergeMultiChunkTask {
   }
 
   private void mergePaths() throws IOException, MetadataException {
+    // 1. 读取所有待合并序列在所有乱序文件里的所有Chunk，依次放入List<Chunk>[]
+    // 2. 创建所有待合并序列的乱序数据点Reader并返回,将某待合并序列在所有乱序文件的所有Chunk的第一个数据点放入heap优先级队列里（越后面的Chunk说明数据越新，因此优先级越高）
     IPointReader[] unseqReaders = resource.getUnseqReaders(currMergingPaths);
+
+    //初始化所有待合并序列的第一个优先级最高的乱序数据点
     currTimeValuePairs = new TimeValuePair[currMergingPaths.size()];
     for (int i = 0; i < currMergingPaths.size(); i++) {
       if (unseqReaders[i].hasNextTimeValuePair()) {
@@ -345,7 +349,7 @@ public class MergeMultiChunkTask {
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
   private boolean mergeChunks(
       String deviceId,
-      List<ChunkMetadata>[] seqChunkMeta,
+      List<ChunkMetadata>[] seqChunkMeta, //所有待合并序列在该顺序文件里待ChunkMetadataList
       boolean isLastFile,
       TsFileSequenceReader reader,
       IPointReader[] unseqReaders,
@@ -355,6 +359,7 @@ public class MergeMultiChunkTask {
     int[] ptWrittens = new int[seqChunkMeta.length];
     int mergeChunkSubTaskNum =
         IoTDBDescriptor.getInstance().getConfig().getMergeChunkSubThreadNum();
+    //存放所有待合并序列在该顺序文件里的ChunkMetadatalist,元素是（待合并序列index，该序列在该顺序文件里待ChunkMetadatalist）
     MetaListEntry[] metaListEntries = new MetaListEntry[currMergingPaths.size()];
     PriorityQueue<Integer>[] chunkIdxHeaps = new PriorityQueue[mergeChunkSubTaskNum];
 
@@ -371,6 +376,7 @@ public class MergeMultiChunkTask {
     for (int i = 0; i < currMergingPaths.size(); i++) {
       chunkIdxHeaps[idx % mergeChunkSubTaskNum].add(i);
       if (seqChunkMeta[i] == null || seqChunkMeta[i].isEmpty()) {
+        //可能在待合并序列不存在于该顺序文件里
         continue;
       }
 
@@ -449,6 +455,9 @@ public class MergeMultiChunkTask {
    * <p>3. other cases: need to unCompress the chunk and write 3.1 SK isn't overflowed 3.2 SK is
    * overflowed
    */
+  // 1. 对该顺序Chunk里的所有page里的每个数据点与对应序列的乱序数据点去重写入ChunkWriter（此处该序列消耗掉的乱序数据点时间戳<=该顺序page的结束时间）
+  // 2. 将该顺序Chunk的结束时间或者若是最后一个顺序Chunk,则将该顺序device的endTime前的该序列乱序数据点都写入该目标顺序Chunk里。
+  // 3. 若目标Chunk足够大，则刷到目标文件，返回0。否则返回还未被刷盘的总共写入目标ChunkWriter的数据点数量
   @SuppressWarnings("java:S2445") // avoid writing the same writer concurrently
   private int mergeChunkV2(
       ChunkMetadata currMeta,
@@ -500,10 +509,13 @@ public class MergeMultiChunkTask {
 
     // 3.1 SK isn't overflowed, just uncompress and write sequence chunk
     if (!chunkOverflowed) {
+      //该顺序chunk与乱序没有overflow，则直接解该顺序chunk，把符合条件的数据点写到目标ChunkWriter
       unclosedChunkPoint += MergeUtils.writeChunkWithoutUnseq(chunk, chunkWriter);
       mergedChunkNum.incrementAndGet();
     } else {
       // 3.2 SK is overflowed, uncompress sequence chunk and merge with unseq chunk, then write
+      // 1. 对该顺序Chunk里的所有page里的每个数据点与对应序列的乱序数据点去重写入ChunkWriter（此处该序列消耗掉的乱序数据点时间戳<=该顺序page的结束时间）
+      // 2. 将该顺序Chunk的结束时间或者若是最后一个顺序Chunk,则将该顺序device的endTime前的该序列乱序数据点都写入该目标顺序Chunk里。返回总共写入目标Chunk的数据点数量
       unclosedChunkPoint +=
           writeChunkWithUnseq(
               chunk,
@@ -527,12 +539,15 @@ public class MergeMultiChunkTask {
     return unclosedChunkPoint;
   }
 
+  //timeLimit为该序列在该顺序文件的该Chunk的结束时间；若是该顺序文件的最后一个Chunk，则结束时间是该顺序文件该device的endTime
+  //将该顺序Chunk的结束时间或者若是最后一个顺序Chunk,则将该顺序device的endTime前的该序列乱序数据点都写入该目标顺序Chunk里
   private int writeRemainingUnseq(
       IChunkWriter chunkWriter, IPointReader unseqReader, long timeLimit, int pathIdx)
       throws IOException {
     int ptWritten = 0;
     while (currTimeValuePairs[pathIdx] != null
         && currTimeValuePairs[pathIdx].getTimestamp() < timeLimit) {
+      //Todo:这里也有bug，若该序列有多个时间戳相同的乱序数据点，则都会被写入到顺序文件里
       writeTVPair(currTimeValuePairs[pathIdx], chunkWriter);
       ptWritten++;
       unseqReader.nextTimeValuePair();
@@ -542,23 +557,28 @@ public class MergeMultiChunkTask {
     return ptWritten;
   }
 
+  // 1. 对该顺序Chunk里的所有page里的每个数据点与对应序列的乱序数据点去重写入ChunkWriter（此处该序列消耗掉的乱序数据点时间戳<=该顺序page的结束时间）
+  // 2. 将该顺序Chunk的结束时间或者若是最后一个顺序Chunk,则将该顺序device的endTime前的该序列乱序数据点都写入该目标顺序Chunk里。返回总共写入目标Chunk的数据点数量
   private int writeChunkWithUnseq(
       Chunk chunk,
       IChunkWriter chunkWriter,
       IPointReader unseqReader,
-      long chunkLimitTime,
+      long chunkLimitTime, //该序列在该顺序文件的该Chunk的结束时间；若是该顺序文件的最后一个Chunk，则结束时间是该顺序文件该device的endTime
       int pathIdx)
       throws IOException {
     int cnt = 0;
     ChunkReader chunkReader = new ChunkReader(chunk, null);
     while (chunkReader.hasNextSatisfiedPage()) {
       BatchData batchData = chunkReader.nextPageData();
+      // 对该顺序page里的每个数据点与对应序列的乱序数据点去重写入ChunkWriter（此处该序列消耗掉的乱序数据点时间戳<=该顺序page的结束时间），返回总共写入的数据点数量
       cnt += mergeWriteBatch(batchData, chunkWriter, unseqReader, pathIdx);
     }
+    //将该顺序Chunk的结束时间或者若是最后一个顺序Chunk,则将该顺序device的endTime前的该序列乱序数据点都写入该目标顺序Chunk里
     cnt += writeRemainingUnseq(chunkWriter, unseqReader, chunkLimitTime, pathIdx);
     return cnt;
   }
 
+  // 对该顺序page里的每个数据点与对应序列的乱序数据点去重写入ChunkWriter（此处该序列消耗掉的乱序数据点时间戳<=该顺序page的结束时间），返回总共写入的数据点数量
   private int mergeWriteBatch(
       BatchData batchData, IChunkWriter chunkWriter, IPointReader unseqReader, int pathIdx)
       throws IOException {
@@ -570,6 +590,7 @@ public class MergeMultiChunkTask {
       // unseq point.time <= sequence point.time, write unseq point
       while (currTimeValuePairs[pathIdx] != null
           && currTimeValuePairs[pathIdx].getTimestamp() <= time) {
+        //Todo:这里有bug，若序列在所有乱序文件中出现时间戳相同的几个点，则这几个点都会被写入顺序文件里
         writeTVPair(currTimeValuePairs[pathIdx], chunkWriter);
         if (currTimeValuePairs[pathIdx].getTimestamp() == time) {
           overwriteSeqPoint = true;
@@ -591,6 +612,8 @@ public class MergeMultiChunkTask {
   public class MergeChunkHeapTask implements Callable<Void> {
 
     private PriorityQueue<Integer> chunkIdxHeap;
+
+    //存放当前所有待合并序列在该顺序文件里的ChunkMetadatalist,元素是（待合并序列index，该序列在该顺序文件里待ChunkMetadatalist）
     private MetaListEntry[] metaListEntries;
     private int[] ptWrittens;
     private TsFileSequenceReader reader;
@@ -599,6 +622,8 @@ public class MergeMultiChunkTask {
     private TsFileResource currFile;
     private boolean isLastFile;
     private int taskNum;
+
+    //当前顺序文件的该设备的结束时间
     private long endTimeOfCurrentResource;
 
     private int totalSeriesNum;
@@ -635,31 +660,43 @@ public class MergeMultiChunkTask {
 
     @SuppressWarnings("java:S2445") // avoid reading the same reader concurrently
     private void mergeChunkHeap() throws IOException, MetadataException {
+      //按字典序从小到大依次对该子线程分配到的每个序列在该顺序文件里的每个chunk与乱序点进行去重写入到目标ChunkWriter，若足够大则将其刷盘，也有可能还未刷盘
       while (!chunkIdxHeap.isEmpty()) {
         int pathIdx = chunkIdxHeap.poll();
         PartialPath path = currMergingPaths.get(pathIdx);
         MeasurementSchema measurementSchema = IoTDB.metaManager.getSeriesSchema(path);
+        // 若该顺序文件里该序列有多个chunk，则此处获取的ChunkWriter是在合并上个顺序chunk时候的目标ChunkWriter，里面还有未刷盘的数据点
         IChunkWriter chunkWriter = resource.getChunkWriter(measurementSchema);
         if (Thread.interrupted()) {
           Thread.currentThread().interrupt();
           return;
         }
 
-        if (metaListEntries[pathIdx] != null) {
+        if (metaListEntries[pathIdx] != null) {//若该顺序文件里存在该待合并序列
           MetaListEntry metaListEntry = metaListEntries[pathIdx];
           ChunkMetadata currMeta = metaListEntry.current();
           boolean isLastChunk = !metaListEntry.hasNext();
+          // 判断当前待合并序列的是否有与该顺序文件的当前Chunk有否overlap，true则后续要解chunk，否则可以不解chunk
+          // 当最小的乱序数据点时间戳<=顺序文件里该Chunk的结束时间，返回true
+          // 若是最后一个chunk且乱序点时间小于该顺序文件该device的EndTime，返回true
           boolean chunkOverflowed =
               MergeUtils.isChunkOverflowed(
                   currTimeValuePairs[pathIdx], currMeta, isLastChunk, endTimeOfCurrentResource);
+          // 判断是否太小，若否说明足够大，则后续可以直接将该顺序Chunk刷盘，无需解chunk；若为true，则后续要解该顺序Chunk：
+          // 若在重写上个顺序Chunk的时候还有数据点仍留在目标ChunkWriter未被刷盘，则直接返回true，后续要解chunk；
+          // 若当前顺序Chunk点很少且不是最后一个chunk,则返回true，后续要解chunk
           boolean chunkTooSmall =
               MergeUtils.isChunkTooSmall(
                   ptWrittens[pathIdx], currMeta, isLastChunk, minChunkPointNum);
 
+          // 该待合并序列在该顺序文件里的当前Chunk
           Chunk chunk;
           synchronized (reader) {
             chunk = reader.readMemChunk(currMeta);
           }
+          // 1. 对该顺序Chunk里的所有page里的每个数据点与对应序列的乱序数据点去重写入ChunkWriter（此处该序列消耗掉的乱序数据点时间戳<=该顺序page的结束时间）
+          // 2. 将该顺序Chunk的结束时间或者若是最后一个顺序Chunk,则将该顺序device的endTime前的该序列乱序数据点都写入该目标顺序Chunk里。
+          // 3. 若目标Chunk足够大，则刷到目标文件，返回0。否则返回还未被刷盘的总共写入目标ChunkWriter的数据点数量
           ptWrittens[pathIdx] =
               mergeChunkV2(
                   currMeta,
@@ -677,12 +714,18 @@ public class MergeMultiChunkTask {
 
           if (!isLastChunk) {
             metaListEntry.next();
+            //若该序列在该顺序文件里还有chunk，则继续合并该序列
             chunkIdxHeap.add(pathIdx);
             continue;
           }
         }
+
+        //若已重写完该序列在该顺序文件里的最后一个chunk了（此处目标ChunkWriter可能因为不够大还未被刷盘），则
+
         // this only happens when the seqFiles do not contain this series, otherwise the remaining
         // data will be merged with the last chunk in the seqFiles
+        //Todo:由于0.12之前选文件的bug，例如有顺序文件 1 2 3，乱序文件4，可是由于1 3正在被合并，导致该跨空间合并只选择了2 4，这就会导致合并出来的目标顺序文件与1 3都有重叠
+        //Todo:例如上述的例子，若序列S0在乱序范围是50～250，而2的该device范围是100～199，这里的逻辑就会导致（1）若当前是最后一个顺序文件，199后的数据点就会被写到对应的目标顺序文件里，导致该目标文件可能与后面的顺序文件有overlap (2)若当前并非最后一个顺序文件，则会导致199后的数据点被丢弃了
         if (isLastFile && currTimeValuePairs[pathIdx] != null) {
           ptWrittens[pathIdx] +=
               writeRemainingUnseq(chunkWriter, unseqReaders[pathIdx], Long.MAX_VALUE, pathIdx);

@@ -37,6 +37,7 @@ public class PriorityMergeReader implements IPointReader {
   // or min time of all added readers in DescPriorityMergeReader
   protected long currentReadStopTime;
 
+  // 若时间戳不等，则时间戳越小的优先级越高；若时间戳相等，则越靠后面的数据点优先级越高（因为越新，如后面文件的优先级大，同一个文件里offfset大的优先级大）
   protected PriorityQueue<Element> heap;
 
   public PriorityMergeReader() {
@@ -45,6 +46,7 @@ public class PriorityMergeReader implements IPointReader {
             (o1, o2) -> {
               int timeCompare =
                   Long.compare(o1.timeValuePair.getTimestamp(), o2.timeValuePair.getTimestamp());
+              // 若时间戳不等，则时间戳越小的优先级越高；若时间戳相等，则越靠后面的数据点优先级越高（因为越新，如后面文件的优先级大，同一个文件里offfset大的优先级大）
               return timeCompare != 0 ? timeCompare : o2.priority.compareTo(o1.priority);
             });
   }
@@ -64,6 +66,8 @@ public class PriorityMergeReader implements IPointReader {
     }
   }
 
+  // 第一个参数是某个序列的一个Chunk的数据点阅读器
+  // 将待合并序列在该乱序Chunk里的下一个数据点放入heap
   public void addReader(IPointReader reader, long priority) throws IOException {
     if (reader.hasNextTimeValuePair()) {
       heap.add(

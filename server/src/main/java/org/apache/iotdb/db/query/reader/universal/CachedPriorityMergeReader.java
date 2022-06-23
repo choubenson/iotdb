@@ -63,6 +63,7 @@ public class CachedPriorityMergeReader extends PriorityMergeReader {
       while (heap.peek() != null && heap.peek().currTime() == lastTimestamp) {
         top = heap.poll();
         if (top.hasNext()) {
+          //若该chunk还有数据，则将下一个数据点放入heap
           top.next();
           heap.add(top);
         } else {

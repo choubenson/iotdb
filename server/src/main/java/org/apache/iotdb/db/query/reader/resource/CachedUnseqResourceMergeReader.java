@@ -30,12 +30,15 @@ import java.util.List;
 
 public class CachedUnseqResourceMergeReader extends CachedPriorityMergeReader {
 
+  //第一个参数存放某个待合并序列在所有乱序文件里的所有Chunk，按序放入
+  // 将某待合并序列在所有乱序文件的所有Chunk的第一个数据点放入heap优先级队列里（越后面的Chunk说明数据越新，因此优先级越高）
   public CachedUnseqResourceMergeReader(List<Chunk> chunks, TSDataType dataType)
       throws IOException {
     super(dataType);
     int priorityValue = 1;
     for (Chunk chunk : chunks) {
       ChunkReader chunkReader = new ChunkReader(chunk, null);
+      // 将待合并序列在该乱序Chunk里的第一个数据点放入heap，越后面的Chunk说明数据越新，因此优先级越高
       addReader(new ChunkDataIterator(chunkReader), priorityValue++);
     }
   }
