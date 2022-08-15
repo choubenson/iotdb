@@ -22,6 +22,7 @@ package org.apache.iotdb;
 import org.apache.iotdb.db.engine.modification.Deletion;
 import org.apache.iotdb.db.engine.modification.Modification;
 import org.apache.iotdb.db.engine.modification.ModificationFile;
+import org.apache.iotdb.db.engine.storagegroup.TsFileResource;
 import org.apache.iotdb.db.exception.metadata.IllegalPathException;
 import org.apache.iotdb.db.metadata.path.PartialPath;
 import org.apache.iotdb.rpc.IoTDBConnectionException;
@@ -87,6 +88,8 @@ public class RewriteFileTool {
 
   private static PrintWriter writer;
 
+  private static boolean moveFile = true;
+
   /**
    * -b=[path of backUp directory] -vf=[path of validation file]/-f=[path of tsfile list] -o=[path
    * of output log] -u=[username, default="root"] -pw=[password, default="root"] -p=[rpc port,
@@ -98,11 +101,12 @@ public class RewriteFileTool {
     }
     writer = new PrintWriter(new FileWriter(outputLogFilePath));
     try {
-      if (validationFilePath != null) {
-        readValidationFile(validationFilePath);
-      }
       if (tsfileListPath != null) {
-        readTsFileList(tsfileListPath);
+        if (moveFile) {
+          moveTsFiles(tsfileListPath);
+        } else {
+          rewriteBadFiles(tsfileListPath);
+        }
       }
     } catch (Exception e) {
       printBoth(e.getMessage());
@@ -112,71 +116,48 @@ public class RewriteFileTool {
     }
   }
 
-  public static void readValidationFile(String validationFilePath)
-      throws IOException, IoTDBConnectionException {
-    Session session = new Session(HostIP, rpcPort, user, password);
-    session.open(false);
-
-    BufferedReader bufferedReader = new BufferedReader(new FileReader(validationFilePath));
-    String line;
-    while ((line = bufferedReader.readLine()) != null) {
-      if (!line.startsWith("-- Find the bad file ")) {
-        continue;
+  public static void moveTsFiles(String tsfileListPath) throws IOException {
+    BufferedReader bufferedReader = new BufferedReader(new FileReader(tsfileListPath));
+    String badFilePath;
+    while ((badFilePath = bufferedReader.readLine()) != null) {
+      String[] dirs = badFilePath.split("/");
+      String targetFilePath = backUpDirPath + File.separator + dirs[dirs.length - 1];
+      // move tsfile
+      File badFile = new File(badFilePath);
+      if (badFile.exists()) {
+        fsFactory.moveFile(badFile, new File(targetFilePath));
       }
-      String badFilePath = line.replace("-- Find the bad file ", "");
-      unloadAndReWriteWrongTsFile(badFilePath, session);
+      // move resource file
+      badFile = new File(badFilePath + TsFileResource.RESOURCE_SUFFIX);
+      if (badFile.exists()) {
+        fsFactory.moveFile(badFile, new File(targetFilePath + TsFileResource.RESOURCE_SUFFIX));
+      }
+      // move mods file
+      badFile = new File(badFilePath + ModificationFile.FILE_SUFFIX);
+      if (badFile.exists()) {
+        fsFactory.moveFile(badFile, new File(targetFilePath + ModificationFile.FILE_SUFFIX));
+      }
     }
     bufferedReader.close();
-    session.close();
-    printBoth("Finish rewriting all bad files.");
+    printBoth("Finish moving all bad files to target dir.");
   }
 
-  public static void readTsFileList(String tsfileListPath)
-      throws IoTDBConnectionException, IOException {
+  public static void rewriteBadFiles(String tsfileListPath)
+      throws IOException, IoTDBConnectionException {
     Session session = new Session(HostIP, rpcPort, user, password);
     session.open(false);
 
     BufferedReader bufferedReader = new BufferedReader(new FileReader(tsfileListPath));
     String badFilePath;
     while ((badFilePath = bufferedReader.readLine()) != null) {
-      unloadAndReWriteWrongTsFile(badFilePath, session);
+      String[] dirs = badFilePath.split("/");
+      String targetFilePath = backUpDirPath + File.separator + dirs[dirs.length - 1];
+      // rewrite tsfile
+      rewriteWrongTsFile(targetFilePath, session);
     }
     bufferedReader.close();
     session.close();
-    printBoth("Finish rewriting all bad files.");
-  }
-
-  public static void unloadAndReWriteWrongTsFile(String filename, Session session) {
-    try {
-      String[] dirs = filename.split("/");
-      String targetFilePath = backUpDirPath + File.separator + dirs[dirs.length - 1];
-      File targetFile = new File(targetFilePath);
-      // move mods file
-      File modsFile = new File(filename + ModificationFile.FILE_SUFFIX);
-      if (modsFile.exists()) {
-        fsFactory.moveFile(modsFile, new File(targetFilePath + ModificationFile.FILE_SUFFIX));
-      }
-      if (targetFile.exists()) {
-        printBoth(String.format("%s is already in the backup dir. Don't need to move.", filename));
-      } else {
-        printBoth(String.format("Start moving %s to backup dir.", filename));
-        session.executeNonQueryStatement(
-            String.format("unload '%s' '%s'", filename, backUpDirPath));
-      }
-      printBoth(String.format("Finish unloading %s.", filename));
-
-      // try to rewriteFile
-      printBoth(String.format("Start rewriting %s to iotdb.", filename));
-      if (targetFile.exists()) {
-        rewriteWrongTsFile(targetFilePath, session);
-        targetFile.renameTo(new File(targetFilePath + "." + "finish"));
-      } else {
-        printBoth("---- Meet error in rewriting, " + targetFilePath + " does not exist.");
-      }
-    } catch (IoTDBConnectionException | StatementExecutionException e) {
-      e.printStackTrace();
-      printBoth("---- Meet error in unloading " + filename + ", " + e.getMessage());
-    }
+    printBoth("Finish rewriting all bad files to iotdb.");
   }
 
   public static void rewriteWrongTsFile(String filename, Session session) {
@@ -496,7 +477,7 @@ public class RewriteFileTool {
 
   private static boolean checkArgs(String[] args) {
     String paramConfig =
-        "-b=[path of backUp directory] -vf=[path of validation file]/-f=[path of tsfile list] -o=[path of output log] -u=[username, default=\"root\"] -pw=[password, default=\"root\"] -p=[rpc port, default=6667] -h=[rpc host, default=\"localhost\"]";
+        "-b=[path of backUp directory] -f=[path of tsfile list] -m=true/false -o=[path of output log] -u=[username, default=\"root\"] -pw=[password, default=\"root\"] -p=[rpc port, default=6667] -h=[rpc host, default=\"localhost\"]";
     for (String arg : args) {
       if (arg.startsWith("-b")) {
         backUpDirPath = arg.substring(arg.indexOf('=') + 1);
@@ -514,6 +495,8 @@ public class RewriteFileTool {
         rpcPort = arg.substring(arg.indexOf('=') + 1);
       } else if (arg.startsWith("-h")) {
         HostIP = arg.substring(arg.indexOf('=') + 1);
+      } else if (arg.startsWith("-m")) {
+        moveFile = Boolean.parseBoolean(arg.substring(arg.indexOf('=') + 1));
       } else {
         System.out.println("Param incorrect!" + paramConfig);
         return false;
