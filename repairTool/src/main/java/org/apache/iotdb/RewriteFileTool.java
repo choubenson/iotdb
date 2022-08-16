@@ -91,9 +91,9 @@ public class RewriteFileTool {
   private static boolean moveFile = true;
 
   /**
-   * -b=[path of backUp directory] -vf=[path of validation file]/-f=[path of tsfile list] -o=[path
-   * of output log] -u=[username, default="root"] -pw=[password, default="root"] -p=[rpc port,
-   * default="6667"] -h=[rpc host, default="localhost"]
+   * -b=[path of backUp directory] -vf=[path of validation file]/-f=[path of tsfile list]
+   * -m=true/false -o=[path of output log] -u=[username, default="root"] -pw=[password,
+   * default="root"] -p=[rpc port, default="6667"] -h=[rpc host, default="localhost"]
    */
   public static void main(String[] args) throws IOException {
     if (!checkArgs(args)) {
@@ -120,8 +120,20 @@ public class RewriteFileTool {
     BufferedReader bufferedReader = new BufferedReader(new FileReader(tsfileListPath));
     String badFilePath;
     while ((badFilePath = bufferedReader.readLine()) != null) {
-      String[] dirs = badFilePath.split("/");
-      String targetFilePath = backUpDirPath + File.separator + dirs[dirs.length - 1];
+      String[] dirs = badFilePath.split(File.separator);
+      int len = dirs.length;
+      String targetFilePath =
+          backUpDirPath
+              + File.separator
+              + dirs[len - 5]
+              + File.separator
+              + dirs[len - 4]
+              + File.separator
+              + dirs[len - 3]
+              + File.separator
+              + dirs[len - 2]
+              + File.separator
+              + dirs[dirs.length - 1];
       // move tsfile
       File badFile = new File(badFilePath);
       if (badFile.exists()) {
@@ -151,7 +163,19 @@ public class RewriteFileTool {
     String badFilePath;
     while ((badFilePath = bufferedReader.readLine()) != null) {
       String[] dirs = badFilePath.split("/");
-      String targetFilePath = backUpDirPath + File.separator + dirs[dirs.length - 1];
+      int len = dirs.length;
+      String targetFilePath =
+          backUpDirPath
+              + File.separator
+              + dirs[len - 5]
+              + File.separator
+              + dirs[len - 4]
+              + File.separator
+              + dirs[len - 3]
+              + File.separator
+              + dirs[len - 2]
+              + File.separator
+              + dirs[dirs.length - 1];
       // rewrite tsfile
       rewriteWrongTsFile(targetFilePath, session);
     }
