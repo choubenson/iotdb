@@ -152,7 +152,7 @@ public class ReadPointCompactionPerformer
       FragmentInstanceContext fragmentInstanceContext,
       QueryDataSource queryDataSource)
       throws IOException, MetadataException {
-    Map<String, MeasurementSchema> schemaMap = deviceIterator.getAllMeasurementSchemas();
+    Map<String, MeasurementSchema> schemaMap = deviceIterator.getAllSchemasOfCurrentDevice();
     List<IMeasurementSchema> measurementSchemas = new ArrayList<>(schemaMap.values());
     if (measurementSchemas.isEmpty()) {
       return;
@@ -188,7 +188,8 @@ public class ReadPointCompactionPerformer
       FragmentInstanceContext fragmentInstanceContext,
       QueryDataSource queryDataSource)
       throws IOException, InterruptedException {
-    Map<String, MeasurementSchema> measurementSchemaMap = deviceIterator.getAllMeasurementSchemas();
+    Map<String, MeasurementSchema> measurementSchemaMap =
+        deviceIterator.getAllSchemasOfCurrentDevice();
     int subTaskNums = Math.min(measurementSchemaMap.size(), subTaskNum);
 
     // assign all measurements to different sub tasks
