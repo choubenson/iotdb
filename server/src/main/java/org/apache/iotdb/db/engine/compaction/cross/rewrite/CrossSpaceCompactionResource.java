@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.db.engine.compaction.cross.rewrite;
 
+import org.apache.iotdb.db.engine.storagegroup.TsFileNameGenerator;
 import org.apache.iotdb.db.engine.storagegroup.TsFileResource;
 import org.apache.iotdb.db.engine.storagegroup.TsFileResourceStatus;
 
@@ -69,6 +70,30 @@ public class CrossSpaceCompactionResource {
     this.ttlLowerBound = ttlLowerBound;
     this.seqFiles = seqFiles.stream().filter(this::filterSeqResource).collect(Collectors.toList());
     filterUnseqResource(unseqFiles);
+    this.seqFiles.sort(
+        (o1, o2) -> {
+          try {
+            TsFileNameGenerator.TsFileName name1 =
+                TsFileNameGenerator.getTsFileName(o1.getTsFile().getName());
+            TsFileNameGenerator.TsFileName name2 =
+                TsFileNameGenerator.getTsFileName(o2.getTsFile().getName());
+            return (int) (name1.getVersion() - name2.getVersion());
+          } catch (Exception e) {
+            return 0;
+          }
+        });
+    this.unseqFiles.sort(
+        (o1, o2) -> {
+          try {
+            TsFileNameGenerator.TsFileName name1 =
+                TsFileNameGenerator.getTsFileName(o1.getTsFile().getName());
+            TsFileNameGenerator.TsFileName name2 =
+                TsFileNameGenerator.getTsFileName(o2.getTsFile().getName());
+            return (int) (name1.getVersion() - name2.getVersion());
+          } catch (Exception e) {
+            return 0;
+          }
+        });
   }
 
   public List<TsFileResource> getSeqFiles() {
