@@ -712,20 +712,20 @@ IoTDB common files for ConfigNode and DataNode are under `conf`.
 * chunk\_size\_lower\_bound\_in\_compaction
 
 |    Name     | chunk\_size\_lower\_bound\_in\_compaction                                               |
-| :---------: | :-------------------------------------------------------------------------------------- |
+| :---------: |:----------------------------------------------------------------------------------------|
 | Description | A source chunk will be deserialized in compaction when its size is less than this value |
 |    Type     | Int64                                                                                   |
-|   Default   | 128                                                                                     |
+|   Default   | 10240                                                                                   |
 |  Effective  | After restart system                                                                    |
 
 * chunk\_point\_num\_lower\_bound\_in\_compaction
 
-|Name| chunk\_size\_lower\_bound\_in\_compaction |
-|:---:|:---|
+|Name| chunk\_point\_num\_lower\_bound\_in\_compaction                                              |
+|:---:|:---------------------------------------------------------------------------------------------|
 |Description| A source chunk will be deserialized in compaction when its point num is less than this value |
-|Type| int32 |
-|Default| 100 |
-|Effective|After restart system|
+|Type| int32                                                                                        |
+|Default| 1000                                                                                         |
+|Effective| After restart system                                                                         |
 
 * max\_inner\_compaction\_candidate\_file\_num
 
@@ -823,12 +823,12 @@ IoTDB common files for ConfigNode and DataNode are under `conf`.
 
 * max\_number\_of\_points\_in\_page
 
-|Name| max\_number\_of\_points\_in\_page |
-|:---:|:---|
-|Description|The maximum number of data points (timestamps - valued groups) contained in a page|
-|Type|int32|
-|Default| 1048576 |
-|Effective|Trigger|
+|Name| max\_number\_of\_points\_in\_page                                                  |
+|:---:|:-----------------------------------------------------------------------------------|
+|Description| The maximum number of data points (timestamps - valued groups) contained in a page |
+|Type| int32                                                                              |
+|Default| 10000                                                                              |
+|Effective| Trigger                                                                            |
 
 * max\_degree\_of\_index\_node
 
