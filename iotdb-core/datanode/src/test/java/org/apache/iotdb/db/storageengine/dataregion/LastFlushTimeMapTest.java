@@ -90,12 +90,12 @@ public class LastFlushTimeMapTest {
       tsfileProcessor.syncFlush();
     }
     Assert.assertEquals(
-        10000, dataRegion.getLastFlushTimeMap().getFlushedTime(0, "root.vehicle.d0"));
+        10000, dataRegion.getLastFlushTimeMap().getFlushedTime(0, "root.vehicle.d0", 0));
 
     dataRegion.getLastFlushTimeMap().clearFlushedTime();
     dataRegion.getLastFlushTimeMap().checkAndCreateFlushedTimePartition(0);
     Assert.assertEquals(
-        10000, dataRegion.getLastFlushTimeMap().getFlushedTime(0, "root.vehicle.d0"));
+        10000, dataRegion.getLastFlushTimeMap().getFlushedTime(0, "root.vehicle.d0", 0));
   }
 
   @Test
@@ -122,7 +122,7 @@ public class LastFlushTimeMapTest {
     }
     dataRegion.syncCloseAllWorkingTsFileProcessors();
     Assert.assertEquals(
-        10000, dataRegion.getLastFlushTimeMap().getFlushedTime(0, "root.vehicle.d0"));
+        10000, dataRegion.getLastFlushTimeMap().getFlushedTime(0, "root.vehicle.d0", 0));
 
     dataRegion.getLastFlushTimeMap().clearFlushedTime();
     dataRegion.getLastFlushTimeMap().checkAndCreateFlushedTimePartition(0);
@@ -135,6 +135,6 @@ public class LastFlushTimeMapTest {
       res.degradeTimeIndex();
     }
     Assert.assertEquals(
-        10000, dataRegion.getLastFlushTimeMap().getFlushedTime(0, "root.vehicle.d0"));
+        10000, dataRegion.getLastFlushTimeMap().getFlushedTime(0, "root.vehicle.d0", 0));
   }
 }

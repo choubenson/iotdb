@@ -20,6 +20,8 @@
 package org.apache.iotdb.db.storageengine.dataregion.tsfile;
 
 import org.apache.iotdb.commons.utils.TimePartitionUtils;
+import org.apache.iotdb.db.storageengine.dataregion.tsfile.timeindex.DeviceTimeIndex;
+import org.apache.iotdb.db.storageengine.dataregion.tsfile.timeindex.TimeIndexLevel;
 import org.apache.iotdb.db.storageengine.rescon.memory.TsFileResourceManager;
 
 import java.io.IOException;
@@ -108,17 +110,41 @@ public class TsFileManager {
     }
   }
 
-  public long recoverFlushTimeFromTsFileResource(long partitionId, String devicePath) {
+  /**
+   * First obtain fileEndTime from memory. If it is out of order, deserialize resource file to get
+   * deviceEndTime from disk.
+   *
+   * @return If the return value is a negative number, it is fileEndTime; otherwise, it is
+   *     deviceEndTime.
+   */
+  public long recoverFlushTimeFromTsFileResource(long partitionId, String devicePath, long time) {
     writeLock("recoverFlushTimeFromTsFileResource");
     try {
       List<TsFileResource> tsFileResourceList =
           sequenceFiles.computeIfAbsent(partitionId, l -> new TsFileResourceList());
       for (int i = tsFileResourceList.size() - 1; i >= 0; i--) {
-        Set<String> deviceSet = tsFileResourceList.get(i).getDevices();
-        if (deviceSet.contains(devicePath)) {
-          return tsFileResourceList.get(i).getEndTime(devicePath);
+        TsFileResource resource = tsFileResourceList.get(i);
+        if (resource.definitelyNotContains(devicePath)) {
+          continue;
         }
+        long deviceEndTime = resource.getEndTime(devicePath);
+        if (TimeIndexLevel.valueOf(resource.getTimeIndexType()) == TimeIndexLevel.FILE_TIME_INDEX) {
+          if (time <= deviceEndTime) {
+            // deserialize resource file and get device end time to reduce the amount of unseq data
+            DeviceTimeIndex timeIndex = resource.buildDeviceTimeIndex();
+            if (!timeIndex.getDevices().contains(devicePath)) {
+              continue;
+            }
+            deviceEndTime = timeIndex.getEndTime(devicePath);
+          } else {
+            // file end time
+            deviceEndTime *= -1;
+          }
+        }
+        return deviceEndTime;
       }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     } finally {
       writeUnlock();
     }

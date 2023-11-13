@@ -56,7 +56,7 @@ public interface ILastFlushTimeMap {
   // endregion
 
   // region read
-  long getFlushedTime(long timePartitionId, String path);
+  long getFlushedTime(long timePartitionId, String path, long time);
 
   long getGlobalFlushedTime(String path);
   // endregion

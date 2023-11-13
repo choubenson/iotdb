@@ -859,7 +859,9 @@ public class DataRegion implements IDataRegionForQuery {
       boolean isSequence =
           insertRowNode.getTime()
               > lastFlushTimeMap.getFlushedTime(
-                  timePartitionId, insertRowNode.getDevicePath().getFullPath());
+                  timePartitionId,
+                  insertRowNode.getDevicePath().getFullPath(),
+                  insertRowNode.getTime());
 
       // is unsequence and user set config to discard out of order data
       if (!isSequence
@@ -944,7 +946,9 @@ public class DataRegion implements IDataRegionForQuery {
 
       long lastFlushTime =
           lastFlushTimeMap.getFlushedTime(
-              beforeTimePartition, insertTabletNode.getDevicePath().getFullPath());
+              beforeTimePartition,
+              insertTabletNode.getDevicePath().getFullPath(),
+              insertTabletNode.getTimes()[loc]);
 
       // if is sequence
       boolean isSequence = false;
@@ -2714,7 +2718,9 @@ public class DataRegion implements IDataRegionForQuery {
           isSequence =
               insertRowNode.getTime()
                   > lastFlushTimeMap.getFlushedTime(
-                      timePartitionId, insertRowNode.getDevicePath().getFullPath());
+                      timePartitionId,
+                      insertRowNode.getDevicePath().getFullPath(),
+                      insertRowNode.getTime());
         }
         // is unsequence and user set config to discard out of order data
         if (!isSequence

@@ -196,11 +196,32 @@ public class HashLastFlushTimeMap implements ILastFlushTimeMap {
     }
   }
 
+  /**
+   * If the map does not contain device, then first obtain fileEndTime from memory. If it is out of
+   * order, deserialize resource file to get deviceEndTime from disk. Only put deviceEndTime into
+   * the map to reduce unseq data.
+   */
   @Override
-  public long getFlushedTime(long timePartitionId, String path) {
-    return partitionLatestFlushedTimeForEachDevice
-        .get(timePartitionId)
-        .computeIfAbsent(path, k -> recoverFlushTime(timePartitionId, path));
+  public long getFlushedTime(long timePartitionId, String devicePath, long time) {
+    long flushedTime;
+    if (partitionLatestFlushedTimeForEachDevice.get(timePartitionId).containsKey(devicePath)) {
+      flushedTime = partitionLatestFlushedTimeForEachDevice.get(timePartitionId).get(devicePath);
+    } else {
+      long endTime =
+          tsFileManager.recoverFlushTimeFromTsFileResource(timePartitionId, devicePath, time);
+      if (endTime < 0 && endTime != Long.MIN_VALUE) {
+        // file time index
+        flushedTime = endTime * -1;
+      } else {
+        // device time index
+        flushedTime = endTime;
+        partitionLatestFlushedTimeForEachDevice.get(timePartitionId).put(devicePath, endTime);
+        long memCost = HASHMAP_NODE_BASIC_SIZE + 2L * devicePath.length();
+        memCostForEachPartition.compute(
+            timePartitionId, (k, v) -> v == null ? memCost : v + memCost);
+      }
+    }
+    return flushedTime;
   }
 
   @Override
@@ -222,12 +243,6 @@ public class HashLastFlushTimeMap implements ILastFlushTimeMap {
   public void removePartition(long partitionId) {
     partitionLatestFlushedTimeForEachDevice.remove(partitionId);
     memCostForEachPartition.remove(partitionId);
-  }
-
-  private long recoverFlushTime(long partitionId, String devicePath) {
-    long memCost = HASHMAP_NODE_BASIC_SIZE + 2L * devicePath.length();
-    memCostForEachPartition.compute(partitionId, (k, v) -> v == null ? memCost : v + memCost);
-    return tsFileManager.recoverFlushTimeFromTsFileResource(partitionId, devicePath);
   }
 
   @Override

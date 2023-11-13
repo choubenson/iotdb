@@ -462,6 +462,7 @@ public class TsFileResource {
       }
       return (DeviceTimeIndex) timeIndexFromResourceFile;
     } catch (Exception e) {
+      LOGGER.error("Can't read file {} from disk ", file.getPath() + RESOURCE_SUFFIX, e);
       throw new IOException(
           "Can't read file " + file.getPath() + RESOURCE_SUFFIX + " from disk", e);
     } finally {
