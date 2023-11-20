@@ -219,8 +219,9 @@ public class DataRegionTest {
             deviceId,
             context,
             null);
-    Assert.assertEquals(10, queryDataSource.getSeqResources().size());
-    for (TsFileResource resource : queryDataSource.getSeqResources()) {
+    Assert.assertEquals(0, queryDataSource.getSeqResources().size());
+    Assert.assertEquals(10, queryDataSource.getUnseqResources().size());
+    for (TsFileResource resource : queryDataSource.getUnseqResources()) {
       Assert.assertTrue(resource.isClosed());
     }
   }
@@ -296,8 +297,8 @@ public class DataRegionTest {
             context,
             null);
 
-    Assert.assertEquals(2, queryDataSource.getSeqResources().size());
-    Assert.assertEquals(1, queryDataSource.getUnseqResources().size());
+    Assert.assertEquals(0, queryDataSource.getSeqResources().size());
+    Assert.assertEquals(2, queryDataSource.getUnseqResources().size());
     for (TsFileResource resource : queryDataSource.getSeqResources()) {
       Assert.assertTrue(resource.isClosed());
     }
@@ -329,8 +330,8 @@ public class DataRegionTest {
             deviceId,
             context,
             null);
-    Assert.assertEquals(10, queryDataSource.getSeqResources().size());
-    Assert.assertEquals(10, queryDataSource.getUnseqResources().size());
+    Assert.assertEquals(0, queryDataSource.getSeqResources().size());
+    Assert.assertEquals(20, queryDataSource.getUnseqResources().size());
     for (TsFileResource resource : queryDataSource.getSeqResources()) {
       Assert.assertTrue(resource.isClosed());
     }
@@ -372,7 +373,7 @@ public class DataRegionTest {
             deviceId,
             context,
             null);
-    Assert.assertEquals(10, queryDataSource.getSeqResources().size());
+    Assert.assertEquals(0, queryDataSource.getSeqResources().size());
     Assert.assertEquals(0, queryDataSource.getUnseqResources().size());
     for (TsFileResource resource : queryDataSource.getSeqResources()) {
       Assert.assertTrue(resource.isClosed());
@@ -462,7 +463,7 @@ public class DataRegionTest {
             context,
             null);
 
-    Assert.assertEquals(2, queryDataSource.getSeqResources().size());
+    Assert.assertEquals(0, queryDataSource.getSeqResources().size());
     Assert.assertEquals(0, queryDataSource.getUnseqResources().size());
     for (TsFileResource resource : queryDataSource.getSeqResources()) {
       Assert.assertTrue(resource.isClosed());
@@ -550,7 +551,7 @@ public class DataRegionTest {
             context,
             null);
 
-    Assert.assertEquals(2, queryDataSource.getSeqResources().size());
+    Assert.assertEquals(0, queryDataSource.getSeqResources().size());
     Assert.assertEquals(0, queryDataSource.getUnseqResources().size());
     for (TsFileResource resource : queryDataSource.getSeqResources()) {
       Assert.assertTrue(resource.isClosed());
@@ -638,7 +639,7 @@ public class DataRegionTest {
             context,
             null);
 
-    Assert.assertEquals(2, queryDataSource.getSeqResources().size());
+    Assert.assertEquals(0, queryDataSource.getSeqResources().size());
     Assert.assertEquals(0, queryDataSource.getUnseqResources().size());
     for (TsFileResource resource : queryDataSource.getSeqResources()) {
       Assert.assertTrue(resource.isClosed());
@@ -674,8 +675,8 @@ public class DataRegionTest {
             "root.ln22",
             context,
             null);
-    Assert.assertEquals(10, queryDataSource.getSeqResources().size());
-    Assert.assertEquals(0, queryDataSource.getUnseqResources().size());
+    Assert.assertEquals(0, queryDataSource.getSeqResources().size());
+    Assert.assertEquals(10, queryDataSource.getUnseqResources().size());
     for (TsFileResource resource : queryDataSource.getSeqResources()) {
       Assert.assertTrue(resource.isClosed());
     }
@@ -740,7 +741,8 @@ public class DataRegionTest {
             deviceId,
             context,
             null);
-    Assert.assertEquals(2, queryDataSource.getSeqResources().size());
+    Assert.assertEquals(0, queryDataSource.getSeqResources().size());
+    Assert.assertEquals(4, queryDataSource.getUnseqResources().size());
     for (TsFileResource resource : queryDataSource.getSeqResources()) {
       Assert.assertTrue(resource.isClosed());
     }
@@ -834,13 +836,14 @@ public class DataRegionTest {
 
     Thread.sleep(500);
 
-    Assert.assertEquals(1, dataRegion.getWorkSequenceTsFileProcessors().size());
+    Assert.assertEquals(0, dataRegion.getWorkSequenceTsFileProcessors().size());
+    Assert.assertEquals(1, dataRegion.getWorkUnsequenceTsFileProcessors().size());
     TsFileProcessor tsFileProcessor =
-        dataRegion.getWorkSequenceTsFileProcessors().iterator().next();
+        dataRegion.getWorkUnsequenceTsFileProcessors().iterator().next();
     FlushManager flushManager = FlushManager.getInstance();
 
     // flush the sequence memtable
-    dataRegion.timedFlushSeqMemTable();
+    dataRegion.timedFlushUnseqMemTable();
 
     // wait until memtable flush task is done
     int waitCnt = 0;
@@ -995,7 +998,7 @@ public class DataRegionTest {
       record.addTuple(DataPoint.getDataPoint(TSDataType.INT32, measurementId, String.valueOf(j)));
       dataRegion.insert(buildInsertRowNodeByTSRecord(record));
     }
-    TsFileResource tsFileResource = dataRegion.getTsFileManager().getTsFileList(true).get(0);
+    TsFileResource tsFileResource = dataRegion.getTsFileManager().getTsFileList(false).get(0);
     TsFileProcessor tsFileProcessor = tsFileResource.getProcessor();
     tsFileProcessor.getFlushingMemTable().addLast(tsFileProcessor.getWorkMemTable());
 
@@ -1017,7 +1020,7 @@ public class DataRegionTest {
       record.addTuple(DataPoint.getDataPoint(TSDataType.INT32, measurementId, String.valueOf(j)));
       dataRegion.insert(buildInsertRowNodeByTSRecord(record));
     }
-    TsFileResource tsFileResource = dataRegion.getTsFileManager().getTsFileList(true).get(0);
+    TsFileResource tsFileResource = dataRegion.getTsFileManager().getTsFileList(false).get(0);
     TsFileProcessor tsFileProcessor = tsFileResource.getProcessor();
     tsFileProcessor.getFlushingMemTable().addLast(tsFileProcessor.getWorkMemTable());
 
@@ -1043,7 +1046,7 @@ public class DataRegionTest {
       record.addTuple(DataPoint.getDataPoint(TSDataType.INT32, measurementId, String.valueOf(j)));
       dataRegion.insert(buildInsertRowNodeByTSRecord(record));
     }
-    TsFileResource tsFileResource = dataRegion.getTsFileManager().getTsFileList(true).get(0);
+    TsFileResource tsFileResource = dataRegion.getTsFileManager().getTsFileList(false).get(0);
 
     // delete data which is not in work memtable
     dataRegion.deleteByDevice(new PartialPath("root.vehicle.d0.s0"), 50, 99, 0);
@@ -1072,7 +1075,7 @@ public class DataRegionTest {
 
     Assert.assertFalse(tsFileResource.getModFile().exists());
 
-    tsFileResource = dataRegion.getTsFileManager().getTsFileList(false).get(0);
+    tsFileResource = dataRegion.getTsFileManager().getTsFileList(false).get(1);
     TsFileProcessor tsFileProcessor = tsFileResource.getProcessor();
     tsFileProcessor.getFlushingMemTable().addLast(tsFileProcessor.getWorkMemTable());
 
@@ -1104,7 +1107,7 @@ public class DataRegionTest {
       record.addTuple(DataPoint.getDataPoint(TSDataType.INT32, measurementId, String.valueOf(j)));
       dataRegion.insert(buildInsertRowNodeByTSRecord(record));
     }
-    TsFileResource tsFileResource = dataRegion.getTsFileManager().getTsFileList(true).get(0);
+    TsFileResource tsFileResource = dataRegion.getTsFileManager().getTsFileList(false).get(0);
 
     // delete data which is not in working memtable
     dataRegion.deleteByDevice(new PartialPath("root.vehicle.d0.s0"), 50, 99, 0);
@@ -1126,7 +1129,7 @@ public class DataRegionTest {
       record.addTuple(DataPoint.getDataPoint(TSDataType.INT32, measurementId, String.valueOf(j)));
       dataRegion.insert(buildInsertRowNodeByTSRecord(record));
     }
-    TsFileResource tsFileResource = dataRegion.getTsFileManager().getTsFileList(true).get(0);
+    TsFileResource tsFileResource = dataRegion.getTsFileManager().getTsFileList(false).get(0);
 
     // delete all data which is in flushing memtable
     dataRegion.deleteByDevice(new PartialPath("root.vehicle.d0.s0"), 100, 200, 0);
