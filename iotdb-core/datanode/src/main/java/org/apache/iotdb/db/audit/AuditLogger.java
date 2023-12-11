@@ -182,7 +182,7 @@ public class AuditLogger {
       case MEASUREMENT_MNODE:
       case STORAGE_GROUP_MNODE:
       case AUTO_CREATE_DEVICE_MNODE:
-      case TTL:
+      case DATABASE_TTL:
       case FLUSH:
       case CLEAR_CACHE:
       case DELETE_PARTITION:

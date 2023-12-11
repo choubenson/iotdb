@@ -39,7 +39,7 @@ public class SetTTLStatement extends Statement implements IConfigStatement {
 
   public SetTTLStatement() {
     super();
-    statementType = StatementType.TTL;
+    statementType = StatementType.DATABASE_TTL;
   }
 
   public PartialPath getDatabasePath() {

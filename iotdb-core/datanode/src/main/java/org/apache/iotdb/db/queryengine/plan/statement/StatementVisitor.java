@@ -57,6 +57,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.metadata.GetRegionIdStatem
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.GetSeriesSlotListStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.GetTimeSlotListStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.MigrateRegionStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.metadata.SetDeviceTTLStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.SetTTLStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowChildNodesStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowChildPathsStatement;
@@ -182,6 +183,10 @@ public abstract class StatementVisitor<R, C> {
   // Alter TTL
   public R visitSetTTL(SetTTLStatement setTTLStatement, C context) {
     return visitStatement(setTTLStatement, context);
+  }
+
+  public R visitSetDeviceTTL(SetDeviceTTLStatement setDeviceTTLStatement, C context) {
+    return visitStatement(setDeviceTTLStatement, context);
   }
 
   public R visitUnSetTTL(UnSetTTLStatement unSetTTLStatement, C context) {

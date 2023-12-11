@@ -64,5 +64,9 @@ public interface IDeviceInfo<N extends IMNode<N>> {
 
   void setAligned(Boolean isAligned);
 
+  void setTTL(long ttl);
+
+  long getTTL();
+
   int estimateSize();
 }

@@ -51,6 +51,8 @@ public class DeviceInfo<N extends IMNode<N>> implements IDeviceInfo<N> {
 
   private volatile Boolean isAligned = false;
 
+  private long ttl = Long.MAX_VALUE;
+
   @Override
   public void moveDataToNewMNode(IDeviceMNode<N> newMNode) {
     newMNode.setSchemaTemplateId(schemaTemplateId);
@@ -175,6 +177,16 @@ public class DeviceInfo<N extends IMNode<N>> implements IDeviceInfo<N> {
   @Override
   public void setAligned(Boolean isAligned) {
     this.isAligned = isAligned;
+  }
+
+  @Override
+  public void setTTL(long ttl) {
+    this.ttl = ttl;
+  }
+
+  @Override
+  public long getTTL() {
+    return ttl;
   }
 
   /**

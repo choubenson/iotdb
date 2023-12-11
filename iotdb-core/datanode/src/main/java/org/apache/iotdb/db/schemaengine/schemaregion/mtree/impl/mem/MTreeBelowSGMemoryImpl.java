@@ -114,7 +114,7 @@ import java.util.function.Function;
 public class MTreeBelowSGMemoryImpl {
 
   // this implementation is based on memory, thus only MTree write operation must invoke MTreeStore
-  private final MemMTreeStore store;
+  private final MemMTreeStore store; // 元数据树的根节点，从root节点下一层开始
 
   @SuppressWarnings("java:S3077")
   private volatile IMemMNode storageGroupMNode;
@@ -192,7 +192,7 @@ public class MTreeBelowSGMemoryImpl {
    * @param props props
    * @param alias alias of measurement
    */
-  public IMeasurementMNode<IMemMNode> createTimeseries(
+  public IMeasurementMNode<IMemMNode> createTimeseries( //
       PartialPath path,
       TSDataType dataType,
       TSEncoding encoding,
@@ -206,12 +206,14 @@ public class MTreeBelowSGMemoryImpl {
     }
     MetaFormatUtils.checkTimeseries(path);
     PartialPath devicePath = path.getDevicePath();
-    IMemMNode deviceParent = checkAndAutoCreateInternalPath(devicePath);
+    IMemMNode deviceParent =
+        checkAndAutoCreateInternalPath(devicePath); // 自动创建到deviceNode的上层节点之间的所有节点（不包含deviceNode）
 
     // synchronize check and add, we need addChild and add Alias become atomic operation
     // only write on mtree will be synchronized
     synchronized (this) {
-      IMemMNode device = checkAndAutoCreateDeviceNode(devicePath.getTailNode(), deviceParent);
+      IMemMNode device =
+          checkAndAutoCreateDeviceNode(devicePath.getTailNode(), deviceParent); // 创建 deviceNode
 
       MetaFormatUtils.checkTimeseriesProps(path.getFullPath(), props);
 
@@ -254,7 +256,7 @@ public class MTreeBelowSGMemoryImpl {
       if (entityMNode.isAlignedNullable() == null) {
         entityMNode.setAligned(false);
       }
-
+      // 创建deviceNode 下的 measurementNode
       IMeasurementMNode<IMemMNode> measurementMNode =
           nodeFactory.createMeasurementMNode(
               entityMNode,
@@ -359,7 +361,8 @@ public class MTreeBelowSGMemoryImpl {
     }
   }
 
-  private IMemMNode checkAndAutoCreateInternalPath(PartialPath devicePath)
+  private IMemMNode checkAndAutoCreateInternalPath(
+      PartialPath devicePath) // 获取或者自动创建到devicePath的上一层、即parent节点之间的所有中间节点
       throws MetadataException {
     String[] nodeNames = devicePath.getNodes();
     MetaFormatUtils.checkTimeseries(devicePath);
@@ -386,7 +389,8 @@ public class MTreeBelowSGMemoryImpl {
   }
 
   private IMemMNode checkAndAutoCreateDeviceNode(String deviceName, IMemMNode deviceParent)
-      throws PathAlreadyExistException, ExceedQuotaException {
+      throws PathAlreadyExistException,
+          ExceedQuotaException { // 根据 deviceParent Node 和 deviceName，创建 deviceNode
     if (deviceParent == null) {
       // device is sg
       return storageGroupMNode;
@@ -403,7 +407,10 @@ public class MTreeBelowSGMemoryImpl {
       }
       device =
           store.addChild(
-              deviceParent, deviceName, nodeFactory.createInternalMNode(deviceParent, deviceName));
+              deviceParent,
+              deviceName,
+              nodeFactory.createInternalMNode(
+                  deviceParent, deviceName)); // 创建 DeviceNode节点，加到 store元数据树下deviceParent Node的孩子里
     }
 
     if (device.isMeasurement()) {
@@ -674,6 +681,33 @@ public class MTreeBelowSGMemoryImpl {
       return deviceMNode.isDevice();
     } catch (MetadataException e) {
       return false;
+    }
+  }
+
+  public boolean setDeviceTTL(PartialPath deviceId, long ttl) {
+    IMemMNode deviceMNode;
+    try {
+      deviceMNode = getNodeByPath(deviceId);
+      if (deviceMNode.isDevice()) {
+        deviceMNode.getAsDeviceMNode().setTTL(ttl);
+        return true;
+      } else {
+        // not a device
+        throw new MetadataException("Not a device " + deviceId.getFullPath());
+      }
+    } catch (MetadataException e) {
+      return false;
+    }
+  }
+
+  public long getDeviceTTL(PartialPath deviceId) throws MetadataException {
+    IMemMNode deviceMNode;
+    deviceMNode = getNodeByPath(deviceId);
+    if (deviceMNode.isDevice()) {
+      return deviceMNode.getAsDeviceMNode().getTTL();
+    } else {
+      // not a device
+      throw new MetadataException("Not a device " + deviceId.getFullPath());
     }
   }
 

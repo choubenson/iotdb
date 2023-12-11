@@ -32,7 +32,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.emptySet;
 
-public class MemMNodeContainer extends ConcurrentHashMap<String, IMemMNode>
+public class MemMNodeContainer
+    extends ConcurrentHashMap<String, IMemMNode> // 内存里每个节点的容器，用来存放其所有的孩子节点
     implements IMNodeContainer<IMemMNode> {
 
   private static final IMNodeContainer<IMemMNode> EMPTY_CONTAINER =

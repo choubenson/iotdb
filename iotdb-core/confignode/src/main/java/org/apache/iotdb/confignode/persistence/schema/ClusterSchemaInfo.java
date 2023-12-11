@@ -105,13 +105,13 @@ public class ClusterSchemaInfo implements SnapshotProcessor {
 
   // Database read write lock
   private final ReentrantReadWriteLock databaseReadWriteLock;
-  private final ConfigMTree mTree;
+  private final ConfigMTree mTree; // 只有 database 的元数据树
 
   private static final String SNAPSHOT_FILENAME = "cluster_schema.bin";
 
   private final String ERROR_NAME = "Error Database name";
 
-  private final TemplateTable templateTable;
+  private final TemplateTable templateTable; // template 相关元数据
 
   private final TemplatePreSetTable templatePreSetTable;
 

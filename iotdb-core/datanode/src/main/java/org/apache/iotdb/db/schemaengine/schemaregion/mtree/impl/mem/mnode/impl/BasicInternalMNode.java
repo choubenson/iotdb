@@ -63,7 +63,7 @@ public class BasicInternalMNode extends BasicMNode implements IInternalMNode<IMe
 
   /** Get the child with the name. */
   @Override
-  public IMemMNode getChild(String name) {
+  public IMemMNode getChild(String name) { // 获取当前节点名为name的孩子节点
     IMemMNode child = null;
     if (children != null) {
       child = children.get(name);

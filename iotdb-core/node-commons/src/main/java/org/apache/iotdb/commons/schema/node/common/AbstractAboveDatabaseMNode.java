@@ -28,10 +28,12 @@ import org.apache.iotdb.commons.schema.node.role.IMeasurementMNode;
 import org.apache.iotdb.commons.schema.node.utils.IMNodeContainer;
 import org.apache.iotdb.commons.schema.node.visitor.MNodeVisitor;
 
-public abstract class AbstractAboveDatabaseMNode<N extends IMNode<N>, BasicNode extends IMNode<N>>
+public abstract class AbstractAboveDatabaseMNode<
+        N extends IMNode<N>,
+        BasicNode extends IMNode<N>> // DataBase 的上层节点，例如root.ss.sg是database，则上层节点有root和ss
     implements IMNode<N> {
 
-  protected final BasicNode basicMNode;
+  protected final BasicNode basicMNode; // 具体上层是哪个节点，如 root、ss
 
   public AbstractAboveDatabaseMNode(BasicNode basicMNode) {
     this.basicMNode = basicMNode;

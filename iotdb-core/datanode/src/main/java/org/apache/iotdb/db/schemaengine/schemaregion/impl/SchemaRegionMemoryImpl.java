@@ -543,7 +543,7 @@ public class SchemaRegionMemoryImpl implements ISchemaRegion {
       SchemaUtils.checkDataTypeWithEncoding(plan.getDataType(), plan.getEncoding());
 
       TSDataType type = plan.getDataType();
-      // create time series in MTree
+      // create time series in MTree， 返回measurementNode，即叶子节点
       leafMNode =
           mtree.createTimeseries(
               path,
@@ -877,7 +877,7 @@ public class SchemaRegionMemoryImpl implements ISchemaRegion {
   }
   // endregion
 
-  // region Interfaces for get and auto create device
+  // region Interfaces for device operations
   /**
    * get device node, if the schema region is not set, create it when autoCreateSchema is true
    *
@@ -899,6 +899,11 @@ public class SchemaRegionMemoryImpl implements ISchemaRegion {
     } catch (IOException e) {
       throw new MetadataException(e);
     }
+  }
+
+  private boolean setDeviceTTL(PartialPath devicePath, long ttl) {
+    // TODO
+    return true;
   }
   // endregion
 
@@ -934,6 +939,7 @@ public class SchemaRegionMemoryImpl implements ISchemaRegion {
     }
   }
 
+  // endregion
   // endregion
   // endregion
 

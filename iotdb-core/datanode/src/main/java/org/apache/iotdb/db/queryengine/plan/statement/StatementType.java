@@ -110,7 +110,8 @@ public enum StatementType {
   STORAGE_GROUP_MNODE,
   AUTO_CREATE_DEVICE_MNODE,
 
-  TTL,
+  DATABASE_TTL,
+  DEVICE_TTL,
   KILL,
   FLUSH,
   TRACING,

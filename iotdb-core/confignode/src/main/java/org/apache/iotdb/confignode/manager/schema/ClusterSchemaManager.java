@@ -409,7 +409,7 @@ public class ClusterSchemaManager {
     // Map<DataNodeId, StorageGroupPatterns>
     Map<Integer, List<String>> dnlToSgMap = new ConcurrentHashMap<>();
     for (String storageGroup : storageSchemaMap.keySet()) {
-      // Get related DataNodes
+      // Get related DataNodes   获取存在sg的所有dataNode
       Set<TDataNodeLocation> dataNodeLocations =
           getPartitionManager()
               .getDatabaseRelatedDataNodes(storageGroup, TConsensusGroupType.DataRegion);

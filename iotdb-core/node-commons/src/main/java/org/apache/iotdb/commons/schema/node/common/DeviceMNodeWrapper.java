@@ -252,6 +252,16 @@ public class DeviceMNodeWrapper<N extends IMNode<N>, BasicNode extends IInternal
   }
 
   @Override
+  public void setTTL(long ttl) {
+    basicMNode.getDeviceInfo().setTTL(ttl);
+  }
+
+  @Override
+  public long getTTL() {
+    return basicMNode.getDeviceInfo().getTTL();
+  }
+
+  @Override
   public int estimateSize() {
     return basicMNode.estimateSize();
   }

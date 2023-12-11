@@ -25,7 +25,7 @@ import org.apache.iotdb.db.queryengine.plan.analyze.QueryType;
  * ConfigStatement represents the statement which should be executed by ConfigNode All the
  * statements which need to be transformed into IConfigTask should extend this class
  */
-public interface IConfigStatement {
+public interface IConfigStatement { // 在 ConfigNode上执行的statement
 
   /**
    * Determine whether the operation to be performed is read or write

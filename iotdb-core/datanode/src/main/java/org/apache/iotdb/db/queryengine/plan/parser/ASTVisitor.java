@@ -138,6 +138,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.metadata.GetRegionIdStatem
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.GetSeriesSlotListStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.GetTimeSlotListStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.MigrateRegionStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.metadata.SetDeviceTTLStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.SetTTLStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowChildNodesStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowChildPathsStatement;
@@ -2435,6 +2436,16 @@ public class ASTVisitor extends IoTDBSqlParserBaseVisitor<Statement> {
         databaseSchemaStatement.setDataRegionGroupNum(dataRegionGroupNum);
       }
     }
+  }
+
+  @Override
+  public Statement visitSetDeviceTTL(IoTDBSqlParser.SetDeviceTTLContext ctx){
+    SetDeviceTTLStatement setDeviceTTLStatement  = new SetDeviceTTLStatement();
+    PartialPath path = parsePrefixPath(ctx.prefixPath());
+    long ttl = Long.parseLong(ctx.INTEGER_LITERAL().getText());
+    setDeviceTTLStatement.setDevicePath(path);
+    setDeviceTTLStatement.setTtl(ttl);
+    return setDeviceTTLStatement;
   }
 
   @Override

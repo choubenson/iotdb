@@ -44,13 +44,13 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 /** This is a memory-based implementation of IMTreeStore. All MNodes are stored in memory. */
-public class MemMTreeStore implements IMTreeStore<IMemMNode> {
+public class MemMTreeStore implements IMTreeStore<IMemMNode> { // 内存里的元数据数，存放着所有的节点
 
   private final MemSchemaRegionStatistics regionStatistics;
   private final IMNodeFactory<IMemMNode> nodeFactory =
       MNodeFactoryLoader.getInstance().getMemMNodeIMNodeFactory();;
 
-  private IMemMNode root;
+  private IMemMNode root; // 元数据树的根节点
 
   public MemMTreeStore(PartialPath rootPath, MemSchemaRegionStatistics regionStatistics) {
     this.root =
@@ -121,7 +121,7 @@ public class MemMTreeStore implements IMTreeStore<IMemMNode> {
   }
 
   @Override
-  public IMemMNode addChild(IMemMNode parent, String childName, IMemMNode child) {
+  public IMemMNode addChild(IMemMNode parent, String childName, IMemMNode child) { //
     IMemMNode result = parent.addChild(childName, child);
     if (result == child) {
       requestMemory(child.estimateSize());
@@ -140,7 +140,7 @@ public class MemMTreeStore implements IMTreeStore<IMemMNode> {
   @Override
   public IDeviceMNode<IMemMNode> setToEntity(IMemMNode node) {
     int rawSize = node.estimateSize();
-    if (MNodeUtils.setToEntity(node)) {
+    if (MNodeUtils.setToEntity(node)) { // 新增一个设备
       regionStatistics.addDevice();
       requestMemory(node.estimateSize() - rawSize);
     }

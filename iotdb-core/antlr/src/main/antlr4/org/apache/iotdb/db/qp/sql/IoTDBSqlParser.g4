@@ -47,7 +47,7 @@ ddlStatement
     | setSchemaTemplate | unsetSchemaTemplate
     | alterSchemaTemplate
     // TTL
-    | setTTL | unsetTTL | showTTL | showAllTTL
+    | setTTL | unsetTTL | showTTL | showAllTTL | setDeviceTTL | unsetDeviceTTL | showDeviceTTL | showAllDeviceTTL
     // Function
     | createFunction | dropFunction | showFunctions
     // Trigger
@@ -319,6 +319,26 @@ showTTL
 // ---- Show All TTL
 showAllTTL
     : SHOW ALL TTL
+    ;
+
+// ---- Set Device TTL
+setDeviceTTL
+    : SET TTL TO DEVICE path=prefixPath time=INTEGER_LITERAL
+    ;
+
+// ---- Unset Device TTL
+unsetDeviceTTL
+    : UNSET TTL TO DEVICE path=prefixPath
+    ;
+
+// ---- Show Device TTL
+showDeviceTTL
+    : SHOW DEVICE TTL ON prefixPath (COMMA prefixPath)*
+    ;
+
+// ---- Show All Device TTL
+showAllDeviceTTL
+    : SHOW ALL DEVICE TTL
     ;
 
 

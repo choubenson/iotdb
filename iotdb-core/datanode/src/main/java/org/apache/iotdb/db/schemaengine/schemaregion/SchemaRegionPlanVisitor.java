@@ -31,6 +31,7 @@ import org.apache.iotdb.db.schemaengine.schemaregion.write.req.IPreDeactivateTem
 import org.apache.iotdb.db.schemaengine.schemaregion.write.req.IPreDeleteTimeSeriesPlan;
 import org.apache.iotdb.db.schemaengine.schemaregion.write.req.IRollbackPreDeactivateTemplatePlan;
 import org.apache.iotdb.db.schemaengine.schemaregion.write.req.IRollbackPreDeleteTimeSeriesPlan;
+import org.apache.iotdb.db.schemaengine.schemaregion.write.req.ISetDeviceTTLPlan;
 import org.apache.iotdb.db.schemaengine.schemaregion.write.req.view.IAlterLogicalViewPlan;
 import org.apache.iotdb.db.schemaengine.schemaregion.write.req.view.ICreateLogicalViewPlan;
 import org.apache.iotdb.db.schemaengine.schemaregion.write.req.view.IDeleteLogicalViewPlan;
@@ -66,6 +67,10 @@ public abstract class SchemaRegionPlanVisitor<R, C> {
 
   public R visitCreateTimeSeries(ICreateTimeSeriesPlan createTimeSeriesPlan, C context) {
     return visitSchemaRegionPlan(createTimeSeriesPlan, context);
+  }
+
+  public R visitSetDeviceTTL(ISetDeviceTTLPlan setDeviceTTLPlan, C context) {
+    return visitSetDeviceTTL(setDeviceTTLPlan, context);
   }
 
   public R visitDeleteTimeSeries(IDeleteTimeSeriesPlan deleteTimeSeriesPlan, C context) {

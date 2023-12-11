@@ -27,7 +27,7 @@ public class UnSetTTLStatement extends SetTTLStatement {
   public UnSetTTLStatement() {
     super();
     ttl = Long.MAX_VALUE;
-    statementType = StatementType.TTL;
+    statementType = StatementType.DATABASE_TTL;
   }
 
   @Override

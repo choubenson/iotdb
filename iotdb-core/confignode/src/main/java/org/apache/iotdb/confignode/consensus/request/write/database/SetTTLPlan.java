@@ -30,7 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class SetTTLPlan extends ConfigPhysicalPlan {
+public class SetTTLPlan extends ConfigPhysicalPlan { // 设置 database ttl 的计划
 
   private String[] databasePathPattern;
 

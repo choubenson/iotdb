@@ -116,6 +116,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.metadata.CountTimeSeriesSt
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.CreateAlignedTimeSeriesStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.CreateMultiTimeSeriesStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.CreateTimeSeriesStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.metadata.SetDeviceTTLStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowChildNodesStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowChildPathsStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowClusterStatement;
@@ -2723,6 +2724,19 @@ public class AnalyzeVisitor extends StatementVisitor<Analysis, MPPQueryContext> 
     analysis.setStatement(showDatabaseStatement);
     analysis.setRespDatasetHeader(
         DatasetHeaderFactory.getShowStorageGroupHeader(showDatabaseStatement.isDetailed()));
+    return analysis;
+  }
+
+  @Override
+  public Analysis visitSetDeviceTTL(SetDeviceTTLStatement setDeviceTTLStatement, MPPQueryContext context){
+    context.setQueryType(QueryType.WRITE);
+    Analysis analysis = new Analysis();
+    analysis.setStatement(setDeviceTTLStatement);
+    PathPatternTree patternTree = new PathPatternTree();
+    patternTree.appendFullPath(setDeviceTTLStatement.getDevicePath());
+    SchemaPartition schemaPartitionInfo;
+    schemaPartitionInfo = partitionFetcher.getSchemaPartition(patternTree);
+    analysis.setSchemaPartitionInfo(schemaPartitionInfo);
     return analysis;
   }
 
